@@ -33,4 +33,8 @@ The second source batch adds a direct HealthKit overview, explicit Health-derive
 
 ## Build spending
 
+The second native job, `37991960595` at source `28e2f6a`, succeeded: 44 shared-core tests on macOS, iPhone and Watch compilation, two iOS platform tests (real loopback callback and signature validation), and two native UI tests. The actual platform tests took about 0.15 seconds and UI tests about 43 seconds. Xcode then spent 600 seconds timing out during optional simulator diagnostics; subsequent runs disable that diagnostics collection while retaining logs, results, and screenshots. This job used 19 rounded minutes, bringing known usage to 49 minutes, about $3.04 if entirely billable.
+
+Screenshot review caught a catalog total of zero bytes even though its individual file sizes/hashes were correct. The totals are repaired and a bundled-catalog invariant test is added. UI contrast and code-block presentation are being refined. The next candidate also adds saved-memory editing with per-note connected-model permission, protection for answers derived from on-device-only memory, artifact-draft recovery, interruptible credential-refresh waiting, a Siri/Shortcuts entry point, and direct Health refresh tools within authorized conversations. The current Windows suite has 50 passing tests. These later changes still need their own native validation.
+
 The prior verified estimate was 23 rounded Mac minutes, approximately $1.43 if entirely billable, against Jacob's authorized $5 validation budget. Before dispatching further jobs, inspect current run history. Bound each new Mac job's timeout so the remaining authorization cannot be consumed by an unbounded retry loop. No new cloud workspace or paid service is being provisioned.

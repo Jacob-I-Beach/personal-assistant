@@ -30,16 +30,19 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var providerID: String?
     public var continuation: ProviderContinuation?
     public var containsHealthData: Bool
+    public var containsLocalOnlyContext: Bool
 
     public init(id: UUID = UUID(), role: MessageRole, text: String, state: MessageState = .complete,
                 captureIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
-                providerID: String? = nil, continuation: ProviderContinuation? = nil, containsHealthData: Bool = false) {
+                providerID: String? = nil, continuation: ProviderContinuation? = nil, containsHealthData: Bool = false,
+                containsLocalOnlyContext: Bool = false) {
         self.id = id; self.role = role; self.text = text; self.createdAt = Date(); self.state = state
         self.captureIDs = captureIDs; self.toolCalls = toolCalls; self.toolCallID = toolCallID
         self.providerID = providerID; self.continuation = continuation
         self.containsHealthData = containsHealthData
+        self.containsLocalOnlyContext = containsLocalOnlyContext
     }
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
@@ -49,6 +52,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         toolCallID = try c.decodeIfPresent(String.self, forKey: .toolCallID); providerID = try c.decodeIfPresent(String.self, forKey: .providerID)
         continuation = try c.decodeIfPresent(ProviderContinuation.self, forKey: .continuation)
         containsHealthData = try c.decodeIfPresent(Bool.self, forKey: .containsHealthData) ?? false
+        containsLocalOnlyContext = try c.decodeIfPresent(Bool.self, forKey: .containsLocalOnlyContext) ?? false
     }
 }
 

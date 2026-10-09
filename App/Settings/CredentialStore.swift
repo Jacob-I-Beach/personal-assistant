@@ -37,6 +37,12 @@ enum CredentialStore {
     private struct CredentialError: LocalizedError {
         let status: OSStatus
         init(_ status: OSStatus) { self.status = status }
-        var errorDescription: String? { "Credential storage failed (\(status))." }
+        var errorDescription: String? {
+            switch status {
+            case errSecInteractionNotAllowed: "Unlock your iPhone, then try connecting again. Secure account storage is locked."
+            case errSecMissingEntitlement: "This build is missing the signing entitlement for secure account storage. Install a correctly signed build before connecting ChatGPT."
+            default: "Secure account storage is unavailable (\(status)). Your conversations remain available."
+            }
+        }
     }
 }

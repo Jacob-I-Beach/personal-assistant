@@ -64,7 +64,22 @@ public struct HealthOverview: Codable, Sendable {
         return total
     }
     public func discussionText() throws -> String {
-        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return "Help me understand this selected Health overview and plan my day. Cite the dates and coverage, distinguish observations from interpretations, and use the supplied calculated values.\n\n" + String(decoding: try encoder.encode(self), as: UTF8.self)
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: timeZoneIdentifier); formatter.dateFormat = "yyyy-MM-dd"
+        func number(_ value: Double?, decimals: Int) -> String {
+            guard let value else { return "not shared" }
+            return String(format: "%.*f", locale: Locale(identifier: "en_US_POSIX"), decimals, value)
+        }
+        var lines = ["Selected Health overview (\(source)).", "Time zone: \(timeZoneIdentifier). Updated: \(ISO8601DateFormatter().string(from: rangeEnd)).",
+                     "Date | Steps | Recorded sleep hours"]
+        lines += days.map { "\(formatter.string(from: $0.date)) | \(number($0.steps, decimals: 0)) | \(number($0.sleepHours, decimals: 2))" }
+        if workouts.isEmpty { lines.append("No workout records were shared for this period.") }
+        else {
+            lines.append("Latest \(min(workouts.count, 8)) of \(workouts.count) shared workouts:")
+            lines += workouts.prefix(8).map { "\(formatter.string(from: $0.start)): \($0.activity), \(number($0.minutes, decimals: 1)) min; source: \($0.source)." }
+        }
+        if !sleepSources.isEmpty { lines.append("Sleep sources: " + sleepSources.joined(separator: ", ")) }
+        lines.append(coverageNote)
+        return "Help me understand this overview and plan my day. Cite dates and coverage, distinguish observations from interpretation, and use the calculated values below.\n\n" + lines.joined(separator: "\n")
     }
 }

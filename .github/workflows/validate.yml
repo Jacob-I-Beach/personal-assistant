@@ -81,7 +81,7 @@ jobs:
           trap 'xcrun simctl shutdown "$simulator_id" || true' EXIT
           xcrun simctl bootstatus "$simulator_id" -b
           set -o pipefail
-          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots
         if: always()
         run: |
@@ -93,6 +93,12 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Release -destination 'generic/platform=iOS' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/device-build.log
+          # An ad-hoc seal carries requested capabilities into a signing tool; it is not installable Apple signing.
+          app_path="DerivedData/Build/Products/Release-iphoneos/PersonalAssistant.app"
+          if [ -d "$app_path/Watch/PersonalAssistantWatch.app" ]; then
+            codesign --force --sign - "$app_path/Watch/PersonalAssistantWatch.app"
+          fi
+          codesign --force --sign - --entitlements App/PersonalAssistant.entitlements "$app_path"
           mkdir -p .build/device/Payload
           ditto DerivedData/Build/Products/Release-iphoneos/PersonalAssistant.app .build/device/Payload/PersonalAssistant.app
           (cd .build/device && zip -qr PersonalAssistant-unsigned.ipa Payload)

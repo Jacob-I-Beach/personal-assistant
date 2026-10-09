@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import Foundation
+import UIKit
 @preconcurrency import Speech
 
 @MainActor
@@ -24,6 +25,7 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
         super.init()
         speaker.delegate = self
         interruption = NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+            .merge(with: NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification))
             .receive(on: DispatchQueue.main).sink { [weak self] _ in
                 Task { @MainActor in self?.stopAll() }
             }

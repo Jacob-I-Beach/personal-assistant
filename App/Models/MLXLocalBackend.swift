@@ -82,6 +82,7 @@ actor MLXLocalBackend: ModelBackend {
         defer { if !committed { try? FileManager.default.removeItem(at: destination) } }
         let total = max(Int64(1), required.reduce(0) { $0 + $1.bytes })
         var copied: Int64 = 0
+        var lastProgress = Date.distantPast
         for file in required {
             try Task.checkCancellation()
             let input = source.appendingPathComponent(file.name).resolvingSymlinksInPath()
@@ -100,7 +101,10 @@ actor MLXLocalBackend: ModelBackend {
                     try Task.checkCancellation()
                     written += Int64(chunk.count)
                     guard written <= file.bytes else { throw AssistantError.provider("A model file changed during import.") }
-                    try writer.write(contentsOf: chunk); copied += Int64(chunk.count); progress(Double(copied) / Double(total))
+                    try writer.write(contentsOf: chunk); copied += Int64(chunk.count)
+                    if Date().timeIntervalSince(lastProgress) >= 0.15 || copied == total {
+                        progress(Double(copied) / Double(total)); lastProgress = Date()
+                    }
                 }
                 try reader.close(); try writer.close()
             } catch { try? reader.close(); try? writer.close(); throw error }

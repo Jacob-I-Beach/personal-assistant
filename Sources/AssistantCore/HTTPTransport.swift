@@ -74,6 +74,7 @@ public enum EndpointPolicy {
         let parts = host.split(separator: ".", omittingEmptySubsequences: false)
         let octets = parts.compactMap { Int($0) }
         guard parts.count == 4, octets.count == 4, octets.allSatisfy({ (0...255).contains($0) }) else { return false }
+        guard zip(parts, octets).allSatisfy({ String($0.1) == $0.0 }) else { return false }
         return octets[0] == 10 || (octets[0] == 172 && (16...31).contains(octets[1]))
             || (octets[0] == 192 && octets[1] == 168)
     }

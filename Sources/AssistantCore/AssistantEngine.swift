@@ -22,12 +22,14 @@ public actor AssistantEngine {
     }
 
     public nonisolated func respond(conversation: Conversation, text: String, captureIDs: [UUID],
-                                    backend: any ModelBackend, containsHealthData: Bool = false) -> AsyncThrowingStream<AssistantEvent, any Error> {
+                                    backend: any ModelBackend, containsHealthData: Bool = false, additionalTools: [ToolDefinition] = [],
+                                    additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: text, captureIDs: captureIDs,
-                                       backend: backend, containsHealthData: containsHealthData, output: continuation)
+                                       backend: backend, containsHealthData: containsHealthData, additionalTools: additionalTools,
+                                       additionalExecutor: additionalExecutor, output: continuation)
                     continuation.finish()
                 } catch { continuation.finish(throwing: error) }
             }
@@ -36,7 +38,9 @@ public actor AssistantEngine {
     }
 
     private func run(conversation original: Conversation, text: String, captureIDs: [UUID],
-                     backend: any ModelBackend, containsHealthData: Bool, output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
+                     backend: any ModelBackend, containsHealthData: Bool, additionalTools: [ToolDefinition],
+                     additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?,
+                     output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
         guard activeRun == nil else { throw AssistantError.busy }
         let runID = UUID(); activeRun = runID
         defer {
@@ -59,18 +63,25 @@ public actor AssistantEngine {
         if conversation.title == "New conversation" { conversation.title = String(text.prefix(65)) }
         try await store.save(conversation)
         output.yield(.conversation(conversation))
-        let broker = AssistantTools(store: store, conversationID: conversation.id, captureIDs: conversation.attachedCaptureIDs, sandbox: sandbox)
+        let availableMemories = MemoryContext.eligible(try await store.memories(), conversationID: conversation.id, remote: backend.networkDestination != nil)
+        var localOnlyContext = backend.networkDestination == nil && (availableMemories.contains { !$0.allowsConnectedModels } || conversation.messages.contains(where: \.containsLocalOnlyContext))
+        let broker = AssistantTools(store: store, conversationID: conversation.id, captureIDs: conversation.attachedCaptureIDs, sandbox: sandbox,
+                                    memoryEnabled: !availableMemories.isEmpty, remote: backend.networkDestination != nil,
+                                    artifactLocalOnly: localOnlyContext, healthData: conversation.containsHealthData,
+                                    additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor)
         var executedCallIDs = Set<String>()
 
         for _ in 0..<6 {
             try Task.checkCancellation()
-            var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits)
+            var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil)
+            localOnlyContext = localOnlyContext || request.containsLocalOnlyContext
+            if localOnlyContext { await broker.protectLocalContext() }
             request.toolExecutor = { call in
                 output.yield(.activity("Running \(call.name.replacingOccurrences(of: "_", with: " "))"))
                 return try await broker.execute(call)
             }
             output.yield(.activity("Generating a response"))
-            var assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData)
+            var assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData, containsLocalOnlyContext: localOnlyContext)
             conversation.messages.append(assistant)
             var index = conversation.messages.count - 1
             try await store.save(conversation)
@@ -84,14 +95,16 @@ public actor AssistantEngine {
                     case .textDelta(let text): assistant.text += text
                     case .toolCall(let call): assistant.toolCalls.append(call)
                     case .executedTool(let call, let result):
+                        localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
+                        try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
                         guard result.callID == call.id, result.name == call.name,
                               executedCallIDs.insert(call.id).inserted, executedCallIDs.count <= 24 else {
                             throw AssistantError.invalidTool("The native model returned an invalid tool receipt.")
                         }
                         assistant.toolCalls.append(call); assistant.state = .complete
                         conversation.messages[index] = assistant
-                        conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id, containsHealthData: conversation.containsHealthData))
-                        assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData)
+                        conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id, containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
+                        assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData, containsLocalOnlyContext: localOnlyContext)
                         conversation.messages.append(assistant); index = conversation.messages.count - 1
                         try await store.save(conversation)
                         output.yield(.toolResult(result))
@@ -131,8 +144,10 @@ public actor AssistantEngine {
                 }
                 output.yield(.activity("Running \(call.name.replacingOccurrences(of: "_", with: " "))"))
                 let result = try await broker.execute(call)
+                localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
+                try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
                 try Task.checkCancellation()
-                conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id, containsHealthData: conversation.containsHealthData))
+                conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id, containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
                 try await store.save(conversation)
                 output.yield(.toolResult(result)); output.yield(.conversation(conversation))
             }
@@ -140,11 +155,27 @@ public actor AssistantEngine {
         throw AssistantError.invalidTool("The model reached the tool-round limit. All completed results were saved.")
     }
 
-    private func request(for conversation: Conversation, tools: [ToolDefinition], limits: ContextLimits) async throws -> ModelRequest {
+    private func applyHealthAuthorization(_ result: ToolResult, destination: String?, conversation: inout Conversation) throws {
+        guard result.containsHealthData == true, let destination else { return }
+        guard conversation.allowedHealthDestinations.contains(destination) || result.authorizedHealthDestination == destination else {
+            throw AssistantError.networkNotAuthorized
+        }
+        conversation.allowedHealthDestinations.insert(destination)
+    }
+
+    private func request(for conversation: Conversation, tools: [ToolDefinition], limits: ContextLimits, remote: Bool) async throws -> ModelRequest {
         var inputs: [ModelInputMessage] = []
-        let selection = try ContextPlanner.select(conversation.messages, instructions: AssistantInstructions.base, tools: tools, limits: limits)
-        let answeredIDs = Set(conversation.messages.filter { $0.role == .tool }.compactMap(\.toolCallID))
-        let validCallIDs = Set(conversation.messages.flatMap(\.toolCalls).map(\.id)).intersection(answeredIDs)
+        let notes = try await store.memories()
+        var instructions = AssistantInstructions.base + MemoryContext.instructions(notes, query: conversation.messages.last(where: { $0.role == .user })?.text ?? "",
+            conversationID: conversation.id, remote: remote)
+        instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())). Time zone: \(TimeZone.current.identifier)."
+        let eligibleMessages = conversation.messages.filter { !remote || !$0.containsLocalOnlyContext }
+        if eligibleMessages.count != conversation.messages.count {
+            instructions += "\nSome earlier messages relied on on-device-only context and are withheld. Do not reconstruct them; request additional shared context if needed."
+        }
+        let selection = try ContextPlanner.select(eligibleMessages, instructions: instructions, tools: tools, limits: limits)
+        let answeredIDs = Set(eligibleMessages.filter { $0.role == .tool }.compactMap(\.toolCallID))
+        let validCallIDs = Set(eligibleMessages.flatMap(\.toolCalls).map(\.id)).intersection(answeredIDs)
         for message in selection.messages {
             if message.role == .tool, !validCallIDs.contains(message.toolCallID ?? "") { continue }
             // Incomplete assistant text can be useful context, but unexecuted calls must never be reissued from disk.
@@ -165,6 +196,9 @@ public actor AssistantEngine {
             inputs.append(ModelInputMessage(message: normalized, images: images))
         }
         let notice = selection.omittedMessageCount == 0 ? "" : "\n\(selection.omittedMessageCount) older messages are outside this working context. They remain saved and can be searched with search_history; do not invent their contents."
-        return ModelRequest(instructions: AssistantInstructions.base + notice, messages: inputs, tools: tools)
+        var request = ModelRequest(instructions: instructions + notice, messages: inputs, tools: tools)
+        request.containsLocalOnlyContext = !remote && (MemoryContext.eligible(notes, conversationID: conversation.id, remote: false).contains { !$0.allowsConnectedModels }
+            || eligibleMessages.contains(where: \.containsLocalOnlyContext))
+        return request
     }
 }

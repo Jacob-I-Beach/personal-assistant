@@ -4,6 +4,10 @@ import HealthKit
 
 @MainActor
 final class HealthOverviewService {
+    nonisolated static let tool = ToolDefinition(name: "read_health_overview",
+        description: "Read a fresh seven-day overview of the Health data this app is allowed to read: steps, recorded sleep, and workouts. Missing records do not mean zero or denied permission. Use days='7'. Connected models require this conversation's explicit Health-sharing permission.",
+        parameters: .object(["type": .string("object"), "properties": .object(["days": .object(["type": .string("string"), "description": .string("Use 7 for the supported seven-day overview."), "enum": .array([.string("7")])])]),
+                            "required": .array([.string("days")]), "additionalProperties": .bool(false)]))
     private let store = HKHealthStore()
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
     func requestAccess() async throws {

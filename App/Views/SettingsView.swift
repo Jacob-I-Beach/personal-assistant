@@ -14,7 +14,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(account.label).font(.subheadline)
                             if account.isConnected {
-                                Button("Sign out", role: .destructive) { Task { await model.disconnectAccount(account) } }.disabled(model.isRunning)
+                                Button(model.isManagingAccount ? "Signing out…" : "Sign out", role: .destructive) { Task { await model.disconnectAccount(account) } }.disabled(model.isRunning || model.isManagingAccount || model.isConnecting)
                             } else { Button("Reconnect") { model.connectChatGPT(clientID: account.id) } }
                         }
                     }
@@ -28,10 +28,12 @@ struct SettingsView: View {
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
+                    Toggle("Allow assistant Health reads", isOn: $draft.healthToolsEnabled)
+                    Text("Controls new Health overview queries. Review the shared data types in Health overview. Existing conversation records are kept until you remove them.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Work only on this device", isOn: $draft.localOnly)
                     Text("Blocks connected models and account-model refreshes. Turn this off temporarily when downloading model files.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Include user data in device backups", isOn: $draft.includeInDeviceBackup)
-                    Text("Conversations, captures, and files stay excluded until you enable this. Model weights are always excluded. Account credentials remain in this device's Keychain.").font(.footnote).foregroundStyle(.secondary)
+                    Toggle("Include user data in device backups", isOn: $draft.includeInDeviceBackup).disabled(model.libraryContainsHealthData)
+                    Text(model.libraryContainsHealthData ? "This library contains Health-derived information and stays excluded from device backups. Export selected items when needed." : "Conversations, memories, captures, and files stay excluded until you enable this. Model weights are always excluded. Account credentials remain in this device's Keychain.").font(.footnote).foregroundStyle(.secondary)
                     Button("Revoke network access for this conversation") { model.revokeNetworkConsent() }.disabled(model.isRunning)
                 }
                 Section {
@@ -74,6 +76,7 @@ struct SettingsView: View {
                 draft.chatGPTModel = model.settings.chatGPTModel
                 draft.choice = model.settings.choice
             }
+            .onChange(of: model.libraryContainsHealthData) { _, contains in if contains { draft.includeInDeviceBackup = false } }
             .alert("Settings saved", isPresented: $showSaved) { Button("Done") { dismiss() } }
         }
     }

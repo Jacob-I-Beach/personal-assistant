@@ -56,4 +56,11 @@ final class SandboxTests: XCTestCase, @unchecked Sendable {
         let next = try await sandbox.run(code: "return {result: typeof a};")
         XCTAssertEqual(next.result, .string("undefined"))
     }
+    func testInvalidNumericAndUndefinedResultsAreNotSilentlyConvertedToNull() async throws {
+        let sandbox = JavaScriptSandbox()
+        for code in ["return {result: NaN};", "return {result: Infinity};", "return {result: undefined};", "return {result: () => 1};", "return (async () => ({result: 1}))();", "return {result: Promise.resolve(1)};"] {
+            do { _ = try await sandbox.run(code: code); XCTFail("Invalid output was accepted") }
+            catch { XCTAssertTrue(error is ScriptError) }
+        }
+    }
 }

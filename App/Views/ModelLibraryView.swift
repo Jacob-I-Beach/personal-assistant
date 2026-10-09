@@ -22,6 +22,7 @@ struct ModelLibraryView: View {
                                 Button(account.label) { Task { await model.switchAccount(account) } }
                             }
                             Button("Add another account") { model.connectChatGPT() }
+                            if let id = model.settings.chatGPTAccountID { Button("Reconnect selected account") { model.connectChatGPT(clientID: id) } }
                         } label: {
                             Label(model.accounts.first { $0.id == model.settings.chatGPTAccountID }?.label ?? "Choose an account", systemImage: "person.crop.circle")
                                 .font(.subheadline)
@@ -42,6 +43,9 @@ struct ModelLibraryView: View {
                         Text("Sign in through OpenAI. Your password stays in the authentication browser.").font(.caption).foregroundStyle(.secondary)
                     }
                     if model.isConnecting { Button("Cancel sign-in", role: .cancel) { model.cancelConnection() } }
+                    ForEach(model.accounts.filter { !$0.isConnected }) { account in
+                        Button(account.label) { model.connectChatGPT(clientID: account.id) }.disabled(model.isConnecting || model.isRunning)
+                    }
                 }
                 Section("Apple intelligence") {
                     appleRow(model.appleDevice, location: .device)

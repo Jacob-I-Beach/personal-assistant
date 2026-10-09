@@ -28,10 +28,11 @@ struct ModelSettings: Codable, Equatable {
     var chatGPTAccountID: String?
     var includeInDeviceBackup = false
     var localOnly = false
+    var healthToolsEnabled = false
 
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
-        case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly
+        case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -48,6 +49,7 @@ struct ModelSettings: Codable, Equatable {
         chatGPTAccountID = try values.decodeIfPresent(String.self, forKey: .chatGPTAccountID)
         includeInDeviceBackup = try values.decodeIfPresent(Bool.self, forKey: .includeInDeviceBackup) ?? false
         localOnly = try values.decodeIfPresent(Bool.self, forKey: .localOnly) ?? false
+        healthToolsEnabled = try values.decodeIfPresent(Bool.self, forKey: .healthToolsEnabled) ?? false
     }
 
     var endpoint: URL? {

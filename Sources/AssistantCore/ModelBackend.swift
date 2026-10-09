@@ -15,6 +15,7 @@ public struct ModelRequest: Sendable {
     public var messages: [ModelInputMessage]
     public var tools: [ToolDefinition]
     public var toolExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?
+    public var containsLocalOnlyContext = false
     public init(instructions: String, messages: [ModelInputMessage], tools: [ToolDefinition],
                 toolExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) {
         self.instructions = instructions; self.messages = messages; self.tools = tools

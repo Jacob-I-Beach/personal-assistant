@@ -12,9 +12,12 @@ final class AppModel: ObservableObject {
     @Published var attachedCaptureIDs: [UUID] = []
     @Published var draft = ""
     @Published var draftContainsHealthData = false
+    @Published var libraryContainsHealthData = false
     @Published var isRunning = false
+    @Published private(set) var isInitialized = false
     @Published var isDownloading = false
     @Published var isConnecting = false
+    @Published var isManagingAccount = false
     @Published var downloadProgress: Double = 0
     @Published var downloadingModelID: String?
     @Published var modelStatus = "Choose a model to begin"
@@ -49,6 +52,10 @@ final class AppModel: ObservableObject {
     private let watch = PhoneWatchBridge()
     private var activeWatchRequestID: UUID?
     private var isStartingWatchRequest = false
+    private var initializationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var initializationError: String?
+    private var requiresManualResume = false
+    private let healthService = HealthOverviewService()
 
     var modelTitle: String {
         switch settings.choice {
@@ -82,9 +89,11 @@ final class AppModel: ObservableObject {
                 settings = try JSONDecoder().decode(ModelSettings.self, from: Data(contentsOf: settingsURL))
             } else if appleDevice.isAvailable { settings.choice = .appleOnDevice }
             if let draftURL, let data = try? Data(contentsOf: draftURL) { drafts = (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:] }
+            libraryContainsHealthData = store.initiallyContainsHealthData || drafts.contains(where: { $0.key.hasPrefix("health:") && $0.value == "true" })
+            if libraryContainsHealthData { settings.includeInDeviceBackup = false }
             catalog = try LocalModelCatalogEntry.bundled()
             do { accountService = try ChatGPTAccountService() }
-            catch { noticeMessage = "ChatGPT credentials are unavailable while protected storage is locked. On-device features remain available." }
+            catch { accountService = nil }
             try PrivatePaths.configureBackup(root: root, includeUserData: settings.includeInDeviceBackup)
             rebuildLocalBackend()
             watch.onRequest = { [weak self] request in await self?.receiveWatchRequest(request) }
@@ -98,10 +107,23 @@ final class AppModel: ObservableObject {
                 if let raw = drafts["selected"], let id = UUID(uuidString: raw), let saved = try? await store.loadConversation(id) {
                     conversation = saved; draft = drafts[id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + id.uuidString] == "true"
                 }
-                await refreshDownloads(); await refreshAccounts()
+                await refreshDownloads()
+                if let last = conversation.messages.last { requiresManualResume = last.role != .assistant || last.state != .complete }
+                finishInitialization()
+                await refreshAccounts()
                 await processNextWatchRequest()
             }
-        } catch { errorMessage = error.localizedDescription }
+        } catch { errorMessage = error.localizedDescription; initializationError = error.localizedDescription; finishInitialization() }
+    }
+    private func finishInitialization() {
+        isInitialized = true
+        let waiting = initializationWaiters; initializationWaiters = []
+        for waiter in waiting { waiter.resume() }
+    }
+    func waitUntilReady() async throws {
+        if !isInitialized { await withCheckedContinuation { initializationWaiters.append($0) } }
+        try Task.checkCancellation()
+        if let initializationError { throw AssistantError.provider(initializationError) }
     }
     func refresh() async {
         guard let store else { return }
@@ -115,6 +137,16 @@ final class AppModel: ObservableObject {
     func becameActive() {
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
         Task { await processNextWatchRequest() }
+    }
+    func enteredBackground() {
+        flushDraft()
+        guard isRunning, settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
+        stop()
+        let backend = localBackend, engine = engine
+        Task {
+            await engine?.waitUntilIdle()
+            if UIApplication.shared.applicationState != .active { try? await backend?.unload() }
+        }
     }
     func draftChanged() {
         drafts[conversation.id.uuidString] = draft; drafts["selected"] = conversation.id.uuidString
@@ -165,17 +197,23 @@ final class AppModel: ObservableObject {
         do { return try await store?.exportArtifact(artifact) }
         catch { errorMessage = error.localizedDescription; return nil }
     }
-    func reviseArtifact(_ artifact: ArtifactRecord, content: String) async {
+    func reviseArtifact(_ artifact: ArtifactRecord, content: String) async -> ArtifactRecord? {
         do {
-            try await store?.saveArtifact(ArtifactRecord(conversationID: artifact.conversationID, filename: artifact.filename,
-                content: content, previousRevisionID: artifact.id))
+            guard let store else { return nil }
+            let revised = ArtifactRecord(conversationID: artifact.conversationID, filename: artifact.filename,
+                content: content, previousRevisionID: artifact.id, containsLocalOnlyContext: artifact.containsLocalOnlyContext,
+                containsHealthData: artifact.containsHealthData)
+            try await store.saveArtifact(revised)
+            try await store.saveArtifactDraft(id: artifact.id, text: nil)
             await refresh()
-        } catch { errorMessage = error.localizedDescription }
+            return revised
+        } catch { errorMessage = error.localizedDescription; return nil }
     }
 
     func send(_ suppliedText: String? = nil) {
         let text = suppliedText ?? draft
-        guard !isRunning, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard isInitialized, !isRunning, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if isManagingAccount && settings.choice == .chatGPT { noticeMessage = "The account change is finishing. Your draft is saved."; return }
         conversation.networkDisabled = settings.localOnly
         if settings.localOnly && settings.networkDestination != nil {
             showModels = true; noticeMessage = "On-device-only mode is enabled. Choose a downloaded or Apple on-device model."; return
@@ -208,15 +246,24 @@ final class AppModel: ObservableObject {
         let current = conversation, attachments = attachedCaptureIDs, selection = settings, healthData = draftContainsHealthData
         let previousIDs = Set(current.messages.map(\.id))
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; flushDraft()
+        requiresManualResume = false
         responseTask = Task {
             if let requestID = activeWatchRequestID {
                 await publishWatch(WatchReply(requestID: requestID, conversationID: current.id, state: .working,
                     message: "Your iPhone is working on it.", modelName: modelTitle))
             }
             do {
+                try Task.checkCancellation()
+                try await store?.save(current)
                 let selectedBackend = try await backend(for: selection)
                 try Task.checkCancellation()
-                for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend, containsHealthData: healthData) {
+                let extras = selection.healthToolsEnabled ? [HealthOverviewService.tool] : []
+                let destination = selection.networkDestination
+                for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
+                    containsHealthData: healthData, additionalTools: extras, additionalExecutor: { [weak self] call in
+                        guard let self else { throw CancellationError() }
+                        return try await self.executeNativeTool(call, conversationID: current.id, destination: destination)
+                    }) {
                     switch event {
                     case .conversation(let updated):
                         conversation = updated
@@ -234,6 +281,7 @@ final class AppModel: ObservableObject {
             }
             await engine.waitUntilIdle()
             if let saved = try? await store?.loadConversation(current.id) { conversation = saved }
+            requiresManualResume = errorMessage != nil || Task.isCancelled || conversation.messages.last?.state != .complete
             isRunning = false; responseTask = nil; activity = nil
             if let requestID = activeWatchRequestID {
                 activeWatchRequestID = nil
@@ -268,6 +316,7 @@ final class AppModel: ObservableObject {
 
     func saveSettings(_ value: ModelSettings, credential: String = "") throws {
         guard !isRunning else { throw AssistantError.busy }
+        guard !value.includeInDeviceBackup || !libraryContainsHealthData else { throw AssistantError.provider("A library containing Health-derived information stays excluded from device backups. You can export selected items yourself.") }
         if let endpoint = value.endpoint { try EndpointPolicy.validate(endpoint) }
         if !credential.isEmpty, let account = value.credentialAccount { try CredentialStore.save(credential, account: account) }
         guard let settingsURL else { throw AssistantError.provider("App storage is unavailable.") }
@@ -304,6 +353,7 @@ final class AppModel: ObservableObject {
             let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens)
             if await backend.isDownloaded() { ready.insert(entry.id) }
         }
+        if let localBackend, await localBackend.isDownloaded() { ready.insert(settings.localRepository) }
         downloadedModelIDs = ready
     }
     func downloadModel(_ entry: LocalModelCatalogEntry) {
@@ -350,7 +400,12 @@ final class AppModel: ObservableObject {
     }
     func connectChatGPT(clientID: String? = nil) {
         guard !settings.localOnly else { noticeMessage = "Turn off on-device-only mode to connect a ChatGPT account."; return }
-        guard !isConnecting, !isRunning, let accountService else { return }
+        guard !isConnecting, !isManagingAccount, !isRunning else { return }
+        if accountService == nil {
+            do { accountService = try ChatGPTAccountService() }
+            catch { errorMessage = error.localizedDescription; return }
+        }
+        guard let accountService else { return }
         isConnecting = true
         connectionTask = Task {
             defer { isConnecting = false; connectionTask = nil }
@@ -362,14 +417,46 @@ final class AppModel: ObservableObject {
                 noticeMessage = "ChatGPT is connected. Requests here use your ChatGPT plan and its app usage settings."
             } catch {
                 if !(error is CancellationError) { errorMessage = error.localizedDescription }
+                accounts = await accountService.summaries()
             }
         }
     }
     func cancelConnection() { connectionTask?.cancel(); signIn.cancel() }
     func composeHealthOverview(_ report: HealthOverview) {
         guard !isRunning else { return }
-        do { let text = try report.discussionText(); newConversation(); draft = text; draftContainsHealthData = true; draftChanged() }
+        do {
+            let text = try report.discussionText()
+            libraryContainsHealthData = true
+            var updated = settings; updated.includeInDeviceBackup = false
+            try saveSettings(updated)
+            newConversation(); draft = text; draftContainsHealthData = true; draftChanged()
+        }
         catch { errorMessage = error.localizedDescription }
+    }
+    func enableHealthTools() throws {
+        var next = settings; next.healthToolsEnabled = true
+        try saveSettings(next)
+    }
+    private func executeNativeTool(_ call: ToolCall, conversationID: UUID, destination: String?) async throws -> ToolResult {
+        try Task.checkCancellation()
+        guard isRunning, conversation.id == conversationID, settings.healthToolsEnabled,
+              call.name == HealthOverviewService.tool.name, call.arguments["days"]?.stringValue == "7" else {
+            throw AssistantError.invalidTool("The requested Health context is unavailable.")
+        }
+        if let destination, !conversation.allowedHealthDestinations.contains(destination) {
+            throw AssistantError.invalidTool("This conversation has not been allowed to share Health data. Open Health overview and discuss a selected summary to establish that permission, or use an on-device model.")
+        }
+        libraryContainsHealthData = true
+        settings.includeInDeviceBackup = false
+        if let root { try PrivatePaths.configureBackup(root: root, includeUserData: false) }
+        if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
+        let report = try await healthService.overview()
+        try Task.checkCancellation()
+        var result = ToolResult(callID: call.id, name: call.name, succeeded: true,
+            output: .object(["summary": .string(try report.discussionText()), "source": .string("Apple HealthKit"),
+                             "read_at": .string(ISO8601DateFormatter().string(from: report.rangeEnd))]))
+        result.containsHealthData = true; result.authorizedHealthDestination = destination
+        return result
     }
     func refreshAccounts() async {
         guard let accountService else { return }
@@ -379,18 +466,22 @@ final class AppModel: ObservableObject {
         guard let id = settings.chatGPTAccountID ?? savedID else { chatGPTModels = []; return }
         settings.chatGPTAccountID = id
         do {
-            chatGPTModels = try await accountService.models(for: id)
-            if !chatGPTModels.contains(where: { $0.id == settings.chatGPTModel }) { settings.chatGPTModel = chatGPTModels.first?.id ?? "" }
+            let models = try await accountService.models(for: id)
+            guard settings.chatGPTAccountID == id else { return }
+            chatGPTModels = models
+            if !isRunning && !chatGPTModels.contains(where: { $0.id == settings.chatGPTModel }) { settings.chatGPTModel = chatGPTModels.first?.id ?? "" }
             if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
         } catch { chatGPTModels = []; noticeMessage = error.localizedDescription }
     }
     func switchAccount(_ account: ChatGPTAccountSummary) async {
-        guard !isRunning, let accountService else { return }
+        guard !isRunning, !isManagingAccount, !isConnecting, let accountService else { return }
         do { try await accountService.select(account.id); settings.chatGPTAccountID = account.id; await refreshAccounts() }
         catch { errorMessage = error.localizedDescription }
     }
     func disconnectAccount(_ account: ChatGPTAccountSummary) async {
-        guard !isRunning, let accountService else { return }
+        guard !isRunning, !isManagingAccount, !isConnecting, let accountService else { return }
+        isManagingAccount = true
+        defer { isManagingAccount = false }
         do {
             let confirmed = try await accountService.signOut(account.id, revokeRemotely: !settings.localOnly)
             if settings.chatGPTAccountID == account.id {
@@ -420,7 +511,7 @@ final class AppModel: ObservableObject {
         }
     }
     private func processNextWatchRequest() async {
-        guard UIApplication.shared.applicationState == .active, !isRunning, !needsNetworkConsent,
+        guard isInitialized, !requiresManualResume, UIApplication.shared.applicationState == .active, !isRunning, !needsNetworkConsent,
               activeWatchRequestID == nil, !isStartingWatchRequest, draft.isEmpty, let store else { return }
         if let next = try? await store.queuedWatchRequests().first { await resumeWatchRequest(next) }
     }

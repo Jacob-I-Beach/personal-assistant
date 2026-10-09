@@ -17,7 +17,8 @@ struct HealthOverviewView: View {
                         Label("A clearer view of your week", systemImage: "heart.text.square").font(.title3.weight(.semibold))
                         Text("Review sleep, steps, and workouts from the data you choose to share in Apple Health.").foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
-                    Button(report == nil ? "Choose Health data" : "Review Health access") { load(requestAccess: true) }.disabled(loading || !service.isAvailable)
+                    Button(report == nil ? "Connect Health context" : "Review Health access") { load(requestAccess: true) }.disabled(loading || !service.isAvailable || model.isRunning)
+                    Text("After connecting, on-device models can refresh these overviews when you ask. Connected models can do so only in conversations where you've allowed Health sharing.").font(.footnote).foregroundStyle(.secondary)
                     if loading { ProgressView("Reading selected Health data") }
                     if let error { Text(error).foregroundStyle(.secondary).font(.footnote) }
                 }
@@ -72,7 +73,7 @@ struct HealthOverviewView: View {
         Task {
             defer { loading = false }
             do {
-                if requestAccess { try await service.requestAccess() }
+                if requestAccess { try await service.requestAccess(); try model.enableHealthTools() }
                 report = try await service.overview()
             } catch { self.error = "Health data could not be read. Unlock your phone, review the shared data types, and try again. " + error.localizedDescription }
         }

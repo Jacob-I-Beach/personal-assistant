@@ -14,6 +14,10 @@ struct LocalModelCatalogEntry: Codable, Identifiable, Equatable, Sendable {
     var downloadSize: String { ByteCountFormatter.string(fromByteCount: downloadBytes, countStyle: .file) }
     static func bundled() throws -> [Self] {
         guard let url = Bundle.main.url(forResource: "ModelCatalog", withExtension: "json") else { return [] }
-        return try JSONDecoder().decode([Self].self, from: Data(contentsOf: url))
+        let entries = try JSONDecoder().decode([Self].self, from: Data(contentsOf: url))
+        guard entries.allSatisfy({ $0.downloadBytes > 0 && $0.downloadBytes == $0.files.reduce(0, { $0 + $1.bytes }) }) else {
+            throw CocoaError(.coderInvalidValue)
+        }
+        return entries
     }
 }

@@ -47,7 +47,7 @@ final class AuthorizationTests: XCTestCase {
         XCTAssertThrowsError(try ChatGPTIdentityClaims.validate(.object(good), clientID: "oaiapp_test", nonce: "nonce", expectedSubject: "other"))
     }
     func testCatalogUsesAccountOrderingAndFiltersHiddenModels() throws {
-        let data = Data(#"{"models":[{"slug":"b","display_name":"Second alphabetically","visibility":"list"},{"slug":"hidden","display_name":"Hidden","visibility":"hidden"},{"slug":"a","display_name":"First alphabetically","visibility":"list"}]}"#.utf8)
+        let data = Data(#"{"models":[{"slug":"b","display_name":"Second alphabetically","visibility":"list"},{"slug":"hidden","visibility":"hidden"},{"slug":"a","display_name":"First alphabetically","visibility":"list"}]}"#.utf8)
         XCTAssertEqual(try ChatGPTModel.catalog(from: data).map(\.id), ["b", "a"])
     }
     func testAccountRouteUsesNamespacedToolsAndRefusesOtherServers() throws {

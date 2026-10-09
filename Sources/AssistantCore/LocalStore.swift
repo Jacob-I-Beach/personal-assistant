@@ -3,6 +3,7 @@ import Foundation
 /// The app owns durable history independently of provider sessions. Credentials are never stored here.
 public actor LocalStore {
     public nonisolated let root: URL
+    public nonisolated let initiallyContainsHealthData: Bool
     private let files = FileManager.default
     private let database: SQLiteDatabase
 
@@ -14,6 +15,9 @@ public actor LocalStore {
         let database = try SQLiteDatabase(url: root.appendingPathComponent("assistant.sqlite"))
         try Self.prepare(database, root: root)
         self.database = database
+        let healthMessages = try database.execute("SELECT 1 FROM messages WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
+        let healthArtifacts = try database.execute("SELECT 1 FROM artifacts WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
+        self.initiallyContainsHealthData = !healthMessages.isEmpty || !healthArtifacts.isEmpty
     }
     public func save(_ conversation: Conversation) throws {
         var updated = conversation
@@ -41,10 +45,11 @@ public actor LocalStore {
                                            messageCount: Int(row[1].number ?? 0))
             }
     }
-    public func searchMessages(_ query: String, conversationID: UUID? = nil, limit: Int = 12) throws -> [HistoryMatch] {
+    public func searchMessages(_ query: String, conversationID: UUID? = nil, limit: Int = 12, excludingLocalOnly: Bool = false) throws -> [HistoryMatch] {
         let terms = query.split(whereSeparator: \.isWhitespace).prefix(16).map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
         guard !terms.isEmpty, query.utf8.count <= 1000 else { return [] }
-        let scope = conversationID == nil ? "" : " AND m.conversation_id = ?"
+        let scope = (conversationID == nil ? "" : " AND m.conversation_id = ?")
+            + (excludingLocalOnly ? " AND COALESCE(json_extract(CAST(m.payload AS TEXT),'$.containsLocalOnlyContext'),0) = 0" : "")
         var parameters: [SQLValue] = [.text(terms.joined(separator: " AND "))]
         if let conversationID { parameters.append(.text(conversationID.uuidString)) }
         parameters.append(.integer(Int64(min(max(limit, 1), 30))))
@@ -73,6 +78,15 @@ public actor LocalStore {
         }
         try database.execute("INSERT INTO artifacts(id, conversation_id, created_at, payload) VALUES(?,?,?,?)",
             [.text(artifact.id.uuidString), .text(artifact.conversationID.uuidString), .real(artifact.createdAt.timeIntervalSince1970), .blob(try Self.encode(artifact))])
+    }
+    public func saveArtifactDraft(id: UUID, text: String?) throws {
+        let key = "artifact-draft:" + id.uuidString
+        guard let text else { try database.execute("DELETE FROM metadata WHERE key = ?", [.text(key)]); return }
+        guard text.utf8.count <= 2 * 1024 * 1024 else { throw AssistantError.provider("This draft exceeds the supported editor size.") }
+        try database.execute("INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [.text(key), .text(text)])
+    }
+    public func artifactDraft(id: UUID) throws -> String? {
+        try database.execute("SELECT value FROM metadata WHERE key = ?", [.text("artifact-draft:" + id.uuidString)]).first?[0].text
     }
     public func artifacts(conversationID: UUID? = nil) throws -> [ArtifactRecord] {
         let scope = conversationID == nil ? "" : " WHERE conversation_id = ?"
@@ -120,6 +134,19 @@ public actor LocalStore {
             try saveWatchReply(reply)
         }
     }
+    public func memories() throws -> [SavedMemory] {
+        try database.execute("SELECT payload FROM memories ORDER BY updated_at DESC")
+            .map { try Self.decode(SavedMemory.self, $0[0].data!) }
+    }
+    public func saveMemory(_ memory: SavedMemory) throws {
+        guard !memory.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              memory.title.utf8.count <= 200, !memory.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              memory.text.utf8.count <= 16_384 else { throw AssistantError.provider("Give this memory a title and a focused note, up to 16 KB.") }
+        var updated = memory; updated.updatedAt = Date()
+        try database.execute("INSERT INTO memories(id,updated_at,payload) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload",
+            [.text(updated.id.uuidString), .real(updated.updatedAt.timeIntervalSince1970), .blob(try Self.encode(updated))])
+    }
+    public func removeMemory(_ id: UUID) throws { try database.execute("DELETE FROM memories WHERE id = ?", [.text(id.uuidString)]) }
     public func saveWatchReply(_ reply: WatchReply) throws {
         try database.execute("UPDATE watch_requests SET state = ?, reply = ? WHERE id = ?",
             [.text(reply.state.rawValue), .blob(try WatchWire.encode(reply)), .text(reply.requestID.uuidString)])
@@ -131,7 +158,7 @@ public actor LocalStore {
 
     private static func prepare(_ database: SQLiteDatabase, root: URL) throws {
         let version = Int(try database.execute("PRAGMA user_version").first?[0].number ?? 0)
-        guard version <= 2 else { throw AssistantError.unsupportedSchema(version) }
+        guard version <= 3 else { throw AssistantError.unsupportedSchema(version) }
         if version == 0 {
             try database.transaction {
                 try database.execute("CREATE TABLE conversations(id TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at REAL NOT NULL, payload BLOB NOT NULL)")
@@ -150,6 +177,12 @@ public actor LocalStore {
             try database.transaction {
                 try database.execute("CREATE TABLE watch_requests(id TEXT PRIMARY KEY, created_at REAL NOT NULL, state TEXT NOT NULL, payload BLOB NOT NULL, reply BLOB)")
                 try database.execute("PRAGMA user_version = 2")
+            }
+        }
+        if version < 3 {
+            try database.transaction {
+                try database.execute("CREATE TABLE memories(id TEXT PRIMARY KEY, updated_at REAL NOT NULL, payload BLOB NOT NULL)")
+                try database.execute("PRAGMA user_version = 3")
             }
         }
         if try database.execute("SELECT value FROM metadata WHERE key = 'legacy-import'").isEmpty {

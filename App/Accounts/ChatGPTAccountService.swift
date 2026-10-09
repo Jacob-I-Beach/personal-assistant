@@ -26,6 +26,16 @@ private struct AccountVault: Codable, Sendable {
     var hostID = "urn:uuid:" + UUID().uuidString.lowercased()
     var registrations: [AccountRegistration] = []
     var selectedClientID: String?
+    var pendingClientIDs: [String] = []
+    enum CodingKeys: String, CodingKey { case hostID, registrations, selectedClientID, pendingClientIDs }
+    init() {}
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        hostID = try values.decode(String.self, forKey: .hostID)
+        registrations = try values.decodeIfPresent([AccountRegistration].self, forKey: .registrations) ?? []
+        selectedClientID = try values.decodeIfPresent(String.self, forKey: .selectedClientID)
+        pendingClientIDs = try values.decodeIfPresent([String].self, forKey: .pendingClientIDs) ?? []
+    }
 }
 private struct TokenResponse: Decodable, Sendable {
     var access_token: String
@@ -62,10 +72,13 @@ actor ChatGPTAccountService {
         if raw.isEmpty { try CredentialStore.save(String(decoding: JSONEncoder().encode(vault), as: UTF8.self), account: Self.vaultKey) }
     }
     func summaries() -> [ChatGPTAccountSummary] {
-        vault.registrations.map { registration in
+        let registered = vault.registrations.map { registration in
             let suffix = String(registration.clientID.suffix(6))
             return ChatGPTAccountSummary(id: registration.clientID, label: (registration.email ?? "ChatGPT account") + " · " + suffix,
                                          isConnected: registration.tokens != nil)
+        }
+        return registered + vault.pendingClientIDs.filter { id in !registered.contains(where: { $0.id == id }) }.map {
+            ChatGPTAccountSummary(id: $0, label: "Finish connecting ChatGPT · " + String($0.suffix(6)), isConnected: false)
         }
     }
     func selectedID() -> String? { vault.selectedClientID }
@@ -78,6 +91,10 @@ actor ChatGPTAccountService {
         vault.selectedClientID = id; try save()
     }
     func finish(_ code: ChatGPTAuthorizationCode, attempt: ChatGPTAuthorizationAttempt) async throws -> String {
+        if !vault.registrations.contains(where: { $0.clientID == code.clientID }) && !vault.pendingClientIDs.contains(code.clientID) {
+            // Retain issued registration identity if code exchange is interrupted. It is not an authenticated account yet.
+            vault.pendingClientIDs.append(code.clientID); try save()
+        }
         let data = try await AccountHTTP.request(url: URL(string: "https://auth.openai.com/api/accounts/oauth/token")!, body: code.exchangeForm)
         let response = try JSONDecoder().decode(TokenResponse.self, from: data)
         guard let idToken = response.id_token, let refresh = response.refresh_token else { throw ChatGPTAuthorizationError.invalidResponse }
@@ -90,6 +107,7 @@ actor ChatGPTAccountService {
             vault.registrations[index] = registration
         } else { vault.registrations.append(registration) }
         signedOut.remove(code.clientID)
+        vault.pendingClientIDs.removeAll { $0 == code.clientID }
         vault.selectedClientID = code.clientID
         try save()
         return code.clientID
@@ -103,16 +121,27 @@ actor ChatGPTAccountService {
         guard let account = vault.registrations.first(where: { $0.clientID == id }), let tokens = account.tokens,
               !signedOut.contains(id) else { throw AccountConnectionError.signInRequired }
         if tokens.expiresAt.timeIntervalSinceNow > 90 { return tokens.accessToken }
-        let task = refreshes[id] ?? Task { try await self.refresh(account) }
+        let task = refreshes[id] ?? Task { try await self.refreshAndSave(account) }
         refreshes[id] = task
-        defer { refreshes[id] = nil }
-        let renewed = try await task.value
-        guard !signedOut.contains(id), let index = vault.registrations.firstIndex(where: { $0.clientID == id }) else {
+        let renewed = try await CancellableTaskValue.value(of: task)
+        try Task.checkCancellation()
+        guard !signedOut.contains(id) else {
             throw AccountConnectionError.signInRequired
+        }
+        return renewed.tokens!.accessToken
+    }
+    private func refreshAndSave(_ account: AccountRegistration) async throws -> AccountRegistration {
+        defer { refreshes[account.clientID] = nil }
+        let renewed = try await refresh(account)
+        // Sign-out waits for this result to revoke the latest rotating token, but no caller may use it.
+        if signedOut.contains(account.clientID) { return renewed }
+        guard let index = vault.registrations.firstIndex(where: { $0.clientID == account.clientID }) else { throw AccountConnectionError.signInRequired }
+        if vault.registrations[index].tokens?.refreshToken != account.tokens?.refreshToken {
+            return vault.registrations[index]
         }
         vault.registrations[index] = renewed
         try save()
-        return renewed.tokens!.accessToken
+        return renewed
     }
     func signOut(_ id: String, revokeRemotely: Bool = true) async throws -> Bool {
         guard let account = vault.registrations.first(where: { $0.clientID == id }) else { return true }

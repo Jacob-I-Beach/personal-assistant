@@ -11,7 +11,10 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section { NavigationLink { CaptureLibraryView() } label: { Label("Captures · \(model.captures.count)", systemImage: "viewfinder") } }
+                Section {
+                    NavigationLink { CaptureLibraryView() } label: { Label("Captures · \(model.captures.count)", systemImage: "viewfinder") }
+                    NavigationLink { MemoryView() } label: { Label("Saved memory", systemImage: "brain.head.profile") }
+                }
                 Section("Your files") {
                     if latestArtifacts.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -45,14 +48,16 @@ struct ArtifactCard: View {
 }
 struct ArtifactDetailView: View {
     @EnvironmentObject private var model: AppModel
-    let artifact: ArtifactRecord
+    @State private var artifact: ArtifactRecord
     @State private var text = ""
     @State private var editing = false
     @State private var exportURL: URL?
     @State private var saving = false
+    @State private var draftTask: Task<Void, Never>?
+    init(artifact: ArtifactRecord) { _artifact = State(initialValue: artifact) }
     var body: some View {
         Group {
-            if editing { TextEditor(text: $text).font(.body.monospaced()).padding(10).accessibilityLabel("Edit artifact") }
+            if editing { TextEditor(text: $text).font(.body.monospaced()).padding(10).accessibilityLabel("Edit artifact").disabled(saving) }
             else {
                 ScrollView {
                     if artifact.filename.hasSuffix(".md") { AssistantMarkdown(text: text).padding(20).frame(maxWidth: .infinity, alignment: .leading) }
@@ -65,8 +70,13 @@ struct ArtifactDetailView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if editing {
                     Button("Save revision") {
-                        saving = true
-                        Task { await model.reviseArtifact(artifact, content: text); saving = false; editing = false }
+                        saving = true; draftTask?.cancel()
+                        Task {
+                            if let revised = await model.reviseArtifact(artifact, content: text) {
+                                artifact = revised; text = revised.content; exportURL = await model.artifactURL(revised); editing = false
+                            }
+                            saving = false
+                        }
                     }.disabled(saving || text == artifact.content)
                 } else {
                     Button("Edit", systemImage: "pencil") { editing = true }
@@ -74,6 +84,28 @@ struct ArtifactDetailView: View {
                 }
             }
         }
-        .task { text = artifact.content; exportURL = await model.artifactURL(artifact) }
+        .task {
+            if let draft = try? await model.store?.artifactDraft(id: artifact.id) { text = draft; editing = true }
+            else { text = artifact.content }
+            exportURL = await model.artifactURL(artifact)
+        }
+        .onChange(of: text) { _, value in
+            guard editing, !saving else { return }
+            draftTask?.cancel()
+            let id = artifact.id
+            draftTask = Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                do { try await model.store?.saveArtifactDraft(id: id, text: value) }
+                catch { model.errorMessage = error.localizedDescription }
+            }
+        }
+        .onDisappear {
+            draftTask?.cancel()
+            if editing && text != artifact.content {
+                let id = artifact.id, value = text
+                Task { try? await model.store?.saveArtifactDraft(id: id, text: value) }
+            }
+        }
     }
 }

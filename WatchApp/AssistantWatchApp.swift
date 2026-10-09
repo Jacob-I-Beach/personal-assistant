@@ -19,7 +19,7 @@ struct AssistantWatchApp: App {
                             if !reply.modelName.isEmpty { Text(reply.modelName).font(.caption2).foregroundStyle(.secondary) }
                         } else { Text(bridge.connectionNote).font(.footnote).foregroundStyle(.secondary) }
                     }.padding(.horizontal, 6)
-                }.navigationBarTitleDisplayMode(.inline)
+                }
             }
         }
     }

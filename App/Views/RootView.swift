@@ -5,7 +5,9 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @StateObject private var voice = VoiceController()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var systemTypeSize
     @State private var showHistory = false
     @State private var showLibrary = false
     @State private var showSettings = false
@@ -13,32 +15,34 @@ struct RootView: View {
     @State private var showWatchRequests = false
     var body: some View {
         NavigationStack {
-            ChatView()
+            ChatView().environmentObject(voice)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("History", systemImage: "sidebar.left") { showHistory = true }.disabled(model.isRunning)
+                        Button("History", systemImage: "sidebar.left") { voice.stopAll(); showHistory = true }.disabled(model.isRunning)
                     }
                     ToolbarItem(placement: .principal) {
-                        Button { model.showModels = true } label: {
+                        Button { voice.stopAll(); model.showModels = true } label: {
                             VStack(spacing: 2) {
                                 HStack(spacing: 5) { Text(model.modelTitle).font(.subheadline.weight(.semibold)).lineLimit(1); Image(systemName: "chevron.down").font(.caption2) }
-                                Text(model.modelLocation).font(.caption2).foregroundStyle(.secondary)
-                            }.foregroundStyle(.primary)
+                                Text(model.modelLocation).font(.caption2).foregroundStyle(Color.secondary)
+                            }.foregroundStyle(Color.primary)
                         }.accessibilityLabel("Choose model").disabled(model.isRunning)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("New conversation", systemImage: "square.and.pencil") { model.newConversation() }.disabled(model.isRunning)
-                            Button("Library", systemImage: "square.stack") { showLibrary = true }
-                            Button("Health overview", systemImage: "heart.text.square") { showHealth = true }
-                            Button("Watch requests", systemImage: "applewatch") { showWatchRequests = true }
-                            Button("Settings", systemImage: "slider.horizontal.3") { showSettings = true }
+                            Button("Library", systemImage: "square.stack") { voice.stopAll(); showLibrary = true }
+                            Button("Health overview", systemImage: "heart.text.square") { voice.stopAll(); showHealth = true }
+                            Button("Watch requests", systemImage: "applewatch") { voice.stopAll(); showWatchRequests = true }
+                            Button("Settings", systemImage: "slider.horizontal.3") { voice.stopAll(); showSettings = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Assistant menu")
                     }
                 }
         }
-        .tint(Color.accentColor)
+        .disabled(!model.isInitialized)
+        .overlay { if !model.isInitialized { ProgressView("Preparing your workspace").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14)) } }
+        .tint(Color.primary)
         .sheet(isPresented: $model.showModels) { ModelLibraryView() }
         .sheet(isPresented: $showHistory) { HistoryView() }
         .sheet(isPresented: $showLibrary) { LibraryView() }
@@ -56,14 +60,31 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.becameActive() }
+            else if phase == .background { model.enteredBackground() }
             else { model.flushDraft() }
         }
+        .tint(Color.primary)
+        .modifier(TestAppearance(systemTypeSize: systemTypeSize))
+        .onChange(of: model.isConnecting) { _, value in if value { voice.stopAll() } }
+        .onChange(of: model.showModels) { _, value in if value { voice.stopAll() } }
+    }
+}
+
+private struct TestAppearance: ViewModifier {
+    let systemTypeSize: DynamicTypeSize
+    @ViewBuilder func body(content: Content) -> some View {
+        #if DEBUG
+        content.preferredColorScheme(ProcessInfo.processInfo.arguments.contains("--ui-dark") ? .dark : nil)
+            .environment(\.dynamicTypeSize, ProcessInfo.processInfo.arguments.contains("--ui-large") ? .accessibility2 : systemTypeSize)
+        #else
+        content
+        #endif
     }
 }
 
 struct ChatView: View {
     @EnvironmentObject private var model: AppModel
-    @StateObject private var voice = VoiceController()
+    @EnvironmentObject private var voice: VoiceController
     @State private var voicePrefix = ""
     @State private var speakReplies = false
     @State private var showCapture = false
@@ -110,6 +131,7 @@ struct ChatView: View {
                 if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
             }
             .onChange(of: model.conversation.id) { _, _ in
+                voice.stopAll(); voicePrefix = ""
                 followBottom = true; visibleMessageCount = 100; proxy.scrollTo("conversation-bottom", anchor: .bottom)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -145,7 +167,7 @@ struct ChatView: View {
     }
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 25) {
-            Image(systemName: "circle.hexagongrid").font(.system(size: 38, weight: .light)).foregroundStyle(.tint).accessibilityHidden(true)
+            Image("AssistantMark").resizable().frame(width: 45, height: 45).clipShape(RoundedRectangle(cornerRadius: 13)).accessibilityHidden(true)
             Text("What would you like\nto work on?").font(.system(.largeTitle, design: .rounded, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
             Text("A place to think, explore, and make things—with the model you choose.").font(.body).foregroundStyle(.secondary)
             VStack(spacing: 10) {
@@ -166,7 +188,7 @@ struct ChatView: View {
         }.padding(.top, 26).padding(.bottom, 12)
     }
     private func suggestion(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Label(title, systemImage: icon).font(.subheadline).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6) }
+        Button(action: action) { Label(title, systemImage: icon).font(.subheadline).foregroundStyle(Color.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6) }
     }
     private var composer: some View {
         VStack(spacing: 10) {
@@ -231,7 +253,19 @@ struct ChatView: View {
 struct AssistantMarkdown: View {
     let text: String
     var body: some View {
-        Markdown(text).markdownTheme(.basic)
+        Markdown(text).markdownTheme(.gitHub.text { FontSize(17); ForegroundColor(Color.primary); BackgroundColor(nil) })
+            .markdownBlockStyle(\.codeBlock) { configuration in
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text(configuration.language ?? "Code").font(.caption).foregroundStyle(Color.secondary)
+                        Spacer()
+                        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = configuration.content }.font(.caption)
+                    }.padding(.horizontal, 12).padding(.top, 10)
+                    ScrollView(.horizontal) {
+                        configuration.label.markdownTextStyle { FontFamilyVariant(.monospaced); FontSize(.em(0.85)) }.padding(12)
+                    }
+                }.background(Color(uiColor: .secondarySystemBackground)).clipShape(RoundedRectangle(cornerRadius: 14)).markdownMargin(top: 4, bottom: 14)
+            }
             .markdownImageProvider(ExplicitImagePlaceholder())
             .markdownInlineImageProvider(NoRemoteInlineImage())
             .textSelection(.enabled)
@@ -256,7 +290,7 @@ private struct MessageRow: View {
             if message.role == .tool {
                 DisclosureGroup {
                     Text(message.text).font(.caption.monospaced()).textSelection(.enabled)
-                } label: { Label("Tool result", systemImage: "checkmark.circle").font(.footnote).foregroundStyle(.secondary) }
+                } label: { Label("Saved tool result", systemImage: "doc.text.magnifyingglass").font(.footnote).foregroundStyle(.secondary) }
             } else {
                 if message.role == .assistant && !message.text.isEmpty {
                     Text("Assistant").font(.caption.weight(.medium)).foregroundStyle(.secondary)
@@ -265,8 +299,16 @@ private struct MessageRow: View {
                 if message.state == .interrupted || message.state == .failed {
                     Label(message.state == .interrupted ? "Stopped · partial response saved" : "Incomplete response", systemImage: "pause.circle").font(.caption).foregroundStyle(.secondary)
                 }
+                if message.containsLocalOnlyContext { Label("On-device-only context", systemImage: "iphone").font(.caption2).foregroundStyle(Color.secondary) }
                 if !message.captureIDs.isEmpty {
                     HStack { ForEach(message.captureIDs, id: \.self) { id in CaptureThumbnail(id: id).frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 12)) } }
+                }
+                ForEach(message.toolCalls) { call in
+                    DisclosureGroup {
+                        Text(call.arguments["code"]?.stringValue ?? (try? call.arguments.jsonString()) ?? "Arguments unavailable").font(.caption.monospaced()).textSelection(.enabled)
+                    } label: {
+                        Label(call.name == "run_javascript" ? "Inspect code request" : "Inspect tool request", systemImage: "wrench.and.screwdriver").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 if !message.text.isEmpty && message.state != .streaming {
                     HStack(spacing: 18) {

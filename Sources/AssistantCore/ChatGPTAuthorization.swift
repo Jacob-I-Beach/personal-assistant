@@ -109,11 +109,15 @@ public struct ChatGPTModel: Codable, Identifiable, Equatable, Sendable {
     public var id: String { slug }
     enum CodingKeys: String, CodingKey { case slug, displayName = "display_name", visibility }
     public static func catalog(from data: Data) throws -> [Self] {
-        struct Response: Decodable { var models: [ChatGPTModel] }
         guard data.count <= 2 * 1024 * 1024 else { throw ChatGPTAuthorizationError.invalidResponse }
-        let response = try JSONDecoder().decode(Response.self, from: data)
+        let response = try JSONDecoder().decode(JSONValue.self, from: data)
+        guard let models = response["models"]?.arrayValue else { throw ChatGPTAuthorizationError.invalidResponse }
         var seen = Set<String>()
-        return response.models.filter { $0.visibility == "list" && !$0.slug.isEmpty && !$0.displayName.isEmpty && seen.insert($0.slug).inserted }
+        return models.compactMap { item in
+            guard item["visibility"]?.stringValue == "list", let slug = item["slug"]?.stringValue, !slug.isEmpty,
+                  let title = item["display_name"]?.stringValue, !title.isEmpty, seen.insert(slug).inserted else { return nil }
+            return ChatGPTModel(slug: slug, displayName: title, visibility: "list")
+        }
     }
 }
 

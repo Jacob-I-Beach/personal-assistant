@@ -7,6 +7,17 @@ import XCTest
 
 @MainActor
 final class AuthorizationPlatformTests: XCTestCase {
+    func testBundledModelCatalogHasRealSizesAndWeightDigests() throws {
+        let entries = try LocalModelCatalogEntry.bundled()
+        XCTAssertEqual(entries.count, 3)
+        for entry in entries {
+            XCTAssertGreaterThan(entry.downloadBytes, 1_000_000_000)
+            XCTAssertEqual(entry.downloadBytes, entry.files.reduce(0) { $0 + $1.bytes })
+            let weights = entry.files.filter { $0.name.hasSuffix(".safetensors") }
+            XCTAssertFalse(weights.isEmpty)
+            XCTAssertTrue(weights.allSatisfy { $0.bytes > 0 && $0.sha256?.count == 64 })
+        }
+    }
     func testLoopbackCallbackAcceptsValidStateAndRejectsBadState() async throws {
         let receiver = AccountCallbackReceiver()
         let redirect = try await receiver.start()

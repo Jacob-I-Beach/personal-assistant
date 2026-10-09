@@ -46,6 +46,19 @@ static int copy_string(JSContext *context, JSValueConst value, size_t limit,
     JS_FreeCString(context, text);
     return 0;
 }
+static JSValue json_value(JSContext *context, JSValueConst this_value, int count, JSValueConst *arguments) {
+    (void)this_value;
+    if (count < 2) return JS_ThrowTypeError(context, "Invalid JSON result.");
+    JSValueConst value = arguments[1];
+    double number;
+    if (JS_IsNumber(value) && (JS_ToFloat64(context, &number, value) < 0 || !isfinite(number)))
+        return JS_ThrowTypeError(context, "Return finite numbers; NaN and Infinity are not valid results.");
+    if (JS_IsUndefined(value) || JS_IsFunction(context, value) || JS_IsBigInt(value))
+        return JS_ThrowTypeError(context, "Return JSON-compatible values; convert BigInt to a string explicitly.");
+    if (JS_IsObject(value) && JS_PromiseState(context, value) != JS_PROMISE_NOT_A_PROMISE)
+        return JS_ThrowTypeError(context, "Only synchronous scripts are supported. Return the computed result, not a Promise.");
+    return JS_DupValue(context, value);
+}
 int pa_js_run(PAJSControl *control, const char *source, size_t source_len,
               const char *input, size_t input_len, size_t memory_bytes,
               uint64_t timeout_ms, size_t output_limit, char **output, size_t *output_len) {
@@ -56,17 +69,12 @@ int pa_js_run(PAJSControl *control, const char *source, size_t source_len,
     if (!runtime) return 4;
     JS_SetMemoryLimit(runtime, memory_bytes);
     JS_SetMaxStackSize(runtime, 256 * 1024);
+    JS_SetCanBlock(runtime, false);
     JS_SetInterruptHandler(runtime, interrupt, control);
-    JSContext *context = JS_NewContextRaw(runtime);
+    JSContext *context = JS_NewContext(runtime);
     if (!context) { JS_FreeRuntime(runtime); return 4; }
     int status = 1;
     /* No libc, OS modules, workers, host files, network, native objects or bytecode loader. */
-    if (JS_AddIntrinsicBaseObjects(context) < 0 || JS_AddIntrinsicEval(context) < 0 ||
-        JS_AddIntrinsicJSON(context) < 0 || JS_AddIntrinsicDate(context) < 0 ||
-        JS_AddIntrinsicMapSet(context) < 0 || JS_AddIntrinsicBigInt(context) < 0 ||
-        JS_AddIntrinsicTypedArrays(context) < 0) goto failure;
-    JS_AddIntrinsicRegExpCompiler(context);
-    if (JS_AddIntrinsicRegExp(context) < 0) goto failure;
     JSValue global = JS_GetGlobalObject(context);
     JSAtom atom = JS_NewAtom(context, "Atomics");
     JS_DeleteProperty(context, global, atom, 0); JS_FreeAtom(context, atom);
@@ -80,10 +88,12 @@ int pa_js_run(PAJSControl *control, const char *source, size_t source_len,
     JS_FreeValue(context, global);
     JSValue value = JS_Eval(context, source, source_len, "script.js", JS_EVAL_TYPE_GLOBAL);
     if (JS_IsException(value)) goto failure;
-    JSValue json = JS_JSONStringify(context, value, JS_UNDEFINED, JS_UNDEFINED);
+    JSValue replacer = JS_NewCFunction(context, json_value, "validateResult", 2);
+    JSValue json = JS_JSONStringify(context, value, replacer, JS_UNDEFINED);
+    JS_FreeValue(context, replacer);
     JS_FreeValue(context, value);
     if (JS_IsException(json)) goto failure;
-    if (JS_IsUndefined(json)) { JS_FreeValue(context, json); goto failure; }
+    if (JS_IsUndefined(json)) { JS_FreeValue(context, json); JS_ThrowTypeError(context, "Return a JSON-compatible result object."); goto failure; }
     status = copy_string(context, json, output_limit, output, output_len);
     JS_FreeValue(context, json);
     goto cleanup;

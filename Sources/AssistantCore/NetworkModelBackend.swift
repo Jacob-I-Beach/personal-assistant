@@ -14,10 +14,16 @@ public struct NetworkModelBackend: ModelBackend {
     private let chatGPTAccountID: String?
     public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") }
     public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
+    public var contextLimits: ContextLimits {
+        ContextLimits(maximumTextBytes: chatGPTAccountID == nil ? 32_768 : 128_000, maximumImages: 4)
+    }
 
     public init(baseURL: URL, model: String, wireProtocol: NetworkProtocol,
                 credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil) throws {
         try EndpointPolicy.validate(baseURL)
+        guard !credential.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+            throw AssistantError.invalidEndpoint("The credential contains a line break or control character. Paste only the credential value.")
+        }
         if chatGPTAccountID != nil {
             guard baseURL.absoluteString == "https://api.openai.com/v1", wireProtocol == .responses else {
                 throw AssistantError.invalidEndpoint("ChatGPT account credentials can only be used with the supported OpenAI Responses endpoint.")
@@ -204,7 +210,7 @@ public struct ModelWireDecoder: Sendable {
             let output = payload["response"]?["output"]?.arrayValue ?? responseItems.sorted { $0.key < $1.key }.map(\.value)
             var events: [ModelEvent] = []
             for item in output where item["type"]?.stringValue == "function_call" {
-                guard let id = item["call_id"]?.stringValue, let name = item["name"]?.stringValue,
+                guard let id = item["call_id"]?.stringValue, !id.isEmpty, let name = item["name"]?.stringValue, !name.isEmpty,
                       let arguments = item["arguments"]?.stringValue, arguments.utf8.count <= 32768 else {
                     throw AssistantError.malformedStream("Incomplete function call in completed response.")
                 }

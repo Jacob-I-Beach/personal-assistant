@@ -44,6 +44,20 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "History-search")
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
+    func testDarkAndLargeTextControlsRemainUsable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-empty", "--ui-dark", "--ui-large", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Dictate message"].exists)
+        saveScreenshot(app, name: "Welcome-dark-large-text")
+        app.buttons["Choose model"].tap()
+        XCTAssertTrue(app.navigationBars["Models"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Models-dark-large-text")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Assistant menu"].exists)
+    }
 
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
