@@ -1,0 +1,49 @@
+name: Validate native app
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 27
+        run: |
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' -print | sort | head -n 1)
+          if [ -z "$selected" ]; then
+            echo "This runner does not have Xcode 27. Select a compatible Apple silicon runner image."
+            exit 1
+          fi
+          sudo xcode-select --switch "$selected/Contents/Developer"
+          xcodebuild -version
+          swift --version
+      - name: Start local transport fixture
+        run: |
+          mkdir -p .build
+          python3 scripts/mock_model_server.py --port-file .build/fixture-port.txt > .build/fixture.log 2>&1 &
+          for attempt in $(seq 1 50); do
+            if [ -s .build/fixture-port.txt ]; then break; fi
+            sleep 0.1
+          done
+          test -s .build/fixture-port.txt
+          echo "ASSISTANT_FIXTURE_BASE_URL=http://127.0.0.1:$(cat .build/fixture-port.txt)" >> "$GITHUB_ENV"
+      - name: Test the shared core
+        run: swift test
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+      - name: Compile the iOS application without signing
+        run: |
+          set -o pipefail
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build | tee .build/ios-build.log
+      - name: Preserve build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: .build/ios-build.log
+          if-no-files-found: ignore
+          retention-days: 7
