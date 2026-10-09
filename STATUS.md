@@ -37,6 +37,12 @@ Portable assistant core, persistent conversations and capture records, normalize
 
 Establish personal signing from Jacob's Windows setup, install the verified device package, then test capture and the downloaded Qwen model on the actual phone. The package is not yet signed or installed. Simulator success does not establish LiDAR accuracy, real-device memory use, thermal behavior, or local-model quality.
 
-The PC has Microsoft Store versions of Apple Devices and iTunes. A Windows signing helper has not been installed or configured. The existing Apple applications were not removed or replaced. Physical USB connection/trust and Apple account sign-in require Jacob's participation.
+Apple Devices now recognizes the physical iPhone 18 Pro Max over USB and reports iOS 27.0.1. Jacob confirmed that the phone is connected and trusted. Developer Mode is not yet visible/enabled.
+
+AltServer 1.8.0 was downloaded from its official distribution, extracted into the thread's tooling folder, and launched. Jacob selected the verified IPA for his phone, but signing stopped with "The provided anisette data is invalid." The helper loaded Apple-signed authentication libraries from its own local cache. The PC clock was checked against Apple HTTPS/NTP responses and was within about two seconds; no clock settings were changed. No provisioning-state files or credentials were read, reset, or deleted.
+
+The PC still has its Microsoft Store Apple Devices and iTunes installations. Apple's desktop iCloud installer was downloaded and its Apple signature verified; its component installers were inspected, but none were installed. Existing Apple applications were not removed or replaced.
+
+Jacob suggested iLoader. Its documented Windows route supports Microsoft Store iTunes/Apple Devices and direct IPA import. The official stable iLoader 2.3.6 Windows MSI was downloaded from `nab138/iloader` and matched GitHub's published SHA-256: `6f0d038f74f60e2e036efa17dd45b7cebd3a4c61b226ff0f03cc8668bb5e3b2d`. A reviewable copy is in the sibling `PersonalAssistant-iPhone/Setup` output folder. Automatic approval review rejected the combined download/setup execution with "blocked by policy" and no further reason. Download/verification alone succeeded; installation is awaiting Jacob's explicit confirmation. iLoader has not yet been installed or run.
 
 Jacob confirmed he is not enrolled in the paid Apple Developer Program. Enrollment is not needed to write the project or run the shared-core tests.
