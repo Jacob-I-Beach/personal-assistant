@@ -16,7 +16,7 @@ jobs:
   ios:
     # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
     runs-on: xcode-27
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6

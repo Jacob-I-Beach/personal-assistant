@@ -2,6 +2,10 @@
 
 This file records implemented features, validation evidence, and user-reported device checks.
 
+## Next milestone under implementation
+
+Jacob authorized continuing from the revised design. The engineering record is [Documentation/IMPLEMENTATION.md](Documentation/IMPLEMENTATION.md). New source includes embedded offline JavaScript execution, SQLite migration and search, bounded working context, durable artifacts, ChatGPT account authorization, Apple model adapters, a verified local catalog, and redesigned native screens. The Windows suite passed 39 tests with synthetic data. Native changes are awaiting Xcode compilation, platform tests, and visual inspection; real account authorization and physical-device behavior are not yet verified. The installed 0.1.0 build remains the previous device checkpoint.
+
 ## Implemented in source
 
 Portable assistant core, persistent conversations and capture records, normalized provider messages, explicit network authorization, streaming HTTP adapters, read-only capture tool, native camera/OCR/depth capture, SwiftUI screens, Keychain credential storage, MLX download/local-load adapter, capture export/replay, and manual unsigned Mac CI configuration.

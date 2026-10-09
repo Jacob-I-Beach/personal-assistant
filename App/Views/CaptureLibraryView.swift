@@ -5,7 +5,6 @@ import UIKit
 struct CaptureLibraryView: View {
     @EnvironmentObject private var model: AppModel
     var body: some View {
-        NavigationStack {
             List(model.captures) { capture in
                 NavigationLink {
                     CaptureDetailView(capture: capture)
@@ -20,7 +19,6 @@ struct CaptureLibraryView: View {
             .overlay { if model.captures.isEmpty { ContentUnavailableView("No captures", systemImage: "viewfinder", description: Text("Use the + button in Assistant to capture or import an image.")) } }
             .navigationTitle("Captures")
             .refreshable { await model.refresh() }
-        }
     }
 }
 

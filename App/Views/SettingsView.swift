@@ -2,60 +2,84 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     @State private var draft = ModelSettings()
     @State private var credential = ""
-    @State private var saved = false
+    @State private var showSaved = false
     var body: some View {
         NavigationStack {
             Form {
-                Section("Reasoning model") {
-                    Picker("Use", selection: $draft.choice) { ForEach(ModelChoice.allCases) { choice in Text(choice.title).tag(choice) } }
-                    switch draft.choice {
-                    case .localMLX:
-                        TextField("MLX vision model repository", text: $draft.localRepository).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        TextField("Revision", text: $draft.localRevision).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        Stepper("Response budget: \(draft.localResponseTokens) tokens", value: $draft.localResponseTokens, in: 512...8192, step: 512)
-                        Toggle("Allow cellular model downloads", isOn: $draft.allowCellularDownloads)
-                    case .openAI:
-                        TextField("Model identifier", text: $draft.openAIModel).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        SecureField("API key — saved only in Keychain", text: $credential).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        Text("This build supports an OpenAI API key. Sign in with ChatGPT is a separate integration and is not implemented yet. API use may incur charges.").font(.footnote).foregroundStyle(.secondary)
-                    case .compatibleServer:
-                        TextField("Base URL ending in /v1", text: $draft.compatibleBaseURL).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        TextField("Model identifier", text: $draft.compatibleModel).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        SecureField("Server token, if required", text: $credential).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Section("ChatGPT") {
+                    ForEach(model.accounts) { account in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(account.label).font(.subheadline)
+                            if account.isConnected {
+                                Button("Sign out", role: .destructive) { Task { await model.disconnectAccount(account) } }.disabled(model.isRunning)
+                            } else { Button("Reconnect") { model.connectChatGPT(clientID: account.id) } }
+                        }
                     }
-                    Button("Save model settings") {
-                        do { try model.saveSettings(draft, credential: credential); credential = ""; saved = true }
-                        catch { model.errorMessage = error.localizedDescription }
-                    }.disabled(model.isRunning || model.isDownloading)
-                    if saved { Text("Saved").foregroundStyle(.secondary) }
+                    Button("Continue with ChatGPT") { model.connectChatGPT() }.disabled(model.isConnecting || model.isRunning)
+                    Link("Manage ChatGPT usage", destination: URL(string: "https://chatgpt.com/settings/usage")!)
                 }
-                Section("Downloaded model") {
-                    Text(model.modelStatus)
-                    Text("Save settings before downloading. Model weights can take several gigabytes. The current native baseline is Qwen3.5-4B; other MLX vision models still need device validation.").font(.footnote).foregroundStyle(.secondary)
-                    if model.isDownloading {
-                        ProgressView(value: model.downloadProgress)
-                        Button("Stop download", role: .cancel) { model.stopDownload() }
-                    } else {
-                        Button("Download and load selected model") { model.downloadModel() }.disabled(model.isRunning || draft != model.settings)
-                        Button("Unload from memory") { model.unloadModel() }.disabled(model.isRunning)
+                Section("On-device models") {
+                    Toggle("Allow cellular downloads", isOn: $draft.allowCellularDownloads)
+                    Stepper("Response budget: \(draft.localResponseTokens)", value: $draft.localResponseTokens, in: 512...8192, step: 512)
+                    Button("Release model memory") { model.unloadModel() }.disabled(model.isRunning)
+                    Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("Privacy and recovery") {
+                    Toggle("Include user data in device backups", isOn: $draft.includeInDeviceBackup)
+                    Text("Conversations, captures, and files stay excluded until you enable this. Model weights are always excluded. Account credentials remain in this device's Keychain.").font(.footnote).foregroundStyle(.secondary)
+                    Button("Revoke network access for this conversation") { model.revokeNetworkConsent() }.disabled(model.isRunning)
+                }
+                Section {
+                    DisclosureGroup("Other connections") {
+                        Picker("Connection", selection: $draft.choice) {
+                            Text("Keep current model").tag(model.settings.choice)
+                            if model.settings.choice != .openAI { Text("OpenAI API key").tag(ModelChoice.openAI) }
+                            if model.settings.choice != .compatibleServer { Text("PC / compatible server").tag(ModelChoice.compatibleServer) }
+                        }
+                        if draft.choice == .openAI {
+                            TextField("API model identifier", text: $draft.openAIModel).textInputAutocapitalization(.never).autocorrectionDisabled()
+                            SecureField("OpenAI API key", text: $credential)
+                            Text("API usage has separate billing from a ChatGPT subscription.").font(.footnote).foregroundStyle(.secondary)
+                        } else if draft.choice == .compatibleServer {
+                            TextField("Server address ending in /v1", text: $draft.compatibleBaseURL).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                            TextField("Server model identifier", text: $draft.compatibleModel).textInputAutocapitalization(.never).autocorrectionDisabled()
+                            SecureField("Server token, if needed", text: $credential)
+                        }
                     }
                 }
-                Section("Privacy") {
-                    Text("Captures and conversations are stored in this app and excluded from device backups by default. Local chat does not download models automatically. Network use requires permission for the current conversation.").font(.footnote)
-                    Button("Revoke this conversation’s network permission") { model.revokeNetworkConsent() }.disabled(model.isRunning)
-                    Button("Remove saved credential for selected endpoint", role: .destructive) {
-                        do { try model.clearCredential() } catch { model.errorMessage = error.localizedDescription }
-                    }.disabled(model.isRunning || draft != model.settings)
-                }
-                Section("First native build") {
-                    Text("Camera snapshots, OCR, saved depth, persistent conversations, and one read-only tool. Watch, TrueDepth, long-term memory search, code execution, and account sign-in are later increments.").font(.footnote).foregroundStyle(.secondary)
+                Section("About") {
+                    Text("Personal Assistant").font(.headline)
+                    Text("A private workspace for your conversations, models, and useful work.").foregroundStyle(.secondary)
+                    NavigationLink("Open-source acknowledgments") { AcknowledgmentsView() }
                 }
             }
             .navigationTitle("Settings")
-            .onAppear { draft = model.settings; saved = false }
-            .onChange(of: draft) { _, _ in saved = false }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        do { try model.saveSettings(draft, credential: credential); credential = ""; showSaved = true }
+                        catch { model.errorMessage = error.localizedDescription }
+                    }.disabled(model.isRunning)
+                }
+            }
+            .onAppear { draft = model.settings }
+            .alert("Settings saved", isPresented: $showSaved) { Button("Done") { dismiss() } }
         }
+    }
+}
+private struct AcknowledgmentsView: View {
+    var body: some View {
+        List {
+            Text("Built with Apple's platform frameworks, MLX Swift LM, Hugging Face, SQLite, QuickJS-NG, JOSESwift, and MarkdownUI.")
+            ForEach(["QuickJS-License", "JOSESwift-License", "MarkdownUI-License"], id: \.self) { name in
+                if let url = Bundle.main.url(forResource: name, withExtension: "txt"), let text = try? String(contentsOf: url, encoding: .utf8) {
+                    NavigationLink(name.replacingOccurrences(of: "-License", with: "")) { ScrollView { Text(text).font(.caption).textSelection(.enabled).padding() }.navigationTitle("License") }
+                }
+            }
+        }.navigationTitle("Acknowledgments")
     }
 }

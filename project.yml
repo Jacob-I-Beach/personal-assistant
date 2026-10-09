@@ -10,6 +10,12 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     IPHONEOS_DEPLOYMENT_TARGET: "27.0"
 packages:
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    exactVersion: 2.4.1
+  JOSESwift:
+    url: https://github.com/airsidemobile/JOSESwift
+    exactVersion: 3.0.0
   AssistantCore:
     path: .
   MLXLM:
@@ -42,6 +48,10 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
     dependencies:
+      - package: MarkdownUI
+        product: MarkdownUI
+      - package: JOSESwift
+        product: JOSESwift
       - package: AssistantCore
         product: AssistantCore
       - package: MLXLM
@@ -69,6 +79,21 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: PersonalAssistant
+  PersonalAssistantPlatformTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [PlatformTests]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jacob.personalassistant.platformtests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: PersonalAssistant
+      - package: AssistantCore
+        product: AssistantCore
+      - package: JOSESwift
+        product: JOSESwift
 schemes:
   PersonalAssistant:
     build:
@@ -78,7 +103,7 @@ schemes:
       config: Debug
     test:
       config: Debug
-      targets: [PersonalAssistantUITests]
+      targets: [PersonalAssistantPlatformTests, PersonalAssistantUITests]
       language: en
       region: US
       preferredScreenCaptureFormat: screenshots

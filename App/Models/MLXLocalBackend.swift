@@ -1,5 +1,6 @@
 import AssistantCore
 import CoreImage
+import CryptoKit
 import Foundation
 import HuggingFace
 import MLX
@@ -19,6 +20,7 @@ actor MLXLocalBackend: ModelBackend {
     private let responseTokens: Int
     private var container: ModelContainer?
     private var busy = false
+    private var downloadBusy = false
 
     init(repository: String, revision: String, root: URL, responseTokens: Int) {
         self.repository = repository; self.revision = revision; self.root = root
@@ -30,12 +32,17 @@ actor MLXLocalBackend: ModelBackend {
         var revision: String
         var relativeDirectory: String
     }
-    private var recordURL: URL { root.appendingPathComponent("selected-model.json") }
+    private var recordURL: URL {
+        let identity = SHA256.hash(data: Data((repository + "@" + revision).utf8)).map { String(format: "%02x", $0) }.joined()
+        return root.appendingPathComponent("records").appendingPathComponent(identity + ".json")
+    }
+    func isDownloaded() -> Bool { (try? savedDirectory()) != nil }
 
-    func download(allowCellular: Bool, progress: @Sendable @escaping (Double) -> Void) async throws {
-        guard !busy else { throw AssistantError.busy }
-        busy = true; defer { busy = false }
+    func download(allowCellular: Bool, expectedFiles: [LocalModelCatalogEntry.File] = [], progress: @Sendable @escaping (Double) -> Void) async throws {
+        guard !busy, !downloadBusy else { throw AssistantError.busy }
+        downloadBusy = true; defer { downloadBusy = false }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: recordURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.allowsCellularAccess = allowCellular
         let hub = HubClient(session: URLSession(configuration: configuration), host: URL(string: "https://huggingface.co")!,
@@ -49,11 +56,11 @@ actor MLXLocalBackend: ModelBackend {
         guard directory.standardizedFileURL.path.hasPrefix(base) else {
             throw AssistantError.provider("The model downloader returned a location outside the model store.")
         }
+        try verify(directory, expectedFiles: expectedFiles)
         let record = DownloadRecord(repository: repository, revision: revision,
                                     relativeDirectory: String(directory.standardizedFileURL.path.dropFirst(base.count)))
         try JSONEncoder().encode(record).write(to: recordURL, options: .atomic)
-        container = nil
-        try await loadFromDisk()
+        // Download completion does not load GPU weights or switch the active conversation's model.
         progress(1)
     }
 
@@ -65,20 +72,48 @@ actor MLXLocalBackend: ModelBackend {
 
     private func loadFromDisk() async throws {
         if container != nil { return }
-        guard FileManager.default.fileExists(atPath: recordURL.path) else {
+        let directory = try savedDirectory()
+        MLX.Memory.cacheLimit = 32 * 1024 * 1024
+        container = try await VLMModelFactory.shared.loadContainer(from: directory, using: #huggingFaceTokenizerLoader())
+    }
+
+    private func savedDirectory() throws -> URL {
+        let legacyURL = root.appendingPathComponent("selected-model.json")
+        let source = FileManager.default.fileExists(atPath: recordURL.path) ? recordURL : legacyURL
+        guard FileManager.default.fileExists(atPath: source.path) else {
             throw AssistantError.provider("Download the selected model in Settings before using local chat.")
         }
-        let record = try JSONDecoder().decode(DownloadRecord.self, from: Data(contentsOf: recordURL))
+        let record = try JSONDecoder().decode(DownloadRecord.self, from: Data(contentsOf: source))
         guard record.repository == repository, record.revision == revision else {
             throw AssistantError.provider("The selected model has not been downloaded. Open Settings to download it.")
         }
         let directory = root.appendingPathComponent(record.relativeDirectory).standardizedFileURL
-        guard directory.path.hasPrefix(root.standardizedFileURL.path + "/") else {
+        guard directory.resolvingSymlinksInPath().path.hasPrefix(root.resolvingSymlinksInPath().path + "/"),
+              FileManager.default.fileExists(atPath: directory.appendingPathComponent("config.json").path) else {
             throw AssistantError.provider("Invalid saved model location.")
         }
-        MLX.Memory.cacheLimit = 32 * 1024 * 1024
-        // This first native provider uses the VLM factory: the selected Qwen checkpoint supports images and text.
-        container = try await VLMModelFactory.shared.loadContainer(from: directory, using: #huggingFaceTokenizerLoader())
+        return directory
+    }
+    private func verify(_ directory: URL, expectedFiles: [LocalModelCatalogEntry.File]) throws {
+        for file in expectedFiles {
+            try Task.checkCancellation()
+            let url = directory.appendingPathComponent(file.name)
+            // HF snapshots may use links into the same app-owned cache. Resolve against the entire model root.
+            guard url.resolvingSymlinksInPath().path.hasPrefix(root.resolvingSymlinksInPath().path + "/"),
+                  let size = try url.resolvingSymlinksInPath().resourceValues(forKeys: [.fileSizeKey]).fileSize, Int64(size) == file.bytes else {
+                throw AssistantError.provider("A downloaded model file is missing or incomplete. Retry the download to repair it.")
+            }
+            if let expected = file.sha256 {
+                let handle = try FileHandle(forReadingFrom: url)
+                defer { try? handle.close() }
+                var digest = SHA256()
+                while let block = try handle.read(upToCount: 1024 * 1024), !block.isEmpty {
+                    try Task.checkCancellation(); digest.update(data: block)
+                }
+                let observed = digest.finalize().map { String(format: "%02x", $0) }.joined()
+                guard observed == expected else { throw AssistantError.provider("A model file failed its integrity check. Its download was not accepted.") }
+            }
+        }
     }
 
     nonisolated func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {

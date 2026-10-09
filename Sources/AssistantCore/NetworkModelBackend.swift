@@ -11,17 +11,24 @@ public struct NetworkModelBackend: ModelBackend {
     public let wireProtocol: NetworkProtocol
     private let credential: String
     private let transport: any HTTPStreamingTransport
-    public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" }
-    public var networkDestination: String? { baseURL.absoluteString }
+    private let chatGPTAccountID: String?
+    public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") }
+    public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
 
     public init(baseURL: URL, model: String, wireProtocol: NetworkProtocol,
-                credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport()) throws {
+                credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil) throws {
         try EndpointPolicy.validate(baseURL)
+        if chatGPTAccountID != nil {
+            guard baseURL.absoluteString == "https://api.openai.com/v1", wireProtocol == .responses else {
+                throw AssistantError.invalidEndpoint("ChatGPT account credentials can only be used with the supported OpenAI Responses endpoint.")
+            }
+        }
         guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AssistantError.invalidEndpoint("Enter a model identifier in Settings.")
         }
         self.baseURL = baseURL; self.model = model; self.wireProtocol = wireProtocol
         self.credential = credential; self.transport = transport
+        self.chatGPTAccountID = chatGPTAccountID
     }
 
     public func makeRequest(_ input: ModelRequest) throws -> URLRequest {
@@ -82,8 +89,10 @@ public struct NetworkModelBackend: ModelBackend {
                     items.append(.object(["role": .string(m.role.rawValue), "content": .array(content)]))
                 }
                 for call in m.toolCalls {
-                    items.append(.object(["type": .string("function_call"), "call_id": .string(call.id),
-                                          "name": .string(call.name), "arguments": .string(try call.arguments.jsonString())]))
+                    var item: [String: JSONValue] = ["type": .string("function_call"), "call_id": .string(call.id),
+                        "name": .string(call.name), "arguments": .string(try call.arguments.jsonString())]
+                    if chatGPTAccountID != nil { item["namespace"] = .string("assistant") }
+                    items.append(.object(item))
                 }
             }
         }
@@ -93,10 +102,14 @@ public struct NetworkModelBackend: ModelBackend {
             "include": .array([.string("reasoning.encrypted_content")]),
         ]
         if !input.tools.isEmpty {
-            body["tools"] = .array(input.tools.map { tool in
+            let functions = input.tools.map { tool in
                 .object(["type": .string("function"), "name": .string(tool.name),
                          "description": .string(tool.description), "parameters": tool.parameters, "strict": .bool(true)])
-            })
+            } as [JSONValue]
+            body["tools"] = chatGPTAccountID == nil ? .array(functions) : .array([
+                .object(["type": .string("namespace"), "name": .string("assistant"),
+                         "description": .string("Tools executed by the user's assistant app."), "tools": .array(functions)])
+            ])
         }
         return .object(body)
     }

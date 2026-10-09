@@ -14,22 +14,29 @@ public struct ModelRequest: Sendable {
     public var instructions: String
     public var messages: [ModelInputMessage]
     public var tools: [ToolDefinition]
-    public init(instructions: String, messages: [ModelInputMessage], tools: [ToolDefinition]) {
+    public var toolExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?
+    public init(instructions: String, messages: [ModelInputMessage], tools: [ToolDefinition],
+                toolExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) {
         self.instructions = instructions; self.messages = messages; self.tools = tools
+        self.toolExecutor = toolExecutor
     }
 }
 public enum ModelEvent: Sendable {
     case textDelta(String)
     case toolCall(ToolCall)
+    /// A native framework supplied complete validated arguments and called the app-owned executor.
+    case executedTool(ToolCall, ToolResult)
     case continuation([JSONValue])
     case completed
 }
 public protocol ModelBackend: Sendable {
     var id: String { get }
+    var contextLimits: ContextLimits { get }
     /// Nil means inference is on this device. Otherwise this exact destination must be authorized.
     var networkDestination: String? { get }
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error>
 }
+public extension ModelBackend { var contextLimits: ContextLimits { ContextLimits() } }
 
 public enum AssistantInstructions {
     public static let base = """
@@ -40,6 +47,8 @@ public enum AssistantInstructions {
     The depth tool describes the center of a saved depth map; it does not give object dimensions.
     State uncertainty and ask for a better capture when evidence is insufficient.
     Never claim an action happened unless an actual tool result confirms it.
-    No tools are available for sending messages, modifying phone settings, or accessing other apps.
+    Use search_history and read_history for exact earlier evidence outside the current context.
+    Code runs only through run_javascript. Create useful files through the artifact tools.
+    Only the supplied tools are available; do not claim other device access.
     """
 }
