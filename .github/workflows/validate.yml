@@ -1,6 +1,15 @@
 name: Validate native app
 on:
   workflow_dispatch:
+    inputs:
+      validate_simulator:
+        description: Compile and smoke-test the app in the iPhone simulator
+        type: boolean
+        default: true
+      build_device:
+        description: Also produce an unsigned physical-iPhone package for local signing
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -59,11 +68,13 @@ jobs:
           mkdir -p PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
           cp Dependencies/Package.resolved PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
       - name: Compile the iOS application without signing
+        if: inputs.validate_simulator
         run: |
           set -o pipefail
           # The pinned MLX dependencies use Swift macros; allow them for this build only.
           xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/ios-build.log
       - name: Launch and navigate the native app in Simulator
+        if: inputs.validate_simulator
         run: |
           xcrun simctl list devices available --json > .build/simulators.json
           simulator_id=$(python scripts/select_simulator.py .build/simulators.json)
@@ -77,6 +88,25 @@ jobs:
           if [ -d .build/UITests.xcresult ]; then
             xcrun xcresulttool export attachments --path .build/UITests.xcresult --output-path .build/ui-attachments
           fi
+      - name: Build an unsigned physical-iPhone package
+        if: inputs.build_device
+        run: |
+          set -o pipefail
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Release -destination 'generic/platform=iOS' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/device-build.log
+          mkdir -p .build/device/Payload
+          ditto DerivedData/Build/Products/Release-iphoneos/PersonalAssistant.app .build/device/Payload/PersonalAssistant.app
+          (cd .build/device && zip -qr PersonalAssistant-unsigned.ipa Payload)
+          (cd .build/device && shasum -a 256 PersonalAssistant-unsigned.ipa > SHA256SUMS.txt)
+      - name: Preserve unsigned device package
+        if: inputs.build_device && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-iphone-app
+          path: |
+            .build/device/PersonalAssistant-unsigned.ipa
+            .build/device/SHA256SUMS.txt
+          include-hidden-files: true
+          retention-days: 1
       - name: Preserve build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -89,6 +119,7 @@ jobs:
             .build/fixture.log
             .build/ui-tests.log
             .build/ui-attachments
+            .build/device-build.log
             PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           if-no-files-found: ignore
           retention-days: 7

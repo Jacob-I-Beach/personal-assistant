@@ -38,13 +38,20 @@ The manual GitHub workflow selects the standard `xcode-27` preview runner, which
 
 ```bash
 brew install xcodegen
+xcodebuild -downloadComponent MetalToolchain
 xcodegen generate --spec project.yml
+mkdir -p PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+cp Dependencies/Package.resolved PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant \
   -configuration Debug -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build
 ```
 
-The project specification pins MLX and Hugging Face package releases. Keep the resolved dependency lockfile produced by the first successful Mac resolution. The generated Xcode project is derived from `project.yml`.
+The project specification pins MLX and Hugging Face package releases. `Dependencies/Package.resolved` retains the full dependency resolution obtained on the Mac. The generated Xcode project is derived from `project.yml`. The scoped macro-validation flag permits the pinned model-library macros to run without Xcode's interactive prompt.
+
+The manual workflow normally compiles the simulator app and runs an XCUITest that launches the actual app, checks the Assistant/Settings/Captures screens, and saves screenshots. It does not download a model or make a paid inference call.
+
+The optional `build_device` input builds a separate Release package for physical iPhone hardware and records its SHA-256. `validate_simulator` can be disabled when packaging a revision that already passed simulator validation. The resulting `PersonalAssistant-unsigned.ipa` still needs personal signing before installation; it is not an App Store or TestFlight release.
 
 For physical installation, open the generated project in Xcode, select your own signing team, choose the iPhone, and enable Developer Mode when iOS requests it. No paid Apple Developer membership has been assumed or purchased. Free Personal Team signing has limitations and seven-day provisioning; hosted signing needs a separately established credential/provisioning route.
 
