@@ -173,8 +173,8 @@ struct ChatView: View {
             VStack(spacing: 10) {
                 if model.accounts.allSatisfy({ !$0.isConnected }) {
                     Button { model.connectChatGPT() } label: {
-                        HStack { Text(model.isConnecting ? "Connecting…" : "Continue with ChatGPT").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }.padding(8)
-                    }.buttonStyle(.borderedProminent).tint(.primary).disabled(model.isConnecting)
+                        HStack { Text(model.isConnecting ? "Connecting…" : "Continue with ChatGPT").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }.padding(8).foregroundStyle(Color(uiColor: .systemBackground))
+                    }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isConnecting)
                 }
                 Button { model.showModels = true } label: {
                     HStack { Label("Explore on-device models", systemImage: "iphone"); Spacer(); Image(systemName: "chevron.right").font(.caption) }.padding(8)
@@ -253,19 +253,20 @@ struct ChatView: View {
 struct AssistantMarkdown: View {
     let text: String
     var body: some View {
-        Markdown(text).markdownTheme(.gitHub.text { FontSize(17); ForegroundColor(Color.primary); BackgroundColor(nil) })
+        Markdown(text)
             .markdownBlockStyle(\.codeBlock) { configuration in
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         Text(configuration.language ?? "Code").font(.caption).foregroundStyle(Color.secondary)
                         Spacer()
-                        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = configuration.content }.font(.caption)
+                        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = configuration.content }.font(.caption).accessibilityLabel("Copy code")
                     }.padding(.horizontal, 12).padding(.top, 10)
                     ScrollView(.horizontal) {
                         configuration.label.markdownTextStyle { FontFamilyVariant(.monospaced); FontSize(.em(0.85)) }.padding(12)
                     }
                 }.background(Color(uiColor: .secondarySystemBackground)).clipShape(RoundedRectangle(cornerRadius: 14)).markdownMargin(top: 4, bottom: 14)
             }
+            .markdownTheme(.gitHub.text { FontSize(17); ForegroundColor(Color.primary); BackgroundColor(nil) })
             .markdownImageProvider(ExplicitImagePlaceholder())
             .markdownInlineImageProvider(NoRemoteInlineImage())
             .textSelection(.enabled)

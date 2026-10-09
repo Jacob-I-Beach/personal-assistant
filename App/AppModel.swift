@@ -257,7 +257,7 @@ final class AppModel: ObservableObject {
                 try await store?.save(current)
                 let selectedBackend = try await backend(for: selection)
                 try Task.checkCancellation()
-                let extras = selection.healthToolsEnabled ? [HealthOverviewService.tool] : []
+                let extras = selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : []
                 let destination = selection.networkDestination
                 for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
                     containsHealthData: healthData, additionalTools: extras, additionalExecutor: { [weak self] call in

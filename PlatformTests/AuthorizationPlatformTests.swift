@@ -2,12 +2,27 @@ import AssistantCore
 import Foundation
 import JOSESwift
 import Security
+import UIKit
 import XCTest
 @testable import PersonalAssistant
 
 @MainActor
 final class AuthorizationPlatformTests: XCTestCase {
+    func testUnprovisionedHealthBuildRejectsBeforeAuthorization() async {
+        XCTAssertFalse(HealthOverviewService.isEnabledInThisBuild)
+        let service = HealthOverviewService()
+        XCTAssertFalse(service.isAvailable)
+        do {
+            try await service.requestAccess()
+            XCTFail("The unprovisioned build must not ask for Health access.")
+        } catch { XCTAssertTrue(error.localizedDescription.contains("HealthKit capability")) }
+        do {
+            _ = try await service.overview()
+            XCTFail("The unprovisioned build must not query Health.")
+        } catch { XCTAssertTrue(error.localizedDescription.contains("HealthKit capability")) }
+    }
     func testBundledModelCatalogHasRealSizesAndWeightDigests() throws {
+        XCTAssertNotNil(UIImage(named: "AssistantMark"))
         let entries = try LocalModelCatalogEntry.bundled()
         XCTAssertEqual(entries.count, 3)
         for entry in entries {

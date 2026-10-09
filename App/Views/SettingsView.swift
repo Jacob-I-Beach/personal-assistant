@@ -28,8 +28,8 @@ struct SettingsView: View {
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
-                    Toggle("Allow assistant Health reads", isOn: $draft.healthToolsEnabled)
-                    Text("Controls new Health overview queries. Review the shared data types in Health overview. Existing conversation records are kept until you remove them.").font(.footnote).foregroundStyle(.secondary)
+                    Toggle("Allow assistant Health reads", isOn: $draft.healthToolsEnabled).disabled(!HealthOverviewService.isEnabledInThisBuild)
+                    Text(HealthOverviewService.isEnabledInThisBuild ? "Controls new Health overview queries. Review the shared data types in Health overview. Existing conversation records are kept until you remove them." : HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary)
                     Toggle("Work only on this device", isOn: $draft.localOnly)
                     Text("Blocks connected models and account-model refreshes. Turn this off temporarily when downloading model files.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Include user data in device backups", isOn: $draft.includeInDeviceBackup).disabled(model.libraryContainsHealthData)
@@ -56,6 +56,7 @@ struct SettingsView: View {
                 }
                 Section("About") {
                     Text("Personal Assistant").font(.headline)
+                    Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")").font(.caption).foregroundStyle(.secondary)
                     Text("A private workspace for your conversations, models, and useful work.").foregroundStyle(.secondary)
                     NavigationLink("Open-source acknowledgments") { AcknowledgmentsView() }
                 }

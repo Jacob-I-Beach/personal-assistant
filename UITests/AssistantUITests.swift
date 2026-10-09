@@ -29,6 +29,7 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-demo", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.staticTexts["study-plan.md"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Copy code"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Conversation-rich-content")
         app.staticTexts["study-plan.md"].tap()
         XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))

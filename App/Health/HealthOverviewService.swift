@@ -9,15 +9,23 @@ final class HealthOverviewService {
         parameters: .object(["type": .string("object"), "properties": .object(["days": .object(["type": .string("string"), "description": .string("Use 7 for the supported seven-day overview."), "enum": .array([.string("7")])])]),
                             "required": .array([.string("days")]), "additionalProperties": .bool(false)]))
     private let store = HKHealthStore()
-    var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
+    // Enabled by a deployment profile only after its signer provisions HealthKit.
+    // iLoader 2.3.6 does not request this capability from Apple.
+    static var isEnabledInThisBuild: Bool { Bundle.main.object(forInfoDictionaryKey: "AssistantHealthEnabled") as? Bool == true }
+    static let signingMessage = "Health access needs an updated installation with Apple's HealthKit capability. It is not available in this build."
+    var isAvailable: Bool { Self.isEnabledInThisBuild && HKHealthStore.isHealthDataAvailable() }
+    private func requireAvailability() throws {
+        guard Self.isEnabledInThisBuild else { throw AssistantError.provider(Self.signingMessage) }
+        guard HKHealthStore.isHealthDataAvailable() else { throw AssistantError.provider("Health data is unavailable on this device.") }
+    }
     func requestAccess() async throws {
-        guard isAvailable else { throw AssistantError.provider("Health data is unavailable on this device.") }
+        try requireAvailability()
         let read: Set<HKObjectType> = [HKQuantityType(.stepCount), HKCategoryType(.sleepAnalysis), HKObjectType.workoutType()]
         try await store.requestAuthorization(toShare: [], read: read)
         // A completed authorization sheet does not reveal which read permissions were granted.
     }
     func overview(now: Date = Date()) async throws -> HealthOverview {
-        guard isAvailable else { throw AssistantError.provider("Health data is unavailable on this device.") }
+        try requireAvailability()
         let calendar = Calendar.current
         let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now))!
         let predicate = HKQuery.predicateForSamples(withStart: start, end: now)

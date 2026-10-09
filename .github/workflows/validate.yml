@@ -16,7 +16,7 @@ jobs:
   ios:
     # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
     runs-on: xcode-27
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -67,13 +67,7 @@ jobs:
           xcodegen generate --spec project.yml
           mkdir -p PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
           cp Dependencies/Package.resolved PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-      - name: Compile the iOS application without signing
-        if: inputs.validate_simulator
-        run: |
-          set -o pipefail
-          # The pinned MLX dependencies use Swift macros; allow them for this build only.
-          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/ios-build.log
-      - name: Launch and navigate the native app in Simulator
+      - name: Build and exercise the native app in Simulator
         if: inputs.validate_simulator
         run: |
           xcrun simctl list devices available --json > .build/simulators.json
@@ -102,7 +96,10 @@ jobs:
           mkdir -p .build/device/Payload
           ditto DerivedData/Build/Products/Release-iphoneos/PersonalAssistant.app .build/device/Payload/PersonalAssistant.app
           (cd .build/device && zip -qr PersonalAssistant-unsigned.ipa Payload)
-          (cd .build/device && shasum -a 256 PersonalAssistant-unsigned.ipa > SHA256SUMS.txt)
+          python scripts/prepare_iloader_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/PersonalAssistant-iPhone-only.ipa
+          (cd .build/device && shasum -a 256 *.ipa > SHA256SUMS.txt)
+          python scripts/inspect_ipa.py .build/device/PersonalAssistant-unsigned.ipa .build/device/SHA256SUMS.txt --report .build/device/CompletePackageValidation.json
+          python scripts/inspect_ipa.py .build/device/PersonalAssistant-iPhone-only.ipa .build/device/SHA256SUMS.txt --report .build/device/iPhonePackageValidation.json
       - name: Preserve unsigned device package
         if: inputs.build_device && success()
         uses: actions/upload-artifact@v4
@@ -110,6 +107,9 @@ jobs:
           name: unsigned-iphone-app
           path: |
             .build/device/PersonalAssistant-unsigned.ipa
+            .build/device/PersonalAssistant-iPhone-only.ipa
+            .build/device/PersonalAssistant-iPhone-only.json
+            .build/device/*PackageValidation.json
             .build/device/SHA256SUMS.txt
           include-hidden-files: true
           retention-days: 1

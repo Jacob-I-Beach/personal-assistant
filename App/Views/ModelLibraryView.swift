@@ -69,7 +69,7 @@ struct ModelLibraryView: View {
                                 ProgressView(value: model.downloadProgress)
                                 HStack { Text(model.modelStatus).font(.caption); Spacer(); Button("Stop", role: .cancel) { model.stopDownload() }.font(.subheadline) }
                             } else if model.downloadedModelIDs.contains(entry.id) {
-                                Button("Use \(entry.name)") { model.chooseLocal(entry) }.buttonStyle(.borderedProminent).disabled(model.isRunning)
+                                Button { model.chooseLocal(entry) } label: { Text("Use \(entry.name)").foregroundStyle(Color(uiColor: .systemBackground)) }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isRunning)
                             } else {
                                 HStack {
                                     Button("Download") { model.downloadModel(entry) }.buttonStyle(.bordered).disabled(model.settings.localOnly)

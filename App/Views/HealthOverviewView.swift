@@ -18,7 +18,7 @@ struct HealthOverviewView: View {
                         Text("Review sleep, steps, and workouts from the data you choose to share in Apple Health.").foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
                     Button(report == nil ? "Connect Health context" : "Review Health access") { load(requestAccess: true) }.disabled(loading || !service.isAvailable || model.isRunning)
-                    Text("After connecting, on-device models can refresh these overviews when you ask. Connected models can do so only in conversations where you've allowed Health sharing.").font(.footnote).foregroundStyle(.secondary)
+                    Text(HealthOverviewService.isEnabledInThisBuild ? "After connecting, on-device models can refresh these overviews when you ask. Connected models can do so only in conversations where you've allowed Health sharing." : HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary)
                     if loading { ProgressView("Reading selected Health data") }
                     if let error { Text(error).foregroundStyle(.secondary).font(.footnote) }
                 }
