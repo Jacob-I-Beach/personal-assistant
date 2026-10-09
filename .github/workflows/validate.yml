@@ -24,6 +24,8 @@ jobs:
           xcodebuild -version
           swift --version
       - name: Test the shared core with a local transport fixture
+        id: core
+        continue-on-error: true
         run: |
           mkdir -p .build
           python --version
@@ -53,7 +55,8 @@ jobs:
       - name: Compile the iOS application without signing
         run: |
           set -o pipefail
-          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/ios-build.log
+          # The pinned MLX dependencies use Swift macros; allow them for this build only.
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/ios-build.log
       - name: Preserve build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,3 +69,6 @@ jobs:
             PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           if-no-files-found: ignore
           retention-days: 7
+      - name: Require successful shared-core tests
+        if: always() && steps.core.outcome != 'success'
+        run: exit 1
