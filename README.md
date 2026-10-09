@@ -4,7 +4,7 @@ A private native iPhone application for Jacob's iPhone on iOS 27. The app owns c
 
 Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
 
-Jacob has reported that the first private build opens on his iPhone. The next phase is a substantial product design and implementation milestone, described in [the product design](Documentation/PRODUCT_DESIGN.md): ChatGPT account connection and downloaded models as equal first-class experiences, native visual polish, sandbox execution, and deeper phone/Watch/Health integration. The current build is a technical foundation, not the completed assistant described by that proposal.
+Jacob has reported that the private 0.2.0 update is installed and opens on his iPhone. It implements a substantial part of [the product design](Documentation/PRODUCT_DESIGN.md): ChatGPT account connection and downloaded models as equal first-class experiences, rebuilt native screens, saved memory, and actual sandbox execution. Live model/account behavior and hardware workflows still require device validation, and the full design remains in progress.
 
 ## Current source: 0.2 candidate
 
@@ -21,9 +21,11 @@ Jacob has reported that the first private build opens on his iPhone. The next ph
 - A replay command that runs the same depth-summary code on a saved observation.
 - A manual, unsigned Mac CI compile workflow. It has no signing secrets and does not publish an app.
 
-**Validation:** The current shared core passes 50 Windows tests. The preceding 0.2 development revision passed 44 shared tests on macOS, two iOS authorization tests, two native UI tests, and compilation of both phone and Watch targets. The latest refinements need their own native run before packaging. These are synthetic implementation checks, not a claim that live ChatGPT access, Health permissions, Watch delivery, or model performance has passed on Jacob's devices. See [STATUS.md](STATUS.md) and [the engineering record](Documentation/IMPLEMENTATION.md).
+**Validation:** The shared core passes 50 tests on Windows and macOS. The final native run, [38003037939](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38003037939) at source `c403e18`, also passed four iOS platform tests, three native UI tests, and the iPhone/Watch Release build. The verified 0.2.0 build 2 installation input is retained in the sibling `PersonalAssistant-iPhone/0.2.0` folder. These are synthetic implementation checks, not a claim that live ChatGPT access, Health permissions, Watch delivery, or model performance has passed on Jacob's devices. See [STATUS.md](STATUS.md) and [the engineering record](Documentation/IMPLEMENTATION.md).
 
-The original 0.1 screenshots remain in `Documentation/Screenshots/`. Current native screenshots are recorded with the corresponding validation run; screenshots with seeded conversation content are explicitly synthetic UI fixtures.
+The original 0.1 screenshots remain in `Documentation/Screenshots/`. [Current native screenshots](Documentation/Screenshots/0.2.0/README.md) are recorded with the final validation run; conversation/artifact content is synthetic UI fixture data. Visual review corrected the welcome asset, dark-mode button contrast, code-block header, and model size totals. Large-text coverage is limited to the exercised screens, not a full accessibility audit.
+
+**Current installation scope:** official iLoader 2.3.6 does not provision the embedded Watch or request HealthKit for this app. Install `PersonalAssistant-iPhone-only.ipa` through the existing iLoader account; the full archive is retained for a future compatible signing route. Health is clearly unavailable and its authorization/query paths are disabled in this deployment. Follow the [manual installation and device-validation steps](Documentation/DEVICE_VALIDATION.md); preserve the existing app rather than uninstalling it.
 
 ## Run meaningful tests on Windows
 
@@ -41,7 +43,7 @@ The Swift 6.4 Windows build can emit a warning about its optional `.build/debug`
 
 Use an Apple silicon Mac with Xcode 27 and a compatible macOS version:
 
-The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 25-minute job timeout. A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
+The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 15-minute job timeout. A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
 
 ```bash
 brew install xcodegen
@@ -58,7 +60,7 @@ The project specification pins MLX and Hugging Face package releases. `Dependenc
 
 The manual workflow compiles the phone and Watch targets, runs native authorization and interface tests, and saves screenshots. It does not download a model or make a paid inference call. Verbose simulator diagnostics are disabled because they stalled for 600 seconds after otherwise successful tests; result bundles, ordinary logs, and screenshots are retained.
 
-The optional `build_device` input builds a Release package for physical iPhone hardware and records its SHA-256. An ad-hoc seal carries requested entitlements into the signing tool; it is not installable Apple signing. The `PersonalAssistant-unsigned.ipa` filename is retained for the existing workflow and still requires iLoader or equivalent personal signing. No Apple signing credentials are sent to CI.
+The optional `build_device` input builds a Release package for physical iPhone hardware and records its SHA-256. An ad-hoc seal records requested entitlements; it is not installable Apple signing, and a signing tool must actually provision the capabilities it enables. `PersonalAssistant-unsigned.ipa` contains both phone and Watch. `PersonalAssistant-iPhone-only.ipa` omits the unsupported Watch directory for the existing iLoader route and retains the exact same iPhone executable. Both are inspected for identity, platform, kernels, and integrity. No Apple signing credentials are sent to CI.
 
 For physical installation, open the generated project in Xcode, select your own signing team, choose the iPhone, and enable Developer Mode when iOS requests it. No paid Apple Developer membership has been assumed or purchased. Free Personal Team signing has limitations and seven-day provisioning; hosted signing needs a separately established credential/provisioning route.
 

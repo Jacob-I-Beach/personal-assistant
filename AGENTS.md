@@ -16,3 +16,4 @@
 - Prefer mature native frameworks, SDKs, model templates, and sandbox engines. Keep system prompts compact and change them to address demonstrated failures rather than building elaborate prompting infrastructure.
 - Actual sandbox execution and native visual/interaction polish are release requirements. A calculator-only fallback is not an equivalent implementation of sandbox execution.
 - Jacob reports PCC access; establish the consumer-versus-developer access route without dismissing that report. Any optional hosted workspace must have verified free usage and no-charge controls, unless separate spending is explicitly authorized.
+- Jacob requested user-operated GUI steps instead of computer-use automation. Continue code, CLI, file, and automated test work directly; give exact steps for iLoader, device prompts, authentication, and other interactive app actions.

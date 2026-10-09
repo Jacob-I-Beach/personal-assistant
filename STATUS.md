@@ -2,17 +2,29 @@
 
 This file records implemented features, validation evidence, and user-reported device checks.
 
-## Next milestone under implementation
+## Current 0.2 candidate
 
-Jacob authorized continuing from the revised design. The engineering record is [Documentation/IMPLEMENTATION.md](Documentation/IMPLEMENTATION.md). New source includes embedded offline JavaScript execution, SQLite migration and search, bounded working context, durable artifacts, ChatGPT account authorization, Apple model adapters, a verified local catalog, and redesigned native screens. The Windows suite passed 39 tests with synthetic data. Native changes are awaiting Xcode compilation, platform tests, and visual inspection; real account authorization and physical-device behavior are not yet verified. The installed 0.1.0 build remains the previous device checkpoint.
+The final source `c403e184dc2bfbeb5d4c776e24d4334bec112895` passed [native validation 38003037939](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38003037939): 50 macOS core tests, four iOS platform tests, three native UI tests, and the iPhone/Watch Release build. The same shared-core revision passed 50 Windows tests. Eight native screenshots are retained in `Documentation/Screenshots/0.2.0`; the changed welcome, dark/large-text, code-block, and Settings screens were visually inspected after the final run. These checks are not a full accessibility audit.
 
-Update: the current shared suite passes 50 Windows tests. Native run [37991960595](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/37991960595), source `28e2f6a`, passed 44 macOS core tests, two iOS authorization tests, two native UI tests, and iPhone/Watch compilation. Its screenshots were inspected. The latest candidate adds saved memory and data classification, artifact draft recovery, Siri/Shortcuts entry, Health tool refresh, visual fixes, catalog-total validation, and cancellation improvements. Those refinements are being validated separately before the 0.2 package is delivered. No live ChatGPT grant, physical Health read, actual Watch exchange, or local-model benchmark is claimed.
+The verified installation input is `../PersonalAssistant-iPhone/0.2.0/PersonalAssistant-iPhone-only.ipa`, version 0.2.0 build 2, 13,431,742 bytes, SHA-256 `579b90fd6f679bd864a36bd61f5040ad5302e89e167000d5ffb8b211e26d5333`. It targets physical ARM64 iOS 27 and includes the Metal kernels. The complete iPhone/Watch archive and verification receipts are retained beside it. Neither package contains model weights or an Apple provisioning profile; local personal signing is still required.
 
-## Implemented in source
+All nine Mac jobs used 80 rounded runner minutes, an estimated $4.96 at $0.062/minute if entirely billable. This remains within Jacob's previously authorized $5 compute budget. Actual account charges, included allowance, taxes, and separate artifact storage are not established by this estimate. Evidence is in `Documentation/BuildValidation.json`.
 
-Portable assistant core, persistent conversations and capture records, normalized provider messages, explicit network authorization, streaming HTTP adapters, read-only capture tool, native camera/OCR/depth capture, SwiftUI screens, Keychain credential storage, MLX download/local-load adapter, capture export/replay, and manual unsigned Mac CI configuration.
+Implemented source includes SQLite migration and search, bounded working context, actual offline JavaScript execution, durable editable artifacts, explicit saved memory and local-only classification, ChatGPT account authorization/model selection, Apple model adapters, a verified downloadable/importable MLX catalog, native voice input/read-aloud, Health overview logic, Watch request delivery/recovery, and rebuilt native screens. Details and remaining product scope are in [README.md](README.md) and [Documentation/IMPLEMENTATION.md](Documentation/IMPLEMENTATION.md).
 
-## Verification
+Jacob has now reported that the updated 0.2.0 app is installed and opens on his iPhone. This is the latest physical installation/launch checkpoint. Live ChatGPT grant, real on-device inference/tool use, prior-chat preservation, physical Health reads, Watch exchange, and hardware benchmarks are not established by launch alone. The simulator uses synthetic conversation fixtures and does not establish model output quality.
+
+Jacob confirmed the USB phone is visible in iLoader. His first 0.2 import stopped before installation: `Failed to list developer devices` -> `Failed to get anisette headers` -> HTTP 502 from `https://ani.sidestore.io/v3/get_headers`. The agent reviewed the exact official iLoader server/login code and provided manual steps to select its built-in SideStore (.app) preset, sign out and back into the same account inside iLoader, then retry the same verified IPA. The selected server is bound when the session is constructed at login. Public `/v3/client_info` requests returned HTTP 200 for the .io, .app, and .zip presets; that check alone did not verify signing. Jacob then confirmed, "Installed, and Version 0.2.0 opens." No desktop GUI actions have been taken since his request to handle GUI interactions himself.
+
+The next requested physical test uses an available Apple on-device model to run JavaScript on `[18.5, 27.25, 14.75]`, return 60.5, and save/open `totals.csv`. Its result is awaiting Jacob's report.
+
+### Installation boundary
+
+Official iLoader 2.3.6 does not prepare Watch provisioning or request this app's HealthKit capability. The final build produces a complete archive and a separate iPhone-only input for the existing installer, with identical iPhone executable bytes. Health is visibly unavailable and its native authorization/query entry points are gated off in this installation profile. This avoids presenting an unprovisioned feature as connected. Neither a paid Apple enrollment nor an unofficial signer has been introduced. Direct PCC also remains gated pending the app's managed entitlement.
+
+Exact user-operated installation and functional test steps are in [Documentation/DEVICE_VALIDATION.md](Documentation/DEVICE_VALIDATION.md). Jacob requested GUI instructions instead of computer-use automation; code/CLI/test work continues directly.
+
+## Historical 0.1 verification
 
 - Official Swift 6.4 Windows toolchain installed and functional.
 - All 24 tests passed on Windows using `scripts/Test-Core.ps1 -Integration` and on macOS under Xcode 27: 12 core tests, 5 engine tests, and 7 real-HTTP/loopback tests.
@@ -39,13 +51,13 @@ Portable assistant core, persistent conversations and capture records, normalize
 - Package SHA-256: `e8bfcaf58f3dab1b942530dc5d798d954a0a26fd4a65b99e6c77869dd166a21a`.
 - Five completed Mac jobs used 23 rounded runner minutes in total. At the published standard Mac rate, compute would be about $1.43 if fully billable. This is an estimate, not a billing-account reading; included usage may cover it. Diagnostic artifacts expire after 7 days and the GitHub device package after 1 day; the local copies are retained. Job evidence is in `Documentation/BuildValidation.json`.
 
-## Next external validation gate
+## Historical setup and 0.1 installation
 
 On October 9, 2026, Jacob reported that the privately installed app opens on his iPhone. This establishes the user-reported installation/launch checkpoint. It does not establish successful local inference, sensor accuracy, sustained performance, or readiness for daily use.
 
-Jacob requested a substantial design phase and a much more mature next device update. The proposal is in `Documentation/PRODUCT_DESIGN.md`. No additional device build is being dispatched for this design pass. The next validation questions are model-file reuse, Apple model availability, context/memory behavior, hardware performance, and complete user workflows.
+Jacob then requested a substantial design phase and a much more mature next device update. The proposal is in `Documentation/PRODUCT_DESIGN.md`. That design pass was followed by the 0.2 implementation recorded above. Model-file reuse, Apple model availability, context/memory behavior, hardware performance, and complete user workflows remain physical validation questions.
 
-Jacob's subsequent design update makes ChatGPT account connection coequal with downloaded models, and explicitly prioritizes native visual polish, real sandbox execution, mature-component reuse, compact prompting, deeper Health/Watch integration, and simple model download/onboarding flows. He reports Private Cloud Compute access; whether this means consumer Apple Intelligence access or an approved developer entitlement remains to be clarified. An optional no-charge hosted workspace is under consideration; no cloud service has been provisioned or connected. These are design requirements, not newly implemented features.
+Jacob's subsequent design update makes ChatGPT account connection coequal with downloaded models, and explicitly prioritizes native visual polish, real sandbox execution, mature-component reuse, compact prompting, deeper Health/Watch integration, and simple model download/onboarding flows. He reports Private Cloud Compute access; whether this means consumer Apple Intelligence access or an approved developer entitlement remains to be clarified. An optional no-charge hosted workspace is under consideration; no cloud service has been provisioned or connected. Current implementation and signing limits are recorded above.
 
 Apple Devices recognizes the physical iPhone 18 Pro Max over USB and reports iOS 27.0.1. Jacob confirmed that the phone is connected and trusted. Developer Mode was not visible earlier in setup; the agent did not separately inspect its final setting after Jacob reported the app opening.
 

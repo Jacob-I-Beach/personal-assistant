@@ -44,10 +44,54 @@
       "started_at": "2026-10-09T10:01:37Z",
       "status": "completed",
       "rounded_minutes": 5
+    },
+    {
+      "run_id": 37989208475,
+      "source_revision": "b0951eaafb9c90aeb72288b5fb6415c0d57b8fb0",
+      "url": "https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/37989208475",
+      "completed_at": "2026-10-09T20:52:39Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-09T20:46:30Z",
+      "status": "completed",
+      "rounded_minutes": 7
+    },
+    {
+      "run_id": 37991960595,
+      "source_revision": "28e2f6a44e82c709dfe235e5d634c1521d61ffec",
+      "url": "https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/37991960595",
+      "completed_at": "2026-10-09T21:31:05Z",
+      "conclusion": "success",
+      "name": "ios",
+      "started_at": "2026-10-09T21:12:09Z",
+      "status": "completed",
+      "rounded_minutes": 19
+    },
+    {
+      "run_id": 38001440054,
+      "source_revision": "d6339a35e41adc4df0dcef5fb5cb21638ce3ffb3",
+      "url": "https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38001440054",
+      "completed_at": "2026-10-09T23:07:02Z",
+      "conclusion": "success",
+      "name": "ios",
+      "started_at": "2026-10-09T22:51:33Z",
+      "status": "completed",
+      "rounded_minutes": 16
+    },
+    {
+      "run_id": 38003037939,
+      "source_revision": "c403e184dc2bfbeb5d4c776e24d4334bec112895",
+      "url": "https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38003037939",
+      "completed_at": "2026-10-09T23:24:29Z",
+      "conclusion": "success",
+      "name": "ios",
+      "started_at": "2026-10-09T23:10:08Z",
+      "status": "completed",
+      "rounded_minutes": 15
     }
   ],
-  "rounded_runner_minutes": 23,
+  "rounded_runner_minutes": 80,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 1.426,
+  "estimated_compute_usd_if_fully_billable": 4.96,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate."
 }

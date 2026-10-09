@@ -1,6 +1,6 @@
 # Private 0.2 device validation
 
-This is a substantial development candidate. Jacob reported that the earlier 0.1 app opens. Simulator tests and core tests establish implementation behavior with synthetic fixtures; they do not establish live account access, on-phone model performance, or real sensor behavior.
+This is a substantial development candidate. Jacob reported that the updated 0.2.0 app installs and opens after the signing-service retry described below. Simulator tests and core tests establish implementation behavior with synthetic fixtures; they do not establish live account access, on-phone model performance, or real sensor behavior.
 
 ## Installation profile
 
@@ -25,6 +25,12 @@ Source evidence: [official iLoader 2.3.6](https://github.com/nab138/iloader/tree
 4. After iLoader reports success, open Personal Assistant on the phone. Existing saved conversations should remain. Do not uninstall the old app to solve an update failure.
 
 The agent performs code/CLI/file validation; Jacob requested instructions for all GUI interactions rather than computer-use automation.
+
+### If the signing helper returns HTTP 502
+
+The first 0.2 attempt failed in the selected anisette service's `/v3/get_headers` operation, before iLoader listed Apple developer devices or installed the app. In official iLoader 2.3.6, select **Settings → Anisette Server → SideStore (.app)**, then sign out and back into the same account **inside iLoader** before retrying Import IPA. The server choice is applied when the account session is created, not by changing the active session in place. The public service-info endpoint was reachable when checked; this is not proof that an individual signing request succeeds. This error does not call for changing the IPA or deleting the existing phone app.
+
+Sources: [official preset list](https://github.com/nab138/iloader/blob/v2.3.6/src/pages/Settings.tsx), [official account/session implementation](https://github.com/nab138/iloader/blob/v2.3.6/src-tauri/src/account.rs).
 
 ## First functional pass
 
