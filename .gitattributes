@@ -1,1 +1,4 @@
 * text=auto eol=lf
+Sources/CQuickJS/vendor/** linguist-vendored whitespace=-blank-at-eol,-blank-at-eof
+Sources/CSQLite/** linguist-vendored whitespace=-blank-at-eol,-blank-at-eof
+App/Resources/*-License.txt whitespace=-blank-at-eol,-blank-at-eof

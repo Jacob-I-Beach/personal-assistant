@@ -17,9 +17,13 @@ Started October 9, 2026, after Jacob approved continuing from PRODUCT_DESIGN.md.
 
 The Windows shared-core suite passed 39 tests after the portable storage, context, sandbox, and authorization changes. It includes a 1,000-message saved conversation, exact-source search, stale-index removal, rollback on identity collision, legacy import without stale reimport, loop/cancellation/memory/stack/output/path limits, offline host-API absence, durable script artifacts, account callback/state binding, and prior streaming/cancellation/HTTP fixtures. These tests use synthetic data and no paid model APIs.
 
-Apple's current supported-capabilities HTML lists HealthKit for ADP, ADEP, and free Apple Developer membership. This is more favorable than older assumptions, but the actual iLoader signing route still needs verification. No paid enrollment has been performed.
+Apple’s current supported-capabilities HTML lists HealthKit for ADP, ADEP, and free Apple Developer membership. This is more favorable than older assumptions, but the actual iLoader signing route still needs verification. No paid enrollment has been performed.
 
 ## Required next checks
+
+Internal validation update: the first new Mac job, `37989208475` at source `b0951ea`, passed the shared-core suite and stopped during native compilation because JOSESwift's generic header accessor was not public. The adapter now inspects only the header's encoding flag with ordinary JSON parsing and still delegates signature verification to JOSESwift. The run used 7 rounded Mac minutes, bringing the known total to 30 minutes (about $1.86 if billable). No device package was produced.
+
+The second source batch adds a direct HealthKit overview, explicit Health-derived network consent, an on-device-only setting, local speech dictation/read-aloud, a Watch companion with persistent request deduplication and interruption recovery, and Files import of matching verified MLX packages. The shared Windows suite now passes 44 tests. Health aggregation tests cover overlapping samples, missing data, and daylight-saving boundaries; Watch tests cover duplicate delivery and persisted replies. Voice, Health authorization, Watch signing/delivery, and actual iOS behavior still require native/device validation.
 
 1. Compile the changed native app and run native UI/authorization fixture tests on the hosted Mac. Windows parsing is insufficient.
 2. Inspect actual native screenshots in light/dark/large-type and common interaction states; correct issues before creating a device release.

@@ -11,6 +11,9 @@
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UILaunchScreen</key><dict/>
     <key>NSCameraUsageDescription</key><string>Capture an image and available depth data when you ask the assistant to inspect something.</string>
+    <key>NSMicrophoneUsageDescription</key><string>Transcribe your voice into an editable message when you tap the microphone.</string>
+    <key>NSSpeechRecognitionUsageDescription</key><string>Turn speech into an editable draft. Voice input is enabled only when on-device recognition is available.</string>
+    <key>NSHealthShareUsageDescription</key><string>Create a sleep, steps, and workout overview from the Health data you choose to share. You decide whether to discuss a selected summary with a connected model.</string>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to a model server on your own computer when you select a LAN endpoint.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>

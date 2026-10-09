@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     @Published var artifacts: [ArtifactRecord] = []
     @Published var attachedCaptureIDs: [UUID] = []
     @Published var draft = ""
+    @Published var draftContainsHealthData = false
     @Published var isRunning = false
     @Published var isDownloading = false
     @Published var isConnecting = false
@@ -29,6 +30,7 @@ final class AppModel: ObservableObject {
     @Published var appleDevice = AppleModelBackend.readiness(.device)
     @Published var appleCloud = AppleModelBackend.readiness(.privateCloud)
     @Published var showModels = false
+    @Published var watchRequests: [WatchRequest] = []
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
     private var localBackend: MLXLocalBackend?
@@ -44,6 +46,9 @@ final class AppModel: ObservableObject {
     private var accountService: ChatGPTAccountService?
     private let signIn = ChatGPTSignIn()
     private var drafts: [String: String] = [:]
+    private let watch = PhoneWatchBridge()
+    private var activeWatchRequestID: UUID?
+    private var isStartingWatchRequest = false
 
     var modelTitle: String {
         switch settings.choice {
@@ -82,15 +87,19 @@ final class AppModel: ObservableObject {
             catch { noticeMessage = "ChatGPT credentials are unavailable while protected storage is locked. On-device features remain available." }
             try PrivatePaths.configureBackup(root: root, includeUserData: settings.includeInDeviceBackup)
             rebuildLocalBackend()
+            watch.onRequest = { [weak self] request in await self?.receiveWatchRequest(request) }
+            watch.activate()
             Task {
+                try? await store.recoverWatchRequests()
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--ui-demo") { await installDemoFixture() }
                 #endif
                 await refresh()
                 if let raw = drafts["selected"], let id = UUID(uuidString: raw), let saved = try? await store.loadConversation(id) {
-                    conversation = saved; draft = drafts[id.uuidString] ?? ""
+                    conversation = saved; draft = drafts[id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + id.uuidString] == "true"
                 }
                 await refreshDownloads(); await refreshAccounts()
+                await processNextWatchRequest()
             }
         } catch { errorMessage = error.localizedDescription }
     }
@@ -100,10 +109,12 @@ final class AppModel: ObservableObject {
             histories = try await store.conversationSummaries()
             captures = try await store.captures()
             artifacts = try await store.artifacts()
+            watchRequests = try await store.pendingWatchRequests()
         } catch { errorMessage = error.localizedDescription }
     }
     func becameActive() {
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
+        Task { await processNextWatchRequest() }
     }
     func draftChanged() {
         drafts[conversation.id.uuidString] = draft; drafts["selected"] = conversation.id.uuidString
@@ -118,17 +129,19 @@ final class AppModel: ObservableObject {
     }
     func flushDraft() {
         drafts[conversation.id.uuidString] = draft; drafts["selected"] = conversation.id.uuidString
+        if draft.isEmpty { draftContainsHealthData = false }
+        drafts["health:" + conversation.id.uuidString] = draftContainsHealthData ? "true" : "false"
         guard let draftURL else { return }
         do { try JSONEncoder().encode(drafts).write(to: draftURL, options: .atomic) }
         catch { errorMessage = "Your draft could not be saved. Free some storage before closing the app." }
     }
     func newConversation() {
-        guard !isRunning else { return }; flushDraft()
-        conversation = Conversation(); attachedCaptureIDs = []; draft = ""; errorMessage = nil
+        guard !isRunning else { return }; detachWatchRequest(); flushDraft()
+        conversation = Conversation(); attachedCaptureIDs = []; draft = ""; draftContainsHealthData = false; errorMessage = nil
     }
     func selectConversation(_ summary: ConversationSummary) async {
-        guard !isRunning, let store else { return }; flushDraft()
-        do { conversation = try await store.loadConversation(summary.id); attachedCaptureIDs = []; draft = drafts[summary.id.uuidString] ?? "" }
+        guard !isRunning, let store else { return }; if summary.id != conversation.id { detachWatchRequest() }; flushDraft()
+        do { conversation = try await store.loadConversation(summary.id); attachedCaptureIDs = []; draft = drafts[summary.id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + summary.id.uuidString] == "true" }
         catch { errorMessage = error.localizedDescription }
     }
     func searchHistory(_ query: String) async -> [HistoryMatch] { (try? await store?.searchMessages(query)) ?? [] }
@@ -163,10 +176,15 @@ final class AppModel: ObservableObject {
     func send(_ suppliedText: String? = nil) {
         let text = suppliedText ?? draft
         guard !isRunning, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        conversation.networkDisabled = settings.localOnly
+        if settings.localOnly && settings.networkDestination != nil {
+            showModels = true; noticeMessage = "On-device-only mode is enabled. Choose a downloaded or Apple on-device model."; return
+        }
         if settings.choice == .localMLX, !downloadedModelIDs.contains(settings.localRepository) {
             showModels = true; noticeMessage = "Download or import a model, or choose an available connection. Your draft is saved."; return
         }
-        if let destination = settings.networkDestination, !conversation.allowedNetworkDestinations.contains(destination) {
+        if let destination = settings.networkDestination,
+           !conversation.allowedNetworkDestinations.contains(destination) || ((draftContainsHealthData || conversation.containsHealthData) && !conversation.allowedHealthDestinations.contains(destination)) {
             pendingText = text; needsNetworkConsent = true; return
         }
         startResponse(text)
@@ -174,25 +192,31 @@ final class AppModel: ObservableObject {
     func approveNetworkConversation() {
         guard let destination = settings.networkDestination, let text = pendingText else { return }
         conversation.allowedNetworkDestinations.insert(destination)
+        if draftContainsHealthData || conversation.containsHealthData { conversation.allowedHealthDestinations.insert(destination) }
         pendingText = nil; needsNetworkConsent = false; startResponse(text)
     }
     func declineNetworkConversation() { pendingText = nil; needsNetworkConsent = false }
     func revokeNetworkConsent() {
         guard !isRunning else { return }
         conversation.allowedNetworkDestinations = []
+        conversation.allowedHealthDestinations = []
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
     }
     func stop() { responseTask?.cancel() }
     private func startResponse(_ text: String) {
         guard let engine else { return }
-        let current = conversation, attachments = attachedCaptureIDs, selection = settings
+        let current = conversation, attachments = attachedCaptureIDs, selection = settings, healthData = draftContainsHealthData
         let previousIDs = Set(current.messages.map(\.id))
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; flushDraft()
         responseTask = Task {
+            if let requestID = activeWatchRequestID {
+                await publishWatch(WatchReply(requestID: requestID, conversationID: current.id, state: .working,
+                    message: "Your iPhone is working on it.", modelName: modelTitle))
+            }
             do {
                 let selectedBackend = try await backend(for: selection)
                 try Task.checkCancellation()
-                for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend) {
+                for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend, containsHealthData: healthData) {
                     switch event {
                     case .conversation(let updated):
                         conversation = updated
@@ -211,6 +235,14 @@ final class AppModel: ObservableObject {
             await engine.waitUntilIdle()
             if let saved = try? await store?.loadConversation(current.id) { conversation = saved }
             isRunning = false; responseTask = nil; activity = nil
+            if let requestID = activeWatchRequestID {
+                activeWatchRequestID = nil
+                let answer = conversation.messages.last(where: { $0.role == .assistant })
+                let successful = errorMessage == nil && !Task.isCancelled && answer?.state == .complete && answer.map { !previousIDs.contains($0.id) } == true
+                let text = successful ? String((answer?.text ?? "Completed on iPhone.").prefix(1000)) : "The task stopped or needs attention. Continue on your iPhone."
+                await publishWatch(WatchReply(requestID: requestID, conversationID: conversation.id,
+                    state: successful ? .complete : .needsPhone, message: text, modelName: modelTitle))
+            }
             await refresh()
         }
     }
@@ -242,6 +274,7 @@ final class AppModel: ObservableObject {
         try JSONEncoder().encode(value).write(to: settingsURL, options: .atomic)
         let changedLocal = value.localRepository != settings.localRepository || value.localRevision != settings.localRevision || value.localResponseTokens != settings.localResponseTokens
         settings = value
+        if value.localOnly { cancelConnection(); stopDownload() }
         if changedLocal { rebuildLocalBackend() }
         if let root { try PrivatePaths.configureBackup(root: root, includeUserData: value.includeInDeviceBackup) }
     }
@@ -274,6 +307,7 @@ final class AppModel: ObservableObject {
         downloadedModelIDs = ready
     }
     func downloadModel(_ entry: LocalModelCatalogEntry) {
+        guard !settings.localOnly else { noticeMessage = "Turn off on-device-only mode to download model files, then enable it again for offline use."; return }
         guard !isDownloading, !(isRunning && settings.choice == .localMLX), let modelRoot else { return }
         let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens)
         isDownloading = true; downloadingModelID = entry.id; downloadProgress = 0; modelStatus = "Downloading \(entry.name)"
@@ -292,11 +326,30 @@ final class AppModel: ObservableObject {
         }
     }
     func stopDownload() { downloadTask?.cancel() }
+    func importModel(_ entry: LocalModelCatalogEntry, folder: URL) {
+        guard !isDownloading, !(isRunning && settings.choice == .localMLX), let modelRoot else { return }
+        let scoped = folder.startAccessingSecurityScopedResource()
+        let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens)
+        isDownloading = true; downloadingModelID = entry.id; downloadProgress = 0; modelStatus = "Importing \(entry.name)"
+        downloadTask = Task {
+            defer { if scoped { folder.stopAccessingSecurityScopedResource() }; isDownloading = false; downloadingModelID = nil; downloadTask = nil }
+            do {
+                try await backend.importFolder(folder, expectedFiles: entry.files) { [weak self] progress in
+                    Task { @MainActor in self?.downloadProgress = progress; if progress >= 1 { self?.modelStatus = "Verifying imported files" } }
+                }
+                modelStatus = "\(entry.name) is ready to use"; await refreshDownloads()
+            } catch {
+                modelStatus = Task.isCancelled ? "Import stopped" : "Import needs attention"
+                if !Task.isCancelled { errorMessage = error.localizedDescription }
+            }
+        }
+    }
     func unloadModel() {
         guard !isRunning, let localBackend else { return }
         Task { do { try await localBackend.unload(); modelStatus = "Model memory released" } catch { errorMessage = error.localizedDescription } }
     }
     func connectChatGPT(clientID: String? = nil) {
+        guard !settings.localOnly else { noticeMessage = "Turn off on-device-only mode to connect a ChatGPT account."; return }
         guard !isConnecting, !isRunning, let accountService else { return }
         isConnecting = true
         connectionTask = Task {
@@ -313,9 +366,15 @@ final class AppModel: ObservableObject {
         }
     }
     func cancelConnection() { connectionTask?.cancel(); signIn.cancel() }
+    func composeHealthOverview(_ report: HealthOverview) {
+        guard !isRunning else { return }
+        do { let text = try report.discussionText(); newConversation(); draft = text; draftContainsHealthData = true; draftChanged() }
+        catch { errorMessage = error.localizedDescription }
+    }
     func refreshAccounts() async {
         guard let accountService else { return }
         accounts = await accountService.summaries()
+        guard !settings.localOnly else { chatGPTModels = []; return }
         let savedID = await accountService.selectedID()
         guard let id = settings.chatGPTAccountID ?? savedID else { chatGPTModels = []; return }
         settings.chatGPTAccountID = id
@@ -333,7 +392,7 @@ final class AppModel: ObservableObject {
     func disconnectAccount(_ account: ChatGPTAccountSummary) async {
         guard !isRunning, let accountService else { return }
         do {
-            let confirmed = try await accountService.signOut(account.id)
+            let confirmed = try await accountService.signOut(account.id, revokeRemotely: !settings.localOnly)
             if settings.chatGPTAccountID == account.id {
                 settings.chatGPTAccountID = nil; settings.chatGPTModel = ""; chatGPTModels = []
                 if settings.choice == .chatGPT { settings.choice = appleDevice.isAvailable ? .appleOnDevice : .localMLX }
@@ -342,6 +401,60 @@ final class AppModel: ObservableObject {
             try saveSettings(settings)
             noticeMessage = confirmed ? "Signed out of this ChatGPT account." : "Signed out on this device. Remote revocation could not be confirmed; disconnect the app in ChatGPT Settings → Usage."
         } catch { errorMessage = error.localizedDescription }
+    }
+    private func receiveWatchRequest(_ request: WatchRequest) async {
+        guard let store else { return }
+        do {
+            let inserted = try await store.enqueueWatchRequest(request)
+            if !inserted {
+                if let previous = try await store.watchReply(request.id) { watch.send(previous) }
+                return
+            }
+            await publishWatch(WatchReply(requestID: request.id, conversationID: request.conversationID, state: .queued,
+                message: "Saved on iPhone. Open the assistant if a reply doesn't arrive.", modelName: modelTitle))
+            await refresh()
+            await processNextWatchRequest()
+        } catch {
+            watch.send(WatchReply(requestID: request.id, conversationID: request.conversationID, state: .failed,
+                message: "This request could not be accepted. Review it on iPhone or send a fresh request.", modelName: modelTitle))
+        }
+    }
+    private func processNextWatchRequest() async {
+        guard UIApplication.shared.applicationState == .active, !isRunning, !needsNetworkConsent,
+              activeWatchRequestID == nil, !isStartingWatchRequest, draft.isEmpty, let store else { return }
+        if let next = try? await store.queuedWatchRequests().first { await resumeWatchRequest(next) }
+    }
+    func resumeWatchRequest(_ request: WatchRequest) async {
+        guard !isRunning, !needsNetworkConsent, activeWatchRequestID == nil, !isStartingWatchRequest, let store else { return }
+        isStartingWatchRequest = true
+        defer { isStartingWatchRequest = false }
+        guard request.isValid() else {
+            await publishWatch(WatchReply(requestID: request.id, conversationID: request.conversationID, state: .failed,
+                message: "This saved request has expired. Send a fresh request so relative times stay accurate.", modelName: modelTitle)); await refresh(); return
+        }
+        let previous = try? await store.watchReply(request.id)
+        let target = previous?.conversationID ?? request.conversationID
+        if let target, let summary = histories.first(where: { $0.id == target }) { await selectConversation(summary) }
+        else { newConversation() }
+        activeWatchRequestID = request.id
+        let interrupted = conversation.messages.last?.state == .interrupted || conversation.messages.last?.state == .failed || conversation.messages.last?.role == .tool
+        draft = previous?.state == .needsPhone && interrupted ? "Continue the interrupted request using the saved results." : request.text
+        draftChanged()
+        await publishWatch(WatchReply(requestID: request.id, conversationID: conversation.id, state: .needsPhone,
+            message: "Open the iPhone app to choose a model or review the sharing request.", modelName: modelTitle))
+        send()
+        await refresh()
+    }
+    private func publishWatch(_ reply: WatchReply) async {
+        do { try await store?.saveWatchReply(reply); watch.send(reply) }
+        catch { noticeMessage = "The Watch task status could not be saved." }
+    }
+    private func detachWatchRequest() {
+        guard let id = activeWatchRequestID else { return }
+        activeWatchRequestID = nil
+        let reply = WatchReply(requestID: id, conversationID: conversation.id, state: .needsPhone,
+            message: "This task is saved in Watch requests on iPhone.", modelName: modelTitle)
+        Task { await publishWatch(reply) }
     }
     #if DEBUG
     private func installDemoFixture() async {

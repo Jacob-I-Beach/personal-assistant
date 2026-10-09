@@ -28,6 +28,8 @@ struct SettingsView: View {
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
+                    Toggle("Work only on this device", isOn: $draft.localOnly)
+                    Text("Blocks connected models and account-model refreshes. Turn this off temporarily when downloading model files.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Include user data in device backups", isOn: $draft.includeInDeviceBackup)
                     Text("Conversations, captures, and files stay excluded until you enable this. Model weights are always excluded. Account credentials remain in this device's Keychain.").font(.footnote).foregroundStyle(.secondary)
                     Button("Revoke network access for this conversation") { model.revokeNetworkConsent() }.disabled(model.isRunning)
@@ -67,6 +69,11 @@ struct SettingsView: View {
                 }
             }
             .onAppear { draft = model.settings }
+            .onChange(of: model.settings.chatGPTAccountID) { _, _ in
+                draft.chatGPTAccountID = model.settings.chatGPTAccountID
+                draft.chatGPTModel = model.settings.chatGPTModel
+                draft.choice = model.settings.choice
+            }
             .alert("Settings saved", isPresented: $showSaved) { Button("Done") { dismiss() } }
         }
     }

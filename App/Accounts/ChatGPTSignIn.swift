@@ -47,7 +47,8 @@ final class ChatGPTSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
         return try await service.finish(code, attempt: attempt)
     }
     func cancel() { receiver?.cancel(); session?.cancel() }
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { anchor ?? ASPresentationAnchor() }
+    // connect establishes and retains this window before starting the authentication session.
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { anchor! }
     private static func randomValue(bytes: Int = 32) throws -> String {
         var buffer = [UInt8](repeating: 0, count: bytes)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes, &buffer) == errSecSuccess else { throw AccountConnectionError.unavailable }

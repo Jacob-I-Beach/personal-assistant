@@ -91,10 +91,47 @@ public actor LocalStore {
         try Data(saved.content.utf8).write(to: url, options: .atomic)
         return url
     }
+    public func enqueueWatchRequest(_ request: WatchRequest) throws -> Bool {
+        guard request.isValid() else { throw AssistantError.invalidTool("This Watch request is empty, too large, or expired.") }
+        let payload = try WatchWire.encode(request)
+        return try database.transaction {
+            if let existing = try database.execute("SELECT payload FROM watch_requests WHERE id = ?", [.text(request.id.uuidString)]).first?[0].data {
+                guard existing == payload else { throw AssistantError.invalidTool("A repeated Watch request changed its contents.") }
+                return false
+            }
+            try database.execute("INSERT INTO watch_requests(id,created_at,state,payload) VALUES(?,?,'queued',?)",
+                [.text(request.id.uuidString), .real(request.createdAt.timeIntervalSince1970), .blob(payload)])
+            return true
+        }
+    }
+    public func queuedWatchRequests() throws -> [WatchRequest] {
+        try database.execute("SELECT payload FROM watch_requests WHERE state = 'queued' ORDER BY created_at LIMIT 20")
+            .map { try WatchWire.decode(WatchRequest.self, data: $0[0].data!) }
+    }
+    public func pendingWatchRequests() throws -> [WatchRequest] {
+        try database.execute("SELECT payload FROM watch_requests WHERE state IN ('queued','needsPhone','working') ORDER BY created_at LIMIT 40")
+            .map { try WatchWire.decode(WatchRequest.self, data: $0[0].data!) }
+    }
+    public func recoverWatchRequests() throws {
+        for row in try database.execute("SELECT reply FROM watch_requests WHERE state = 'working'") {
+            guard let data = row[0].data else { continue }
+            var reply = try WatchWire.decode(WatchReply.self, data: data)
+            reply.state = .needsPhone; reply.message = "The app was interrupted. Open Watch requests on iPhone to continue the saved task."
+            try saveWatchReply(reply)
+        }
+    }
+    public func saveWatchReply(_ reply: WatchReply) throws {
+        try database.execute("UPDATE watch_requests SET state = ?, reply = ? WHERE id = ?",
+            [.text(reply.state.rawValue), .blob(try WatchWire.encode(reply)), .text(reply.requestID.uuidString)])
+    }
+    public func watchReply(_ id: UUID) throws -> WatchReply? {
+        guard let data = try database.execute("SELECT reply FROM watch_requests WHERE id = ?", [.text(id.uuidString)]).first?[0].data else { return nil }
+        return try WatchWire.decode(WatchReply.self, data: data)
+    }
 
     private static func prepare(_ database: SQLiteDatabase, root: URL) throws {
         let version = Int(try database.execute("PRAGMA user_version").first?[0].number ?? 0)
-        guard version <= 1 else { throw AssistantError.unsupportedSchema(version) }
+        guard version <= 2 else { throw AssistantError.unsupportedSchema(version) }
         if version == 0 {
             try database.transaction {
                 try database.execute("CREATE TABLE conversations(id TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at REAL NOT NULL, payload BLOB NOT NULL)")
@@ -107,6 +144,12 @@ public actor LocalStore {
                 try database.execute("CREATE TABLE artifacts(id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, created_at REAL NOT NULL, payload BLOB NOT NULL)")
                 try database.execute("CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
                 try database.execute("PRAGMA user_version = 1")
+            }
+        }
+        if version < 2 {
+            try database.transaction {
+                try database.execute("CREATE TABLE watch_requests(id TEXT PRIMARY KEY, created_at REAL NOT NULL, state TEXT NOT NULL, payload BLOB NOT NULL, reply BLOB)")
+                try database.execute("PRAGMA user_version = 2")
             }
         }
         if try database.execute("SELECT value FROM metadata WHERE key = 'legacy-import'").isEmpty {

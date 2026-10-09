@@ -9,6 +9,8 @@ struct RootView: View {
     @State private var showHistory = false
     @State private var showLibrary = false
     @State private var showSettings = false
+    @State private var showHealth = false
+    @State private var showWatchRequests = false
     var body: some View {
         NavigationStack {
             ChatView()
@@ -29,6 +31,8 @@ struct RootView: View {
                         Menu {
                             Button("New conversation", systemImage: "square.and.pencil") { model.newConversation() }.disabled(model.isRunning)
                             Button("Library", systemImage: "square.stack") { showLibrary = true }
+                            Button("Health overview", systemImage: "heart.text.square") { showHealth = true }
+                            Button("Watch requests", systemImage: "applewatch") { showWatchRequests = true }
                             Button("Settings", systemImage: "slider.horizontal.3") { showSettings = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Assistant menu")
                     }
@@ -39,6 +43,8 @@ struct RootView: View {
         .sheet(isPresented: $showHistory) { HistoryView() }
         .sheet(isPresented: $showLibrary) { LibraryView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showHealth) { HealthOverviewView() }
+        .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
         .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
@@ -46,7 +52,7 @@ struct RootView: View {
             Button("Allow for this conversation") { model.approveNetworkConversation() }
             Button("Keep on this device", role: .cancel) { model.declineNetworkConversation() }
         } message: {
-            Text("Relevant conversation text, selected images, and requested tool results will be sent to \(model.modelLocation). You can revoke this permission in Settings.")
+            Text((model.draftContainsHealthData || model.conversation.containsHealthData ? "This conversation includes a selected Health summary. Sharing it sends that Health-derived information to the selected service for this wellness discussion. " : "") + "Relevant conversation text, selected images, and requested tool results will be sent to \(model.modelLocation). You can revoke this permission in Settings.")
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.becameActive() }
@@ -57,6 +63,9 @@ struct RootView: View {
 
 struct ChatView: View {
     @EnvironmentObject private var model: AppModel
+    @StateObject private var voice = VoiceController()
+    @State private var voicePrefix = ""
+    @State private var speakReplies = false
     @State private var showCapture = false
     @State private var photo: PhotosPickerItem?
     @State private var importing = false
@@ -73,7 +82,7 @@ struct ChatView: View {
                         Button("Show earlier messages") { visibleMessageCount += 100 }.font(.footnote).frame(maxWidth: .infinity)
                     }
                     ForEach(model.conversation.messages.suffix(visibleMessageCount)) { message in
-                        MessageRow(message: message).id(message.id)
+                        MessageRow(message: message).environmentObject(voice).id(message.id)
                     }
                     ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id }.prefix(6)) { artifact in
                         NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
@@ -115,6 +124,12 @@ struct ChatView: View {
         .background(Color(uiColor: .systemBackground))
         .sheet(isPresented: $showCapture) { SceneCaptureSheet().environmentObject(model) }
         .onChange(of: model.draft) { _, _ in model.draftChanged() }
+        .onChange(of: voice.transcript) { _, text in if !text.isEmpty { model.draft = voicePrefix + text } }
+        .onChange(of: voice.errorMessage) { _, value in if let value { model.noticeMessage = value } }
+        .onChange(of: model.isRunning) { _, running in
+            if !running && speakReplies, let message = model.conversation.messages.last, message.role == .assistant, message.state == .complete { voice.speak(message.text) }
+        }
+        .onDisappear { voice.stopAll() }
         .onChange(of: photo) { _, selected in
             guard let selected else { return }
             importing = true
@@ -155,6 +170,13 @@ struct ChatView: View {
     }
     private var composer: some View {
         VStack(spacing: 10) {
+            if voice.isRecording || voice.isSpeaking {
+                HStack {
+                    Label(voice.isRecording ? "Listening on this iPhone" : "Reading response", systemImage: "waveform").font(.footnote)
+                    Spacer()
+                    Button("Stop") { voice.stopAll() }.font(.footnote)
+                }.padding(.horizontal, 6)
+            }
             if let notice = model.noticeMessage {
                 HStack(alignment: .top) {
                     Text(notice).font(.caption).foregroundStyle(.secondary)
@@ -182,14 +204,23 @@ struct ChatView: View {
                 Menu {
                     Button("Camera and depth", systemImage: "camera") { showCapture = true }
                     PhotosPicker(selection: $photo, matching: .images) { Label("Photo library", systemImage: "photo") }
+                    Toggle("Read responses aloud", isOn: $speakReplies)
                 } label: { Image(systemName: "plus").font(.title3).frame(width: 32, height: 40) }
                     .accessibilityLabel("Add to message").disabled(importing || model.isRunning)
                 TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
-                    .padding(.vertical, 10).focused($composerFocused).accessibilityIdentifier("message-composer")
+                    .padding(.vertical, 10).focused($composerFocused).accessibilityIdentifier("message-composer").disabled(voice.isRecording)
+                Button {
+                    if voice.isRecording { voice.stopRecording() }
+                    else {
+                        model.stop(); voice.stopSpeaking(); voicePrefix = model.draft.isEmpty ? "" : model.draft + " "
+                        Task { await voice.startRecording() }
+                    }
+                } label: { Image(systemName: voice.isRecording ? "mic.fill" : "mic").font(.title3).frame(width: 28, height: 38) }
+                    .accessibilityLabel(voice.isRecording ? "Stop voice input" : "Dictate message").disabled(voice.isPreparing)
                 if model.isRunning {
                     Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 13, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }.accessibilityLabel("Stop response")
                 } else {
-                    Button { followBottom = true; model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }
+                    Button { voice.stopRecording(); followBottom = true; model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }
                         .accessibilityLabel("Send message").disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || importing)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 7).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 27))
@@ -218,6 +249,7 @@ private struct NoRemoteInlineImage: InlineImageProvider {
 }
 private struct MessageRow: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var voice: VoiceController
     let message: Message
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -240,6 +272,7 @@ private struct MessageRow: View {
                     HStack(spacing: 18) {
                         Button { UIPasteboard.general.string = message.text } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy message")
                         ShareLink(item: message.text) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share message")
+                        if message.role == .assistant { Button { voice.speak(message.text) } label: { Image(systemName: "speaker.wave.2") }.accessibilityLabel("Read response aloud") }
                         if message.role == .user { Button { model.draft = message.text } label: { Image(systemName: "pencil") }.accessibilityLabel("Use message as draft") }
                     }.font(.caption).foregroundStyle(.secondary).padding(.top, 3)
                 }

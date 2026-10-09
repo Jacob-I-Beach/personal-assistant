@@ -114,14 +114,14 @@ actor ChatGPTAccountService {
         try save()
         return renewed.tokens!.accessToken
     }
-    func signOut(_ id: String) async throws -> Bool {
+    func signOut(_ id: String, revokeRemotely: Bool = true) async throws -> Bool {
         guard let account = vault.registrations.first(where: { $0.clientID == id }) else { return true }
         signedOut.insert(id)
         var sessionToRevoke = account.tokens
         if let refresh = refreshes[id], let renewed = try? await refresh.value { sessionToRevoke = renewed.tokens }
         refreshes[id] = nil
         var confirmed = sessionToRevoke == nil
-        if let token = sessionToRevoke?.refreshToken {
+        if revokeRemotely, let token = sessionToRevoke?.refreshToken {
             do {
                 let configuration = try await discovery()
                 guard let endpoint = configuration["revocation_endpoint"]?.stringValue, let url = URL(string: endpoint), url.host == "auth.openai.com" else { throw AccountConnectionError.unavailable }
@@ -167,7 +167,7 @@ actor ChatGPTAccountService {
             guard token.utf8.count < 128 * 1024 else { throw ChatGPTAuthorizationError.invalidIdentity }
             let signed = try JWS(compactSerialization: token)
             guard signed.header.algorithm == .RS256, signed.header.crit == nil,
-                  signed.header.get(parameter: "b64") == nil, let kid = signed.header.kid else { throw ChatGPTAuthorizationError.invalidIdentity }
+                  OpenAIIDTokenVerifier.usesStandardPayloadEncoding(token), let kid = signed.header.kid else { throw ChatGPTAuthorizationError.invalidIdentity }
             var keys = jwks?.1
             if jwks == nil || Date().timeIntervalSince(jwks!.0) > 300 || keys?["keys"]?.arrayValue?.contains(where: { $0["kid"]?.stringValue == kid }) != true {
                 let configuration = try await discovery()
@@ -187,12 +187,19 @@ actor ChatGPTAccountService {
 }
 
 enum OpenAIIDTokenVerifier {
+    static func usesStandardPayloadEncoding(_ token: String) -> Bool {
+        guard let component = token.split(separator: ".").first else { return false }
+        var base64 = component.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        guard let data = Data(base64Encoded: base64), let header = try? JSONDecoder().decode(JSONValue.self, from: data) else { return false }
+        return header["b64"] == nil
+    }
     static func verify(_ token: String, jwks: JSONValue, clientID: String, nonce: String?, expectedSubject: String? = nil) throws -> (subject: String, email: String?) {
         do {
             guard token.utf8.count < 128 * 1024 else { throw ChatGPTAuthorizationError.invalidIdentity }
             let signed = try JWS(compactSerialization: token)
             guard signed.header.algorithm == .RS256, signed.header.crit == nil,
-                  signed.header.get(parameter: "b64") == nil, let kid = signed.header.kid else { throw ChatGPTAuthorizationError.invalidIdentity }
+                  usesStandardPayloadEncoding(token), let kid = signed.header.kid else { throw ChatGPTAuthorizationError.invalidIdentity }
             let matching = jwks["keys"]?.arrayValue?.filter { $0["kid"]?.stringValue == kid && $0["kty"]?.stringValue == "RSA" } ?? []
             guard matching.count == 1 else { throw ChatGPTAuthorizationError.invalidIdentity }
             let key = matching[0]

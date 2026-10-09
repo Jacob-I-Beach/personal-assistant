@@ -69,6 +69,49 @@ actor MLXLocalBackend: ModelBackend {
         container = nil
         MLX.Memory.clearCache()
     }
+    func importFolder(_ source: URL, expectedFiles: [LocalModelCatalogEntry.File], progress: @Sendable @escaping (Double) -> Void) async throws {
+        guard !busy, !downloadBusy else { throw AssistantError.busy }
+        downloadBusy = true; defer { downloadBusy = false }
+        let required = expectedFiles.filter { !$0.name.hasPrefix("README") && !$0.name.hasPrefix("LICENSE") }
+        guard !required.isEmpty else { throw AssistantError.provider("This catalog entry has no verified model package.") }
+        let destination = root.appendingPathComponent("imports").appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let base = root.resolvingSymlinksInPath().path + "/"
+        guard destination.resolvingSymlinksInPath().path.hasPrefix(base) else { throw AssistantError.provider("Invalid model import destination.") }
+        var committed = false
+        defer { if !committed { try? FileManager.default.removeItem(at: destination) } }
+        let total = max(Int64(1), required.reduce(0) { $0 + $1.bytes })
+        var copied: Int64 = 0
+        for file in required {
+            try Task.checkCancellation()
+            let input = source.appendingPathComponent(file.name).resolvingSymlinksInPath()
+            guard input.path.hasPrefix(source.resolvingSymlinksInPath().path + "/"),
+                  let size = try? input.resourceValues(forKeys: [.fileSizeKey]).fileSize, Int64(size) == file.bytes else {
+                throw AssistantError.provider("Choose the complete matching MLX model folder, including its tokenizer, configuration, and safetensors files. A GGUF file or a different model revision cannot be imported as this package.")
+            }
+            let target = destination.appendingPathComponent(file.name)
+            guard target.standardizedFileURL.path.hasPrefix(destination.standardizedFileURL.path + "/") else { throw AssistantError.provider("Invalid model filename.") }
+            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard FileManager.default.createFile(atPath: target.path, contents: nil) else { throw AssistantError.provider("There is not enough space to import the model.") }
+            let reader = try FileHandle(forReadingFrom: input), writer = try FileHandle(forWritingTo: target)
+            do {
+                var written: Int64 = 0
+                while let chunk = try reader.read(upToCount: 1024 * 1024), !chunk.isEmpty {
+                    try Task.checkCancellation()
+                    written += Int64(chunk.count)
+                    guard written <= file.bytes else { throw AssistantError.provider("A model file changed during import.") }
+                    try writer.write(contentsOf: chunk); copied += Int64(chunk.count); progress(Double(copied) / Double(total))
+                }
+                try reader.close(); try writer.close()
+            } catch { try? reader.close(); try? writer.close(); throw error }
+        }
+        try verify(destination, expectedFiles: required)
+        let record = DownloadRecord(repository: repository, revision: revision,
+                                    relativeDirectory: "imports/" + destination.lastPathComponent)
+        try FileManager.default.createDirectory(at: recordURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(record).write(to: recordURL, options: .atomic)
+        committed = true; progress(1)
+    }
 
     private func loadFromDisk() async throws {
         if container != nil { return }

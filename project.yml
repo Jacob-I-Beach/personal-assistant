@@ -36,7 +36,7 @@ targets:
     platform: iOS
     sources:
       - path: App
-        excludes: [Info.plist]
+        excludes: [Info.plist, PersonalAssistant.entitlements]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jacob.personalassistant
@@ -45,9 +45,12 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: App/PersonalAssistant.entitlements
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
     dependencies:
+      - target: PersonalAssistantWatch
+        embed: true
       - package: MarkdownUI
         product: MarkdownUI
       - package: JOSESwift
@@ -68,6 +71,25 @@ targets:
         product: HuggingFace
       - package: Transformers
         product: Tokenizers
+  PersonalAssistantWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: WatchApp
+        excludes: [Info.plist]
+      - path: Sources/AssistantCore/WatchMessages.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jacob.personalassistant.watchkitapp
+        PRODUCT_NAME: PersonalAssistantWatch
+        INFOPLIST_FILE: WatchApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "4"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
   PersonalAssistantUITests:
     type: bundle.ui-testing
     platform: iOS

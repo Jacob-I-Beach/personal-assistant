@@ -22,12 +22,12 @@ public actor AssistantEngine {
     }
 
     public nonisolated func respond(conversation: Conversation, text: String, captureIDs: [UUID],
-                                    backend: any ModelBackend) -> AsyncThrowingStream<AssistantEvent, any Error> {
+                                    backend: any ModelBackend, containsHealthData: Bool = false) -> AsyncThrowingStream<AssistantEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: text, captureIDs: captureIDs,
-                                       backend: backend, output: continuation)
+                                       backend: backend, containsHealthData: containsHealthData, output: continuation)
                     continuation.finish()
                 } catch { continuation.finish(throwing: error) }
             }
@@ -36,7 +36,7 @@ public actor AssistantEngine {
     }
 
     private func run(conversation original: Conversation, text: String, captureIDs: [UUID],
-                     backend: any ModelBackend, output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
+                     backend: any ModelBackend, containsHealthData: Bool, output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
         guard activeRun == nil else { throw AssistantError.busy }
         let runID = UUID(); activeRun = runID
         defer {
@@ -46,11 +46,15 @@ public actor AssistantEngine {
                 for waiter in waiting { waiter.resume() }
             }
         }
-        if let destination = backend.networkDestination,
-           !original.allowedNetworkDestinations.contains(destination) { throw AssistantError.networkNotAuthorized }
+        if let destination = backend.networkDestination {
+            guard !original.networkDisabled, original.allowedNetworkDestinations.contains(destination) else { throw AssistantError.networkNotAuthorized }
+            if containsHealthData || original.containsHealthData {
+                guard original.allowedHealthDestinations.contains(destination) else { throw AssistantError.networkNotAuthorized }
+            }
+        }
         var conversation = original
         for id in captureIDs { _ = try await store.loadCapture(id) }
-        let user = Message(role: .user, text: text, captureIDs: captureIDs)
+        let user = Message(role: .user, text: text, captureIDs: captureIDs, containsHealthData: containsHealthData)
         conversation.messages.append(user)
         if conversation.title == "New conversation" { conversation.title = String(text.prefix(65)) }
         try await store.save(conversation)
@@ -66,7 +70,7 @@ public actor AssistantEngine {
                 return try await broker.execute(call)
             }
             output.yield(.activity("Generating a response"))
-            var assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id)
+            var assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData)
             conversation.messages.append(assistant)
             var index = conversation.messages.count - 1
             try await store.save(conversation)
@@ -86,8 +90,8 @@ public actor AssistantEngine {
                         }
                         assistant.toolCalls.append(call); assistant.state = .complete
                         conversation.messages[index] = assistant
-                        conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id))
-                        assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id)
+                        conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id, containsHealthData: conversation.containsHealthData))
+                        assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData)
                         conversation.messages.append(assistant); index = conversation.messages.count - 1
                         try await store.save(conversation)
                         output.yield(.toolResult(result))
@@ -128,7 +132,7 @@ public actor AssistantEngine {
                 output.yield(.activity("Running \(call.name.replacingOccurrences(of: "_", with: " "))"))
                 let result = try await broker.execute(call)
                 try Task.checkCancellation()
-                conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id))
+                conversation.messages.append(Message(role: .tool, text: try result.modelText(), toolCallID: call.id, containsHealthData: conversation.containsHealthData))
                 try await store.save(conversation)
                 output.yield(.toolResult(result)); output.yield(.conversation(conversation))
             }

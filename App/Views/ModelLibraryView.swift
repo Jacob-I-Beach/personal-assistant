@@ -1,8 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ModelLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var importEntry: LocalModelCatalogEntry?
+    @State private var showImport = false
     var body: some View {
         NavigationStack {
             List {
@@ -64,8 +67,10 @@ struct ModelLibraryView: View {
                             } else if model.downloadedModelIDs.contains(entry.id) {
                                 Button("Use \(entry.name)") { model.chooseLocal(entry) }.buttonStyle(.borderedProminent).disabled(model.isRunning)
                             } else {
-                                Button("Download") { model.downloadModel(entry) }.buttonStyle(.bordered)
-                                    .disabled(model.isDownloading || (model.isRunning && model.settings.choice == .localMLX))
+                                HStack {
+                                    Button("Download") { model.downloadModel(entry) }.buttonStyle(.bordered).disabled(model.settings.localOnly)
+                                    Button("Import from Files") { importEntry = entry; showImport = true }.font(.subheadline)
+                                }.disabled(model.isDownloading || (model.isRunning && model.settings.choice == .localMLX))
                             }
                             Text(entry.validation).font(.caption2).foregroundStyle(.secondary)
                         }.padding(.vertical, 9)
@@ -77,6 +82,13 @@ struct ModelLibraryView: View {
             .navigationTitle("Models")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { await model.refreshDownloads() }
+            .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in
+                guard let entry = importEntry else { return }
+                switch result {
+                case .success(let folder): model.importModel(entry, folder: folder)
+                case .failure(let error): model.errorMessage = error.localizedDescription
+                }
+            }
         }.presentationDragIndicator(.visible)
     }
     private func appleRow(_ readiness: AppleModelReadiness, location: AppleModelBackend.Location) -> some View {

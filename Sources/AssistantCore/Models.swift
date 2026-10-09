@@ -29,13 +29,26 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var toolCallID: String?
     public var providerID: String?
     public var continuation: ProviderContinuation?
+    public var containsHealthData: Bool
 
     public init(id: UUID = UUID(), role: MessageRole, text: String, state: MessageState = .complete,
                 captureIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
-                providerID: String? = nil, continuation: ProviderContinuation? = nil) {
+                providerID: String? = nil, continuation: ProviderContinuation? = nil, containsHealthData: Bool = false) {
         self.id = id; self.role = role; self.text = text; self.createdAt = Date(); self.state = state
         self.captureIDs = captureIDs; self.toolCalls = toolCalls; self.toolCallID = toolCallID
         self.providerID = providerID; self.continuation = continuation
+        self.containsHealthData = containsHealthData
+    }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
+        text = try c.decode(String.self, forKey: .text); createdAt = try c.decode(Date.self, forKey: .createdAt)
+        state = try c.decode(MessageState.self, forKey: .state); captureIDs = try c.decodeIfPresent([UUID].self, forKey: .captureIDs) ?? []
+        toolCalls = try c.decodeIfPresent([ToolCall].self, forKey: .toolCalls) ?? []
+        toolCallID = try c.decodeIfPresent(String.self, forKey: .toolCallID); providerID = try c.decodeIfPresent(String.self, forKey: .providerID)
+        continuation = try c.decodeIfPresent(ProviderContinuation.self, forKey: .continuation)
+        containsHealthData = try c.decodeIfPresent(Bool.self, forKey: .containsHealthData) ?? false
     }
 }
 
@@ -47,12 +60,25 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var updatedAt: Date
     public var messages: [Message]
     public var allowedNetworkDestinations: Set<String>
+    public var allowedHealthDestinations: Set<String> = []
+    public var networkDisabled = false
 
     public init(id: UUID = UUID(), title: String = "New conversation") {
         self.id = id; self.title = title; self.createdAt = Date(); self.updatedAt = Date()
         self.messages = []; self.allowedNetworkDestinations = []
     }
     public var attachedCaptureIDs: Set<UUID> { Set(messages.flatMap(\.captureIDs)) }
+    public var containsHealthData: Bool { messages.contains(where: \.containsHealthData) }
+    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion); id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title); createdAt = try c.decode(Date.self, forKey: .createdAt)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt); messages = try c.decode([Message].self, forKey: .messages)
+        allowedNetworkDestinations = try c.decodeIfPresent(Set<String>.self, forKey: .allowedNetworkDestinations) ?? []
+        allowedHealthDestinations = try c.decodeIfPresent(Set<String>.self, forKey: .allowedHealthDestinations) ?? []
+        networkDisabled = try c.decodeIfPresent(Bool.self, forKey: .networkDisabled) ?? false
+    }
     public mutating func recoverInterruptedMessages() {
         for i in messages.indices where messages[i].state == .streaming { messages[i].state = .interrupted }
     }
