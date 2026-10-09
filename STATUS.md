@@ -1,6 +1,6 @@
 # Implementation status
 
-This file records validation evidence, not a claim that an iPhone build is installed.
+This file records implemented features, validation evidence, and user-reported device checks.
 
 ## Implemented in source
 
@@ -21,7 +21,7 @@ Portable assistant core, persistent conversations and capture records, normalize
 - The first Mac runs identified and resolved fixture-runtime setup, a missing Metal compiler component, and one incorrect file-protection API argument label.
 - The resolved native dependency versions are retained in `Dependencies/Package.resolved`.
 - No physical camera/depth test or local-model benchmark has run yet.
-- No API key, provider token, or Apple signing credential has been entered.
+- No cloud-model API key or provider token has been configured by the agent. Jacob entered his Apple signing credentials directly in iLoader; the agent did not read or export them.
 - No model weights have been downloaded to this PC.
 - The capture replay command was exercised with a synthetic saved observation.
 - GitHub CLI 2.102.0 was downloaded to the thread's tooling directory and checked against its official SHA-256 list. It was not installed globally. Jacob completed device authorization for his GitHub account.
@@ -35,9 +35,11 @@ Portable assistant core, persistent conversations and capture records, normalize
 
 ## Next external validation gate
 
-Establish personal signing from Jacob's Windows setup, install the verified device package, then test capture and the downloaded Qwen model on the actual phone. The package is not yet signed or installed. Simulator success does not establish LiDAR accuracy, real-device memory use, thermal behavior, or local-model quality.
+On October 9, 2026, Jacob reported that the privately installed app opens on his iPhone. This establishes the user-reported installation/launch checkpoint. It does not establish successful local inference, sensor accuracy, sustained performance, or readiness for daily use.
 
-Apple Devices now recognizes the physical iPhone 18 Pro Max over USB and reports iOS 27.0.1. Jacob confirmed that the phone is connected and trusted. Developer Mode is not yet visible/enabled.
+Jacob requested a substantial design phase and a much more mature next device update. The proposal is in `Documentation/PRODUCT_DESIGN.md`. No additional device build is being dispatched for this design pass. The next validation questions are model-file reuse, Apple model availability, context/memory behavior, hardware performance, and complete user workflows.
+
+Apple Devices recognizes the physical iPhone 18 Pro Max over USB and reports iOS 27.0.1. Jacob confirmed that the phone is connected and trusted. Developer Mode was not visible earlier in setup; the agent did not separately inspect its final setting after Jacob reported the app opening.
 
 AltServer 1.8.0 was downloaded from its official distribution, extracted into the thread's tooling folder, and launched. Jacob selected the verified IPA for his phone, but signing stopped with "The provided anisette data is invalid." The helper loaded Apple-signed authentication libraries from its own local cache. The PC clock was checked against Apple HTTPS/NTP responses and was within about two seconds; no clock settings were changed. No provisioning-state files or credentials were read, reset, or deleted.
 
@@ -47,6 +49,6 @@ Jacob suggested iLoader and explicitly authorized its installation and use. Its 
 
 The official EXE installer also matched GitHub's published SHA-256: `747b065996709c0f688323ca1766a21322d31e59ea8be64c24e9bdc70faae632`. Its supported per-user installation succeeded with exit code 0. iLoader 2.3.6 is now running and detects the phone over USB. The running executable is under the Codex Windows package's virtualized local application directory. AltServer was stopped, and the startup entry pointing to this task's AltServer executable was removed. Existing Apple apps remain installed.
 
-Apple sign-in is a user-operated step. iLoader reached its two-factor prompt, after which Jacob asked about credential safety. Only the public 2.3.6 account/storage source was reviewed for this question; no password, verification code, credential-vault entry, or pairing-file contents were read. The account code uses the OS keyring when saving a password, and signing material prefers keyring storage with a filesystem fallback if unavailable. This was a focused source review, not a complete security audit. App installation has not yet been verified.
+Apple sign-in was a user-operated step. After asking about credential safety, Jacob chose his main account and confirmed that sign-in completed. iLoader displayed a signed-in state and the selected USB phone. Only the public 2.3.6 account/storage source was reviewed for the safety question; no password, verification code, credential-vault entry, or pairing-file contents were read. The account code uses the OS keyring when saving a password, and signing material prefers keyring storage with a filesystem fallback if unavailable. This was a focused source review, not a complete security audit. Jacob subsequently reported successful app launch on the phone.
 
 Jacob confirmed he is not enrolled in the paid Apple Developer Program. Enrollment is not needed to write the project or run the shared-core tests.
