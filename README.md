@@ -4,7 +4,7 @@ A private native iPhone application for Jacob's iPhone on iOS 27. The app owns c
 
 Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
 
-Jacob has reported that the first private build opens on his iPhone. The next phase is a substantial product design and implementation milestone, described in [the product design](Documentation/PRODUCT_DESIGN.md). The current build is a technical foundation, not the completed assistant described by that proposal.
+Jacob has reported that the first private build opens on his iPhone. The next phase is a substantial product design and implementation milestone, described in [the product design](Documentation/PRODUCT_DESIGN.md): ChatGPT account connection and downloaded models as equal first-class experiences, native visual polish, sandbox execution, and deeper phone/Watch/Health integration. The current build is a technical foundation, not the completed assistant described by that proposal.
 
 ## Current implementation
 

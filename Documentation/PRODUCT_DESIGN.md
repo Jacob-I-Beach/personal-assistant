@@ -1,8 +1,8 @@
 # Personal Assistant product design
 
-Design proposal dated October 9, 2026. This is the working specification for discussion and the next substantial device release. It describes intended behavior; it does not represent the listed features as implemented. Jacob has reported that the first private build installs and opens on his iPhone.
+Design proposal dated October 9, 2026, revised with Jacob's provider, visual-design, execution, and device-integration priorities. This is the working specification for discussion and the next substantial device release. It describes intended behavior; it does not represent the listed features as implemented. Jacob has reported that the first private build installs and opens on his iPhone.
 
-The product is a private assistant that Jacob can talk to, show things, give documents, and ask to complete useful work. Conversations, knowledge, actions, and results belong to the app. The selected model supplies reasoning and generation within that system. Phone-local operation is the primary experience; a PC or cloud model extends it when deliberately selected.
+The product is a private assistant that Jacob can talk to, show things, give documents, and ask to complete useful work. Conversations, knowledge, actions, and results belong to the app. Downloaded local models and the ChatGPT account connection are equally first-class ways to use that assistant. Apple models, the PC, and other supported providers participate through the same contracts. Device-owned data, continuity, and controls are foundational; this does not mean cloud models are relegated to an advanced or secondary experience.
 
 ## 1. Direction and release policy
 
@@ -14,8 +14,13 @@ Requirements already established by Jacob:
 
 - Private use on his devices, with no public-product, marketplace, advertising, subscription-selling, or multiuser infrastructure scope.
 - Native iPhone experience, with a planned Apple Watch companion. Current phone is an iPhone 18 Pro Max running iOS 27.0.1.
-- Downloaded models are first-class. The design must not impose an arbitrary small-model ceiling.
+- Downloaded models and ChatGPT account connection are equally first-class. The design must not impose an arbitrary small-model ceiling or treat ChatGPT as an API-key-only afterthought.
 - PC inference and cloud models use the same conversations, memory rules, tools, and artifacts.
+- Visual and interaction polish are release requirements: native Apple behavior with an efficient, conversation-centered experience.
+- Real sandbox code execution is a required capability. The implementation should reuse a suitable existing runtime or execution service.
+- Phone, Watch, and Health integration are product priorities, with the actual app capabilities and permissions verified early.
+- Optional hosted workspaces may be considered only when useful and within a verified free allowance and no-charge configuration, unless Jacob separately approves spending.
+- Prefer established SDKs, model templates, storage, and platform services. Keep system prompting compact and evidence-driven.
 - Avoid repeated downloads, repeated setup, unnecessary migrations, and a separate Windows imitation of the phone interface.
 - Prefer meaningful capability and reliability over a large catalog of barely functioning features.
 
@@ -41,13 +46,15 @@ The model picker should offer Apple Intelligence on-device when the system repor
 
 Using that model is distinct from embedding the complete Siri assistant. The public integration makes our actions and content available to Siri through App Intents, entities, schemas, Spotlight indexing, and view annotations. It does not automatically grant our app Siri's access to unrelated apps. [Apple Intelligence and Siri AI](https://developer.apple.com/documentation/appintents/apple-intelligence-and-siri-ai)
 
-Apple also exposes Private Cloud Compute through Foundation Models. It has a separate eligibility and entitlement gate: Apple currently lists Small Business Program enrollment, fewer than two million first-time App Store downloads, and an assigned entitlement. Eligible testing includes TestFlight or ad hoc distribution. Our current free personal-signing setup must not assume this access. It is a conditional future provider, not a promised working selector entry. [PCC eligibility](https://developer.apple.com/private-cloud-compute/)
+Jacob reports that he has Private Cloud Compute access. Apple cloud intelligence is therefore a target integration to pursue, not something to dismiss as unavailable. The remaining technical check is which access route he has: consumer access through Apple Intelligence/Siri, or the developer entitlement that allows this app to instantiate the PCC model directly. Apple's direct API currently requires an assigned entitlement and its listed developer eligibility; an iCloud/Siri feature being available does not itself establish that the app's signing profile contains the entitlement. [PCC eligibility](https://developer.apple.com/private-cloud-compute/)
+
+If direct app access is approved, test the signed app's availability and integrate PCC through the native Foundation Models adapter. If access is through Apple's consumer features, evaluate a user-configured Shortcuts workflow as a separate, bounded integration. Such a handoff is a feasibility option, not a claim of equivalent streaming, tool behavior, or background operation. Avoid transporting sensitive records through URL query strings. PCC provides model inference; a general-purpose code workspace needs a separate executor.
 
 ## 3. The main experience
 
 The default screen is a conversation with a clear current project, a compact model selector, and a composer that accepts text, voice, camera input, and files. A person should be able to start asking useful questions without entering a repository identifier, revision hash, endpoint URL, or token budget. Advanced controls remain available behind model details.
 
-Proposed navigation:
+The main conversation is the visual center. History, projects, and Library can live in a native sidebar/navigation presentation; Activity can appear as an on-demand task drawer and a persistent indicator while work is running. We should not assume that every surface needs a permanent bottom tab. Proposed surfaces:
 
 | Surface | Purpose |
 | --- | --- |
@@ -64,17 +71,33 @@ Streaming must not drag the user to the bottom while they are reading an earlier
 
 A compact activity card should say what the app is actually doing: loading a model, reading a document, searching, calculating, waiting for permission, or writing a result. Technical details expand on request. The app should not manufacture a reasoning transcript or pretend that an animated checklist proves work occurred.
 
+### Visual and interaction contract
+
+Use native SwiftUI navigation, sheets, menus, safe areas, keyboard handling, SF typography, and system symbols as the foundation. Favor a quiet content canvas, clear type hierarchy, consistent spacing, and a restrained accent. Liquid Glass belongs principally to controls and navigation; conversation text, documents, charts, and code need stable readable surfaces. [Apple design guidance](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)
+
+The model picker should open from the conversation in a sheet without losing the draft or scroll position. Source attachments should be compact and inspectable. Tool progress should expand into details on demand. Artifacts should have a focused editor/preview with a natural return to the conversation. Voice mode should make listening, muted, responding, interrupted, and stopped states unmistakable.
+
+Polish includes behavior under delay and failure: no disappearing drafts, overlapping sheets, unexpected model switches, frozen Stop controls, or repeated login/setup prompts. Use motion and haptics to communicate state changes, respect reduced-motion settings, and avoid decorative animation during sustained model work. Validate empty, loading, streaming, tool-running, offline, error, large-text, dark, and light states in actual native components.
+
 ## 4. Model selection and model management
 
-The picker groups available choices by where inference runs:
+First launch offers two equally clear entry points: Continue with ChatGPT and Use an on-device model. An available Apple system model provides a useful no-extra-app-download starting option. Either path leads into the same assistant and leaves the other available later.
 
+The picker groups available choices by connection and location, with favorites and recent choices shared across the presentation:
+
+- ChatGPT: the actual models available to the connected account.
 - On this iPhone: downloaded models and the available Apple system model.
+- Apple cloud: the supported PCC access route, with its real readiness state.
 - On my computer: paired model endpoints and their live catalog.
-- Connected services: supported account-authorized or API-backed providers.
+- Other connections: supported account-authorized or API-backed providers.
 
 Each entry identifies its real location, readiness, supported modalities, tested tool behavior, and practical context setting. Download size, disk use, estimated working-memory class, and measured performance belong in details. A model being supported by a library is different from being tested on this phone; show that distinction explicitly.
 
 The library supports resumable download, import, verification, cancellation, removal of weights without deleting conversations, and repair of incomplete packages. It records source, revision, format, file hashes, tokenizer/template, quantization, vision components, and runtime compatibility. A model name alone is insufficient identity. Arbitrary repository code is never executed merely because a model configuration requests it.
+
+The normal local-model flow is Browse models → read a short description → Download → Use. Each card needs a plain-language purpose, verified download size, relevant capabilities, and a readiness/compatibility label. Candidate descriptions should say what the model is useful for, without presenting unmeasured speed or phone compatibility as established fact. Start with a compact tested catalog and use upstream model registries, model cards, and the existing Hugging Face download/cache machinery. Repository IDs and revision hashes remain advanced details.
+
+Downloading a local model must not block a ChatGPT conversation. Treat downloads, verification, loading, and inference as separate jobs with appropriate resource scheduling. Finishing a download does not switch the active model halfway through a response. A failed transfer resumes or repairs missing files rather than starting over unnecessarily. Large transfers should use suitable native background-download support where feasible.
 
 The initial downloaded-model runtime remains MLX because it is already compiled into our app and fits the selected Qwen baseline. Larger compatible models can be offered after measuring their working set and usability. Parameter count and 1 TB of storage do not determine whether a model fits in active memory.
 
@@ -146,20 +169,39 @@ Claude's artifact experience is a useful reference for treating outputs as edita
 
 Initial exports should cover the formats we can produce reliably, such as Markdown, plain text, CSV, PDF, and supported images. Editable office formats can follow validated generation paths rather than being promised because a model can emit XML. Interactive previews need their own content restrictions; generated HTML must not inherit access to the app's files, cookies, or credentials.
 
-## 8. Local code execution
+## 8. Sandbox execution and workspaces
 
-There are two useful tiers:
+Real sandbox execution is part of the intended next substantial release, not a synonym for a calculator tool or code displayed in a message. Every selected model should be able to request it through the same typed execution contract.
 
-- Phone execution for bounded calculations, parsing, table transforms, and small generated utilities.
-- Optional PC execution for heavier Python/package workloads and larger datasets.
+There are three execution locations:
+
+| Location | Intended use | Default boundary |
+| --- | --- | --- |
+| Phone | Bounded scripts, parsing, calculations, table transforms, and small utilities | Interpreter-based execution with a virtual workspace and enforced resource limits |
+| Paired PC | General Python and package-heavy work, larger files, and heavier compute | An existing isolated container or equivalent runtime with scoped inputs |
+| Optional cloud workspace | Work when the PC is unavailable, longer computations, and suitable background jobs | An established managed sandbox, short lifetime, explicit data selection, and verified cost controls |
+
+Model location and execution location are separate. Qwen on the phone can request an authorized cloud calculation; ChatGPT can request a phone-local calculation or HealthKit query. Local-only policy still rules out off-device execution. The UI should identify the executor without asking the user to understand containers or virtual machines.
 
 The phone design should use a constrained interpreter or a suitable interpreter-based WebAssembly runtime with enforced instruction, memory, output, and wall-time limits. Its filesystem is a deliberately supplied virtual workspace, and network access is absent by default. It exposes no arbitrary native bridge.
 
-A background thread, a temporary folder, or a promise timeout is not a sufficient sandbox. We must demonstrate that a nonterminating program can actually be stopped without freezing the app and that it cannot read unrelated data. Until that passes, the product should offer verified calculation tools and accurately label broader execution as unavailable.
+A background thread, a temporary folder, or a promise timeout is not a sufficient sandbox. We must demonstrate that a nonterminating program can actually be stopped without freezing the app and that it cannot read unrelated data. Prefer a maintained embeddable interpreter with the controls we need; do not write a new interpreter or isolation system. WasmKit and comparable mature WebAssembly runtimes are candidates for evaluation, not yet selected implementations. The release cannot claim sandbox support until a real execution backend passes the isolation and recovery checks.
 
 The PC executor should use a real isolated environment, scoped input mounts, bounded outputs, and explicit network permissions. The phone shows that code ran on the PC. A paired computer must not turn every model request into unrestricted desktop authority.
 
-Full Python on the phone is a feasibility experiment, not a release promise. The experience we want is useful computation with inspectable results; the runtime language is a means to that end.
+Full Python with arbitrary packages on the phone remains a feasibility question. The product requirement is useful actual code execution with inspectable results; larger Python environments can be supplied by the optional PC/cloud tiers. Show the actual supported language and package set rather than imply universal compatibility.
+
+A workspace contains only the task's selected inputs, temporary working files, bounded logs, and outputs. Successful outputs become durable artifacts in our library before the workspace is discarded. Keep credentials outside model-visible files, and grant outbound network access only when the task needs and permits it. Reuse maintained runtime images and common dependencies instead of rebuilding a package environment for every task.
+
+An unattended program can continue on a remote executor after the phone disconnects. An agent loop that needs another decision from a phone-local model must wait for that model, or use an explicitly authorized alternative. A cloud workspace does not make the phone's model run remotely by itself.
+
+### Optional free-tier cloud candidate
+
+Modal is a candidate to evaluate: its Starter plan currently includes $30 per month of applicable compute credit, including sandbox use. That is an allowance, not unlimited free infrastructure; its Shared Endpoints have separate token billing that the credit does not cover. [Current pricing](https://modal.com/pricing)
+
+Before enabling any hosted execution, verify the account's current eligibility, credit, storage/egress rules, and a zero-out-of-pocket spend limit. Modal documents a net-charge spend limit separately from its gross usage budget. Configure short task lifetimes, automatic termination, bounded concurrency, and clear credit-exhaustion behavior as well. No cloud account, deployment, payment method, or paid plan is authorized by merely naming this candidate in the design. [Budget controls](https://modal.com/docs/guide/budgets)
+
+Keep the assistant's primary memory and history independent of the sandbox provider. Prefer the phone or existing PC where they satisfy the task. A hosted workbench is optional additional capacity, not a prerequisite for opening or using the app.
 
 ## 9. Voice and visual interaction
 
@@ -185,7 +227,19 @@ The Watch should be a quick interaction surface for the same assistant: dictate 
 
 WatchConnectivity supports background transfers and live exchanges under different conditions. Therefore a Watch request needs visible states such as sent, waiting for phone, and ready; it must not promise an instantly available phone GPU while iOS has suspended the app. [WatchConnectivity](https://developer.apple.com/documentation/watchconnectivity)
 
-HealthKit, workouts, HomeKit, location, motion, Bluetooth accessories, and NFC are potential scoped tool families. Add a family when it serves a specific desired workflow and its authorization, data semantics, and signing requirements are understood. The app should not request every possible permission at first launch.
+Phone/Watch continuity and useful health functionality are explicit priorities. Other scoped families include Calendar and Reminders, selected Contacts, Photos/Files, HomeKit, location, motion, Bluetooth accessories, and NFC. Add each integration around a complete useful workflow, with its capabilities and signing requirements established early. The app should not request every possible permission at first launch.
+
+### Health and wellness
+
+Build a direct HealthKit integration in our app. Permission previously granted to the ChatGPT app belongs to that app; the ChatGPT account connection does not transfer it to ours. This direct connection is what can make authorized health data available consistently to Apple, Qwen, or GPT within our assistant.
+
+Begin with defined wellness workflows such as a sourced sleep/activity overview, a workout review, and combining permitted activity summaries with the user's calendar or subjective notes. Calculate durations, totals, units, and comparisons through deterministic code. Keep sample provenance, time ranges, timezone, data coverage, and source-device differences visible in the result. Do not double-count overlapping records or turn missing samples into zero values.
+
+Use the system Health authorization sheet and request only the data types needed for the chosen feature. HealthKit deliberately does not disclose read-denial status in the same way as a conventional permission API; an empty query is not proof that the person denied access or had no activity. Limited-history access and a locked device also affect what can be read. [Authorization](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data), [Privacy behavior](https://developer.apple.com/documentation/healthkit/protecting-user-privacy)
+
+HealthKit read authorization and off-device processing are separate decisions. Prefer concise, task-specific summaries, require express permission before sharing HealthKit-derived data with an appropriate external health/fitness service, and validate the chosen provider route. Do not treat a ChatGPT connection or a generic cloud sandbox as blanket permission to upload a health archive. Start with read-oriented insights; writing health records is a distinct action with its own authorization. Observations and inferred patterns must remain distinguishable from medical conclusions.
+
+On Watch, useful first interactions are quick dictated requests, subjective check-ins, current task status, and continuing a result on the phone. Actual workout features may use supported workout-session APIs when the user starts a workout. They are not a mechanism for keeping a general agent running indefinitely. Sensitive notifications should be discreet by default. The first companion should share task and conversation identity with the phone and handle queued delivery without duplicate work.
 
 Ordinary public APIs do not provide a universal feed of all notifications, iMessage history, every app's files, or Siri's private personal-context store. Integration should use supported framework access, deliberate sharing, registered actions, and authorized service connectors. The private nature of this project does not change those technical boundaries.
 
@@ -222,7 +276,9 @@ MLX remains a valid Metal-based runtime. Apple system models, Vision, speech, an
 
 Connections are separate from the app's identity. Jacob can use the assistant locally without signing into a vendor. A cloud connection adds that provider's available models and its own usage limits, not ownership of the app's conversations or memory.
 
-OpenAI now documents a ChatGPT-plan authorization path for open-source and locally hosted apps. It is distinct from identity-only website sign-in. It uses OAuth, a registered client and host identity, and a loopback callback; a reliable native iOS authorization flow still needs to be proven. This is a planned integration with a feasibility gate, not a claim that our current app has it. [ChatGPT plan integration](https://developers.openai.com/siwc/token-sharing-open-source)
+ChatGPT account connection is a release requirement alongside downloaded models. OpenAI documents a ChatGPT-plan authorization path for open-source and locally hosted apps, distinct from identity-only website sign-in. It uses OAuth, a registered client and host identity, and a loopback callback. Prove the native iOS authorization and lifecycle behavior early, before designing a large experience that depends on an untested login assumption. Use documented flows and maintained authentication components; do not extract another app's tokens or ask the user to paste session cookies. [ChatGPT plan integration](https://developers.openai.com/siwc/token-sharing-open-source)
+
+The intended normal flow is Continue with ChatGPT → system-browser authorization → return to the conversation with account-specific models ready. Retain credentials in Keychain, refresh them as documented, and handle revocation or account changes without losing conversations. The model picker uses the account's current catalog and display names rather than hardcoded claims about its plan. Show when the ChatGPT plan is being used and provide the appropriate usage-management link. Manual API keys remain an advanced alternative, not the default ChatGPT-account experience. [Model catalog and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
 
 That route does not import ChatGPT conversations or account context. Its preview also does not supply every ChatGPT capability: hosted Code Interpreter, file search, image generation, and audio/video APIs are among the documented exclusions. Our own memory, tools, artifacts, speech pipeline, and retrieval therefore remain essential. Available models and capabilities must be fetched through the supported provider route. [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
 
@@ -269,6 +325,32 @@ The current limits that need deliberate redesign are concrete:
 
 The iOS 27 Foundation Models protocol and Dynamic Profiles can reduce provider-specific work on Apple platforms. We should use those APIs where they help while retaining app-owned records and tool authority. We do not need two independent agent loops competing to own the same task. [Foundation Models updates](https://developer.apple.com/documentation/updates/foundationmodels)
 
+### Reuse before custom infrastructure
+
+The custom product is the coherent experience and the connections between established components. Prefer the existing platform or library until a measured requirement demonstrates that it cannot serve the task.
+
+| Area | Reuse first | App-specific work |
+| --- | --- | --- |
+| Interface | SwiftUI navigation, sheets, menus, typography, symbols, and accessibility | Conversation layout, model picker, artifact editing, and task states |
+| Downloaded inference | MLX Swift LM, its model factories/session support, upstream tokenizers and chat templates | Catalog curation, resource policy, evaluation, and app-owned history |
+| Model files | Hugging Face metadata/cache support and native file/download APIs | Import validation, resume behavior, model readiness, and storage presentation |
+| Apple intelligence | Foundation Models and supported Core AI adapters | Available-model presentation and integration with our tools/context |
+| ChatGPT connection | Documented Sign in with ChatGPT and standard OAuth/crypto components | Native callback lifecycle, account selection, refresh, and recovery |
+| Voice and perception | Speech, AVFoundation, Vision, ARKit, and platform speech output | Turn-taking, evidence selection, timestamps, and resource scheduling |
+| Device context | HealthKit, EventKit, WatchConnectivity, App Intents, and supported sharing mechanisms | Useful workflows, data minimization, and consistent action receipts |
+| Persistence and retrieval | SQLite, platform indexing such as Core Spotlight, and suitable existing search/embedding libraries | Canonical records, memory provenance/corrections, scope, and migration |
+| Execution | An existing interpreter, container runtime, or managed sandbox SDK | Task workspace policy, input/output handling, cancellation, and limits |
+| Security primitives | Keychain, Data Protection, standard cryptography, and system authorization UI | Clear destination and operation choices |
+| External tools | Existing protocols/SDKs, including MCP where appropriate | Narrow adapters and authorization, not an invented connector protocol for every service |
+
+Evaluate licensing, maintenance, platform support, and total dependency weight when selecting a component. Reuse does not require importing a large framework for a small native API call. Nor should an existing component be treated as a verified sandbox or compatible runtime without testing the properties we depend on.
+
+### Prompting policy
+
+Use the model's supported chat template and the provider's role/tool conventions. Keep the app's base instructions focused on its role, evidence, tools, and response behavior. Add only the task's relevant context and applicable permissions; permissions themselves are enforced by code.
+
+Start with one compact base and small, justified provider/model adjustments. Do not build a large persona system, a synthetic council of agents, or an elaborate prompt-generation framework as a prerequisite. Add a special instruction or example when a reproducible task failure shows that it helps, then keep the regression test. Prompt length, tool-schema overhead, and latency are part of the evaluation. A model-specific prompt change must not silently change the meaning of our tools or data policy.
+
 ## 16. Workflows that define the next release
 
 ### A long-running project
@@ -291,24 +373,32 @@ Start by voice, interrupt, correct a detail, continue by text, and return later.
 
 Ask for a reminder or a document transformation using permitted data. The app prepares the action, resolves missing details, obtains the appropriate commitment, performs it once, and shows a receipt. Canceling or losing the network must not falsely report completion or duplicate the action.
 
+### A useful health overview
+
+Ask for an overview of recent sleep and workouts in the context of today's available time. The app reads authorized HealthKit and calendar data, computes comparable totals and coverage, and produces a sourced chart and a concise explanation. It acknowledges missing data and separates observations from interpretation. A short result can be viewed on Watch; any off-device analysis follows the selected data policy. This is a complete wellness workflow, not an undifferentiated request for every Health permission.
+
 ## 17. Release acceptance
 
 The next release candidate must demonstrate these behaviors, not just contain buttons for them:
 
-1. Fresh launch offers an available Apple model or a clear downloaded-model setup. Normal use requires no revision hashes.
-2. Model import/download can be canceled and recovered; matching valid files are reused where accessible. Unsupported formats fail clearly.
+1. Fresh launch offers equally clear ChatGPT-account and on-device entry points. A successful ChatGPT authorization returns to a usable conversation and a current account-specific model picker. Normal use requires neither API keys nor revision hashes.
+2. The local catalog provides short descriptions and a Download/Use flow. Import/download can be canceled and recovered; matching valid files are reused where accessible. A local-model download does not block ChatGPT conversation. Unsupported formats fail clearly.
 3. A long synthetic conversation remains searchable after restart, with bounded model requests and retrieval of exact earlier evidence. Test at least 1,000 stored messages independently of the model's context size.
 4. A changed memory is corrected across later answers, and deleted/excluded sources are not silently reintroduced by summaries or embeddings.
 5. Documents and images can produce a cited, editable result, with revision history and working export.
-6. A tool-rich task works with the tested local models and at least one optional remote route. Invalid, partial, duplicate, and unauthorized calls do not execute.
+6. A tool-rich task works with tested local models and the ChatGPT-account route, using the same tool contracts and artifact behavior. Invalid, partial, duplicate, and unauthorized calls do not execute. Apple PCC is tested through the access route established for this app.
 7. Local-only mode has a network-denial test that includes helper tasks, tools, memory processing, and retries.
 8. Voice cancellation, audio interruptions, and transitions between speech and text preserve the user's work.
 9. Background expiration, app termination, low storage, interrupted downloads, and unavailable models all have tested recovery paths.
-10. A phone code runtime must pass termination, memory, filesystem, and network-isolation tests before being labeled a sandbox. Otherwise ship the verified deterministic tools and retain the broader runtime as an explicitly gated feature.
+10. Actual sandbox code execution passes termination, memory, filesystem, and network-isolation tests in its supported locations. Demonstrate a generated script transforming a selected file and producing a recoverable artifact. A calculator-only fallback does not satisfy this requirement; if the execution feasibility test fails, resolve it or agree a scope change before release.
 11. Physical-phone measurements cover the selected baseline and a larger candidate where feasible. No repeated crash, runaway heat behavior, or unresponsive Stop control is acceptable.
 12. Updating over the existing installation preserves conversations, evidence, models, and user settings through a tested migration.
+13. ChatGPT token expiry, account changes, revocation, usage limits, and offline recovery are tested without losing app-owned data or repeatedly restarting authorization.
+14. Native visual QA covers the complete state set and interactions, not just a screenshot of the empty chat. Controls, typography, keyboard behavior, accessibility, and transitions are consistent.
+15. At least one substantive HealthKit workflow handles limited/missing data correctly, and a basic Watch workflow preserves task identity and works through disconnection/reconnection. Verify their provisioning requirements early.
+16. If the optional cloud workbench is included, its verified free allowance, net-spend stop, resource limits, data boundaries, and teardown behavior pass before it is enabled.
 
-The basic Watch companion, Share extension, and background GPU mode each require a signing/capability check. Their architecture belongs in this design now; their inclusion in the same device package should be decided from those checks, rather than assumed from a successful simulator build.
+The Watch companion, HealthKit, Share extension, and background GPU mode each require a signing/capability check. Watch and health are priority release targets. If the current signing route cannot supply a required capability, bring that concrete dependency to Jacob early rather than quietly deferring the feature or promising an unsupported entitlement.
 
 Initial engineering targets, to validate and refine from device measurements:
 
@@ -326,14 +416,16 @@ Provider quality should be evaluated with a small maintained task set: following
 
 ## 18. Sequence and unresolved decisions
 
-First, settle the everyday conversation and model-library experience. Then design the exact context/memory lifecycle and tool/result contracts. Build document/research/artifact workflows on those foundations. Add voice and camera as first-class inputs into the same task system. Validate Apple entry points and Watch packaging against real provisioning capabilities. Only then assemble the substantial device release.
+First, prove the risk-bearing integrations: native ChatGPT authorization, the actual PCC access route, sandbox execution, and Health/Watch signing capabilities. In parallel with those internal checks, settle the conversation, model picker, and onboarding flows using native components. Reuse the established model/download/platform services and build only the needed task, data, and experience glue. Then implement memory, document/research/artifact workflows, and voice/camera/device entry points against the same contracts. Assemble the substantial device release only when the complete workflows and visual acceptance tests pass.
 
 The main open questions are narrow:
 
 - Can Locally AI export Jacob's complete Qwen model package, and what exact format/revision is it?
 - Which Apple on-device variant and practical context configuration does this phone expose through the API?
-- Can the documented ChatGPT authorization callback be made reliable in the native iPhone lifecycle?
-- Which Watch, Share, and background GPU capabilities are available through the chosen signing route?
-- Which constrained phone code runtime can meet real resource and isolation tests?
+- Can the documented ChatGPT authorization callback be made reliable in the native iPhone lifecycle, with the expected account-specific models and recovery?
+- Which PCC access does Jacob have, and how is that access made available to this signed app?
+- Which Watch, HealthKit, Share, and background GPU capabilities are available through the chosen signing route?
+- Which existing phone code runtime can meet real resource and isolation tests, and when would a PC/cloud executor be useful?
+- Can a useful hosted sandbox be configured to stay within applicable free credit with no out-of-pocket spend?
 
 These are feasibility questions to resolve with focused evidence. They should not force Jacob to write a huge wishlist or repeatedly install cosmetic builds. The next design discussion should walk through one complete everyday task, then test the proposed screens, memory behavior, and permissions against that task.

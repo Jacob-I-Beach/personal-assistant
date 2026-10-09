@@ -1,6 +1,6 @@
 # Project guidance
 
-- This is Jacob's private iPhone/iOS 27 application, with an eventual Apple Watch companion. No public-product, billing, or marketplace work is in scope.
+- This is Jacob's private iPhone/iOS 27 application, with Apple Watch and useful Health integration as product priorities. No public-product, billing, or marketplace work is in scope.
 - Keep the native app as the real product. Do not build a second Windows phone UI. Windows work must test shared logic, providers, or replay actual captures.
 - The app owns conversations, source observations, permissions, and tool execution. Local and connected models use the same core contracts.
 - Credentials belong in Keychain or an explicitly supplied process environment. Never put them in Git, logs, messages, test fixtures, or generated tool context.
@@ -11,4 +11,8 @@
 - Model weights and personal captures are runtime data, not repository files. Tests use synthetic content.
 - Jacob has reported that the first private app opens on his phone. Preserve that working installation and its data; distinguish launch evidence from untested inference and sensor behavior.
 - Use `Documentation/PRODUCT_DESIGN.md` as the working proposal for the next substantial milestone. Jacob wants design discussion and coherent release batches, not repeated small device updates. Internal tests and source iterations can remain incremental.
-- Model-file import and Apple Foundation Models are priority design questions. Do not call the Apple model the complete Siri assistant or assume access to Private Cloud Compute without its entitlement.
+- Model-file import and Apple Foundation Models are priority design questions. Do not call the Apple model the complete Siri assistant or assume direct API access to Private Cloud Compute without the app's entitlement.
+- ChatGPT account connection and downloaded models are equally first-class experiences. Normal onboarding should use supported ChatGPT authorization and a curated model catalog with Download/Use actions, not developer configuration fields.
+- Prefer mature native frameworks, SDKs, model templates, and sandbox engines. Keep system prompts compact and change them to address demonstrated failures rather than building elaborate prompting infrastructure.
+- Actual sandbox execution and native visual/interaction polish are release requirements. A calculator-only fallback is not an equivalent implementation of sandbox execution.
+- Jacob reports PCC access; establish the consumer-versus-developer access route without dismissing that report. Any optional hosted workspace must have verified free usage and no-charge controls, unless separate spending is explicitly authorized.
