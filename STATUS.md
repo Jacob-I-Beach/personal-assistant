@@ -28,10 +28,15 @@ Portable assistant core, persistent conversations and capture records, normalize
 - The source is pushed to the private `Jacob-I-Beach/personal-assistant` repository. Repository visibility was verified through GitHub's API.
 - The manual Mac workflow uses GitHub's standard `xcode-27` Apple silicon preview image; the `macos-26` image's published inventory does not include Xcode 27.
 - Jacob configured GitHub billing and authorized continuing within the discussed $5 budget. Included Actions allowance could not be verified with the current GitHub login scopes; no account billing settings were changed by the agent.
-- The unsigned physical-iPhone Release package is building separately; it is not yet signed or installed.
+- The physical-iPhone Release build succeeded: [GitHub run 37915018467](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/37915018467), revision `7b26c53` (same native app source as the passing simulator run).
+- `PersonalAssistant-unsigned.ipa` was downloaded to the sibling `PersonalAssistant-iPhone` output folder. It is 10,894,472 bytes and passed checksum/ZIP inspection. Its main executable is ARM64 for physical iOS (Mach-O platform 2), minimum iOS 27.0, version 0.1.0 build 1, bundle ID `dev.jacob.personalassistant`. The Metal library is bundled; model weights and an Apple provisioning profile are absent.
+- Package SHA-256: `e8bfcaf58f3dab1b942530dc5d798d954a0a26fd4a65b99e6c77869dd166a21a`.
+- Five completed Mac jobs used 23 rounded runner minutes in total. At the published standard Mac rate, compute would be about $1.43 if fully billable. This is an estimate, not a billing-account reading; included usage may cover it. Diagnostic artifacts expire after 7 days and the GitHub device package after 1 day; the local copies are retained. Job evidence is in `Documentation/BuildValidation.json`.
 
 ## Next external validation gate
 
-Complete and inspect the unsigned physical-iPhone Release package, establish personal signing from Jacob's Windows setup, then test capture and the downloaded Qwen model on the actual phone. Simulator success does not establish LiDAR accuracy, real-device memory use, thermal behavior, or local-model quality.
+Establish personal signing from Jacob's Windows setup, install the verified device package, then test capture and the downloaded Qwen model on the actual phone. The package is not yet signed or installed. Simulator success does not establish LiDAR accuracy, real-device memory use, thermal behavior, or local-model quality.
+
+The PC has Microsoft Store versions of Apple Devices and iTunes. A Windows signing helper has not been installed or configured. The existing Apple applications were not removed or replaced. Physical USB connection/trust and Apple account sign-in require Jacob's participation.
 
 Jacob confirmed he is not enrolled in the paid Apple Developer Program. Enrollment is not needed to write the project or run the shared-core tests.
