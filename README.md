@@ -16,7 +16,9 @@ Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com
 - A replay command that runs the same depth-summary code on a saved observation.
 - A manual, unsigned Mac CI compile workflow. It has no signing secrets and does not publish an app.
 
-**Validation boundary:** Windows can compile and test `AssistantCore`; it cannot compile UIKit, ARKit, or MLX for iPhone. A successful Mac compile and physical-phone test are still required before claiming the iOS app works. See [STATUS.md](STATUS.md) for the checks actually completed.
+**Validation:** The shared core passes 24 tests on Windows and macOS. The native app compiled with Xcode 27 and passed an automated launch/navigation test on an iPhone 18 Pro Max simulator running iOS 27. Physical sensor capture and local-model inference still require the actual phone. See [STATUS.md](STATUS.md) for build evidence and remaining checks.
+
+Screenshots captured by the native UI test: [Assistant](Documentation/Screenshots/Assistant.png), [Settings](Documentation/Screenshots/Settings.png), and [Captures](Documentation/Screenshots/Captures.png).
 
 ## Run meaningful tests on Windows
 
