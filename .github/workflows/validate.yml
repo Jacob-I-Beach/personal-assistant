@@ -10,6 +10,9 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - name: Select Xcode 27
         run: |
           selected=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' -print | sort | head -n 1)
@@ -20,18 +23,29 @@ jobs:
           sudo xcode-select --switch "$selected/Contents/Developer"
           xcodebuild -version
           swift --version
-      - name: Start local transport fixture
+      - name: Test the shared core with a local transport fixture
         run: |
           mkdir -p .build
-          python3 scripts/mock_model_server.py --port-file .build/fixture-port.txt > .build/fixture.log 2>&1 &
-          for attempt in $(seq 1 50); do
+          python --version
+          python scripts/mock_model_server.py --port-file .build/fixture-port.txt > .build/fixture.log 2>&1 &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 300); do
             if [ -s .build/fixture-port.txt ]; then break; fi
+            if ! kill -0 "$fixture_pid" 2>/dev/null; then
+              cat .build/fixture.log
+              exit 1
+            fi
             sleep 0.1
           done
-          test -s .build/fixture-port.txt
-          echo "ASSISTANT_FIXTURE_BASE_URL=http://127.0.0.1:$(cat .build/fixture-port.txt)" >> "$GITHUB_ENV"
-      - name: Test the shared core
-        run: swift test
+          if [ ! -s .build/fixture-port.txt ]; then
+            cat .build/fixture.log
+            echo 'The local test server did not become ready within 30 seconds.'
+            exit 1
+          fi
+          export ASSISTANT_FIXTURE_BASE_URL="http://127.0.0.1:$(cat .build/fixture-port.txt)"
+          set -o pipefail
+          swift test 2>&1 | tee .build/core-tests.log
       - name: Generate the Xcode project
         run: |
           brew install xcodegen
@@ -39,12 +53,16 @@ jobs:
       - name: Compile the iOS application without signing
         run: |
           set -o pipefail
-          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build | tee .build/ios-build.log
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/ios-build.log
       - name: Preserve build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-diagnostics
-          path: .build/ios-build.log
+          path: |
+            .build/ios-build.log
+            .build/core-tests.log
+            .build/fixture.log
+            PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           if-no-files-found: ignore
           retention-days: 7
