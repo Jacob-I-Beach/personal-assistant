@@ -63,6 +63,20 @@ jobs:
           set -o pipefail
           # The pinned MLX dependencies use Swift macros; allow them for this build only.
           xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO build 2>&1 | tee .build/ios-build.log
+      - name: Launch and navigate the native app in Simulator
+        run: |
+          xcrun simctl list devices available --json > .build/simulators.json
+          simulator_id=$(python scripts/select_simulator.py .build/simulators.json)
+          trap 'xcrun simctl shutdown "$simulator_id" || true' EXIT
+          xcrun simctl bootstatus "$simulator_id" -b
+          set -o pipefail
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
+      - name: Export native screenshots
+        if: always()
+        run: |
+          if [ -d .build/UITests.xcresult ]; then
+            xcrun xcresulttool export attachments --path .build/UITests.xcresult --output-path .build/ui-attachments
+          fi
       - name: Preserve build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,6 +87,8 @@ jobs:
             .build/ios-build.log
             .build/core-tests.log
             .build/fixture.log
+            .build/ui-tests.log
+            .build/ui-attachments
             PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           if-no-files-found: ignore
           retention-days: 7

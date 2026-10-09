@@ -58,6 +58,17 @@ targets:
         product: HuggingFace
       - package: Transformers
         product: Tokenizers
+  PersonalAssistantUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jacob.personalassistant.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: PersonalAssistant
 schemes:
   PersonalAssistant:
     build:
@@ -65,5 +76,11 @@ schemes:
         PersonalAssistant: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets: [PersonalAssistantUITests]
+      language: en
+      region: US
+      preferredScreenCaptureFormat: screenshots
     archive:
       config: Release
