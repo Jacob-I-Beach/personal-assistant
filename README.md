@@ -2,6 +2,8 @@
 
 A private native iPhone application for Jacob's iPhone on iOS 27. The app owns conversations, observations, and tool execution independently of the selected local or connected model. There is no separate Windows phone UI.
 
+Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
+
 ## Current implementation
 
 - A portable Swift core with app-owned persistent conversations and capture records.
@@ -31,6 +33,8 @@ The Swift 6.4 Windows build can emit a warning about its optional `.build/debug`
 ## Compile the actual app on a Mac
 
 Use an Apple silicon Mac with Xcode 27 and a compatible macOS version:
+
+The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 35-minute job timeout. A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
 
 ```bash
 brew install xcodegen

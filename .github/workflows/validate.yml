@@ -5,7 +5,8 @@ permissions:
   contents: read
 jobs:
   ios:
-    runs-on: macos-26
+    # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
+    runs-on: xcode-27
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4

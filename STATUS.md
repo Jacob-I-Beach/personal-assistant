@@ -21,7 +21,9 @@ Portable assistant core, persistent conversations and capture records, normalize
 - No model weights have been downloaded to this PC.
 - The capture replay command was exercised with a synthetic saved observation.
 - GitHub CLI 2.102.0 was downloaded to the thread's tooling directory and checked against its official SHA-256 list. It was not installed globally. Jacob completed device authorization for his GitHub account.
-- The source is ready for the private `Jacob-I-Beach/personal-assistant` repository; Mac validation is the next gate.
+- The source is pushed to the private `Jacob-I-Beach/personal-assistant` repository. Repository visibility was verified through GitHub's API.
+- The manual Mac workflow uses GitHub's standard `xcode-27` Apple silicon preview image; the `macos-26` image's published inventory does not include Xcode 27.
+- Mac validation has not been dispatched. Included Actions allowance could not be verified with the current GitHub login scopes; no account billing settings were changed.
 
 ## Next external validation gate
 
