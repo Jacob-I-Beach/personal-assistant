@@ -20,6 +20,13 @@ final class DocumentPlatformTests: XCTestCase {
         XCTAssertTrue(file.text.contains("Verified document total: 60.5"))
         XCTAssertEqual(bytes, try Data(contentsOf: url))
         XCTAssertFalse(file.allowsConnectedModels); XCTAssertFalse(file.allowsWorkspaceSearch)
+        var corrupt = bytes
+        let marker = Data([0x50, 0x4b, 0x01, 0x02])
+        let central = try XCTUnwrap(corrupt.range(of: marker)).lowerBound
+        corrupt[central + 16] ^= 1
+        let damaged = try fixture("corrupt.docx", base64: corrupt.base64EncodedString())
+        do { _ = try await DocumentImporter.shared.read(damaged); XCTFail("Accepted corrupted archive checksum") }
+        catch { XCTAssertTrue(error.localizedDescription.contains("checksum")) }
         let bad = "UEsDBBQAAAAIAC6oSV1mmSYEVQAAAGAAAAARAAAAd29yZC9kb2N1bWVudC54bWyzUXTxdw6JDHBVSMlPLs1NzStRiLZRdPUL8QyJVKhQCI4MDnH1VVBKy8xJtdLX1y8oyixLLEnVL05NLkotUbKLtbOB6bOzKbFTq7C20S+xs9GHCwIAUEsBAhQAFAAAAAgALqhJXWaZJgRVAAAAYAAAABEAAAAAAAAAAAAAAIABAAAAAHdvcmQvZG9jdW1lbnQueG1sUEsFBgAAAAABAAEAPwAAAIQAAAAAAA=="
         do { _ = try await DocumentImporter.shared.read(fixture("entities.docx", base64: bad)); XCTFail("Accepted external entities") }
         catch { XCTAssertTrue(error.localizedDescription.contains("entity")) }

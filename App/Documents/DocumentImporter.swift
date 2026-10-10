@@ -63,12 +63,16 @@ actor DocumentImporter {
             expanded += entry.uncompressedSize
             guard expanded <= 24 * 1024 * 1024 else { throw AssistantError.provider("The document's extracted XML exceeds the phone reading limit.") }
             var bytes = Data()
-            _ = try archive.extract(entry, bufferSize: 32 * 1024) { chunk in
+            let checksum = try archive.extract(entry, bufferSize: 32 * 1024) { chunk in
                 guard bytes.count + chunk.count <= 8 * 1024 * 1024 else { throw AssistantError.provider("An archive part exceeds the extraction limit.") }
                 bytes.append(chunk)
             }
+            guard checksum == entry.checksum, UInt64(bytes.count) == entry.uncompressedSize else { throw AssistantError.provider("An Office document part failed its archive checksum or size check. Import an intact copy.") }
             // OOXML does not need DTDs or external entities. Reject declarations before parsing.
-            let prefix = String(decoding: bytes, as: UTF8.self).uppercased()
+            let decoded = bytes.starts(with: [0xff, 0xfe]) || bytes.starts(with: [0xfe, 0xff])
+                ? String(data: bytes, encoding: .utf16) : String(data: bytes, encoding: .utf8)
+            guard let decoded else { throw AssistantError.provider("The Office XML text encoding is unsupported.") }
+            let prefix = decoded.uppercased()
             guard !prefix.contains("<!DOCTYPE"), !prefix.contains("<!ENTITY") else { throw AssistantError.provider("Document XML entity declarations are not supported.") }
             let delegate = OfficeXML(shared: shared, spreadsheet: spreadsheet)
             let parser = XMLParser(data: bytes); parser.shouldResolveExternalEntities = false; parser.delegate = delegate
