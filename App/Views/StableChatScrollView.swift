@@ -14,22 +14,40 @@ final class ChatViewport: ObservableObject {
 struct StableChatScrollView<Content: View>: UIViewControllerRepresentable {
     let conversationID: UUID
     let isStreaming: Bool
+    let composerFocused: Bool
+    let dismissKeyboard: () -> Void
     let viewport: ChatViewport
     @ViewBuilder var content: () -> Content
 
     func makeUIViewController(context: Context) -> ChatScrollController {
         let controller = ChatScrollController(viewport: viewport)
-        controller.update(AnyView(content().environment(\.self, context.environment)), conversationID: conversationID, streaming: isStreaming)
+        update(controller, context: context)
         return controller
     }
     func updateUIViewController(_ controller: ChatScrollController, context: Context) {
-        controller.update(AnyView(content().environment(\.self, context.environment)), conversationID: conversationID, streaming: isStreaming)
+        update(controller, context: context)
+    }
+    private func update(_ controller: ChatScrollController, context: Context) {
+        // A new hosting root owns its own navigation/accessibility graph. Copy only public
+        // presentation values; cloning the whole environment also clones another root's AX state.
+        let root = content()
+            .environment(\.colorScheme, context.environment.colorScheme)
+            .environment(\.dynamicTypeSize, context.environment.dynamicTypeSize)
+            .environment(\.locale, context.environment.locale)
+            .environment(\.layoutDirection, context.environment.layoutDirection)
+            .disabled(!context.environment.isEnabled)
+            .tint(Color.primary)
+        controller.update(AnyView(root), conversationID: conversationID, streaming: isStreaming)
+        controller.composerFocused = composerFocused
+        controller.dismissKeyboard = dismissKeyboard
     }
     static func dismantleUIViewController(_ controller: ChatScrollController, coordinator: ()) { controller.detach() }
 }
 
 @MainActor
 final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGestureRecognizerDelegate {
+    var composerFocused = false
+    var dismissKeyboard: (() -> Void)?
     private let scroll = AnchoredChatScroll()
     private let host = UIHostingController(rootView: AnyView(EmptyView()))
     private weak var viewport: ChatViewport?
@@ -53,6 +71,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.backgroundColor = .systemBackground
         scroll.accessibilityIdentifier = "conversation-scroll"
+        scroll.panGestureRecognizer.addTarget(self, action: #selector(readerPanned(_:)))
         addChild(host)
         host.sizingOptions = [.intrinsicContentSize]
         host.safeAreaRegions = []
@@ -81,9 +100,12 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         host.view.invalidateIntrinsicContentSize()
         scroll.setNeedsLayout()
     }
-    func detach() { scroll.didLayout = nil; scroll.delegate = nil; viewport?.controller = nil }
+    func detach() { scroll.didLayout = nil; scroll.delegate = nil; dismissKeyboard = nil; viewport?.controller = nil }
     func jumpToLatest() { following = true; pendingJump = true; scroll.setNeedsLayout() }
     @objc private func readerTapped() { following = false }
+    @objc private func readerPanned(_ gesture: UIPanGestureRecognizer) {
+        if composerFocused && gesture.state == .changed && gesture.translation(in: scroll).y > 12 { dismissKeyboard?() }
+    }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
     private var maximumOffset: CGFloat { max(0, scroll.contentSize.height - scroll.bounds.height) }
     private var nearBottom: Bool { maximumOffset - scroll.contentOffset.y < 80 }
@@ -121,7 +143,12 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         let value = nearBottom
         DispatchQueue.main.async { [weak self] in self?.viewport?.updateNearBottom(value) }
     }
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { following = false; pendingJump = false; rememberPosition() }
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        following = false; pendingJump = false; rememberPosition()
+        // The composer belongs to the enclosing SwiftUI root, outside this scroll view.
+        // Native interactive dismissal alone does not resign that external first responder.
+        if composerFocused && scrollView.panGestureRecognizer.velocity(in: scrollView).y > 0 { dismissKeyboard?() }
+    }
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard !reconciling else { return }
         if scrollView.isDragging || scrollView.isDecelerating { rememberPosition() }

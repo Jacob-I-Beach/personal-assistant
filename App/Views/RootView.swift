@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var voice = VoiceController()
+    @StateObject private var chatNavigation = ChatNavigation()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @State private var showHistory = false
@@ -17,6 +18,14 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             ChatView().environmentObject(voice)
+                .navigationDestination(item: $chatNavigation.destination) { destination in
+                    switch destination {
+                    case .file(let id): WorkspaceFileView(id: id)
+                    case .artifact(let id):
+                        if let artifact = model.artifacts.first(where: { $0.id == id }) { ArtifactDetailView(artifact: artifact) }
+                        else { ContentUnavailableView("File unavailable", systemImage: "doc") }
+                    }
+                }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -44,6 +53,7 @@ struct RootView: View {
                     }
                 }
         }
+        .environmentObject(chatNavigation)
         .disabled(!model.isInitialized)
         .allowsHitTesting(!showHistory)
         .accessibilityHidden(showHistory)
@@ -120,6 +130,7 @@ private struct TestAppearance: ViewModifier {
 struct ChatView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var voice: VoiceController
+    @EnvironmentObject private var chatNavigation: ChatNavigation
     @State private var voicePrefix = ""
     @State private var showCapture = false
     @State private var showFiles = false
@@ -133,7 +144,7 @@ struct ChatView: View {
     @State private var visibleMessageCount = 100
     @FocusState private var composerFocused: Bool
     var body: some View {
-        StableChatScrollView(conversationID: model.conversation.id, isStreaming: model.isRunning, viewport: viewport) {
+        StableChatScrollView(conversationID: model.conversation.id, isStreaming: model.isRunning, composerFocused: composerFocused, dismissKeyboard: { composerFocused = false }, viewport: viewport) {
                 VStack(alignment: .leading, spacing: 18) {
                     if model.conversation.messages.isEmpty { welcome }
                     if model.conversation.messages.count > visibleMessageCount {
@@ -148,10 +159,10 @@ struct ChatView: View {
                             .background(ChatScrollAnchor(id: message.id)).id(message.id)
                     }
                     ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains($0.id) }.prefix(6)) { artifact in
-                        NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
+                        Button { chatNavigation.destination = .artifact(artifact.id) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
                     }
                     ForEach(model.files.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedFileIDs.contains($0.id) }.prefix(6)) { file in
-                        NavigationLink { WorkspaceFileView(id: file.id) } label: { WorkspaceFileRow(file: file) }.buttonStyle(.plain)
+                        Button { chatNavigation.destination = .file(file.id) } label: { WorkspaceFileRow(file: file) }.buttonStyle(.plain)
                     }
                     if let activity = model.activity {
                         HStack(spacing: 8) { ProgressView().controlSize(.small); Text(activity).font(.footnote).foregroundStyle(.secondary) }
@@ -161,7 +172,7 @@ struct ChatView: View {
                 }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 12)
                     .frame(maxWidth: 720).frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
-                    .environmentObject(model).environmentObject(voice)
+                    .environmentObject(model).environmentObject(voice).environmentObject(chatNavigation)
         }
         .overlay(alignment: .bottomTrailing) {
             if !viewport.nearBottom && !model.conversation.messages.isEmpty {

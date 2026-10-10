@@ -5,6 +5,7 @@ import SwiftUI
 struct MessageRow: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var voice: VoiceController
+    @EnvironmentObject private var chatNavigation: ChatNavigation
     let message: Message
     let showsResponseActions: Bool
     @State private var selectedImage: ImageSelection?
@@ -59,7 +60,7 @@ struct MessageRow: View {
         }
         ForEach(message.fileIDs, id: \.self) { id in
             if let file = model.files.first(where: { $0.id == id }) {
-                NavigationLink { WorkspaceFileView(id: id) } label: {
+                Button { chatNavigation.destination = .file(id) } label: {
                     Label(file.filename, systemImage: file.icon).font(.footnote).lineLimit(2).padding(10)
                         .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain).accessibilityLabel("Open attached file \(file.filename)")
