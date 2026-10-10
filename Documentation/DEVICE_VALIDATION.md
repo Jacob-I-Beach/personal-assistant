@@ -1,6 +1,6 @@
-# Private 0.4 device validation
+# Private 0.5 device validation
 
-The 0.4.0 build 4 package passed [final native validation 38028597942](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38028597942) and archive inspection. Six additional interface scenarios passed on identical app source in run 38027478506. Jacob's current confirmed installation is 0.3.0 build 3. Automated checks use synthetic data; live accounts and hardware need the checks below.
+The 0.5.0 build 5 package passed [full native validation 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456) and archive inspection. Jacob has not yet confirmed installing this version. Automated checks use synthetic data; the following phone checks establish real behavior.
 
 ## Installation profile
 
@@ -20,9 +20,9 @@ Source evidence: [official iLoader 2.3.6](https://github.com/nab138/iloader/tree
 ## User-operated installation
 
 1. Leave the existing Personal Assistant installed. Connect and unlock the iPhone, then select it in iLoader with the same Apple account used for the working installation.
-2. Choose **Import IPA** and select the verified `0.4.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
+2. Choose **Import IPA** and select the verified `0.5.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
 3. Complete any Apple authentication prompt yourself. If iLoader proposes revoking a certificate, deleting another app, or changing accounts, stop and report the exact message so the existing installation can be preserved.
-4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.4.0 · Build 4** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
+4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.5.0 · Build 5** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
 
 The agent performs code/CLI/file validation; Jacob requested instructions for all GUI interactions rather than computer-use automation.
 
@@ -34,19 +34,16 @@ Sources: [official preset list](https://github.com/nab138/iloader/blob/v2.3.6/sr
 
 ## First functional pass
 
-Start with these short checks; use a disposable folder and non-sensitive image.
+1. **Update:** About shows Version 0.5.0, Build 5; prior chats remain. A cold launch starts a fresh conversation.
+2. **Position/keyboard:** open the earlier long research answer, scroll to the middle, expand/collapse a tool and type a draft. Swipe down to dismiss the keyboard, then try its dismiss button. The reading position should stay sensible without random jumps. Repeat while a long answer streams.
+3. **Thinking/layout:** select GPT 6.1 Sol; use the circle beside the microphone to try Low through Max. Check normal contrast, compact tool rows, retained collapsible sources, tight user bubbles and external action rows.
+4. **Edit/regenerate:** in a disposable chat ask 1+1, edit it to 1+2 and send. The replacement answer should use 1+2 and the removed tail should disappear. Cancel a second edit and confirm the draft is restored. External files are not undone by editing.
+5. **Attachments:** send an ordinary photo without text. No inserted sentence or empty text bubble should appear. Tap the photo to zoom. Attach a small PDF with text and open it from its attachment row.
+6. **Depth:** open a non-sensitive saved camera/depth capture. Select one or two visible points, inspect the result/warnings and use selected points in chat. The draft text must remain unchanged. Ask about those points; the assistant should use saved sensor metadata with its limitations. Do not use this uncalibrated workflow for safety or guaranteed fit.
+7. **Working surfaces:** ask for a JavaScript calculation and a chart based on that exact result; then a small comparison/checklist or adjustable scenario. Change a selection/parameter, send a follow-up and confirm read_surface sees the new saved state. Checkmarks are not evidence of completed external actions.
+8. **Memory:** Library → Saved memory. Mark a disposable note tentative, expired or superseded; inspect its source/confirmation and connected-model scope. Expired/superseded notes should stop being injected as current memory. Prior transcript references remain historical data.
 
-1. **Install/migration:** About shows Version 0.4.0, Build 4. A cold launch opens a fresh conversation; existing chats remain in the sidebar.
-2. **Thinking and titles:** choose GPT 6.1 Sol. Tap Thinking below the composer, choose High, send a short task, then check the title after its successful answer. Switch models and back to check the remembered selection. Manual renaming must remain authoritative.
-3. **Photos/vision:** plus → Photo library opens the native picker. Choose one picture and send it; a response or actionable error must remain. Repeat the earlier camera/depth request separately. The simulator verified picker opening/cancellation, not a real camera observation.
-4. **Response layout/sources:** repeat a sourced calculation. Public updates remain separate, web activity is visible, calculation results are readable and equations render. The completed turn has one action row; more than three unique source URLs appear in a collapsible panel.
-5. **Generated files:** ask the assistant to use JavaScript to add [18.5, 27.25, 14.75], then save the computed values/total as CSV and create a small PDF report. Confirm total 60.5, genuine CSV rows and a readable PDF. Check Files → On My iPhone → Personal Assistant → Outputs. A signed app/provider may display a localized app-folder name.
-6. **Export:** open an artifact and Save to Files. Cancel first and confirm the app reports cancellation. Repeat and save a deliberate copy; local completion must not claim cloud sync is finished.
-7. **Connected folder:** plus → Connected folders; choose a disposable folder with notes.md. Enable it for this chat, and allow connected-model access only if desired. Ask to list/read it, then authorize editing and request a small change. Inspect the native diff and original copy. Close/reopen the app and check access again. If a provider is unavailable or access is revoked, the app should offer reconnection, not invent a successful read/save.
-
-Existing integration checks remain useful when testing those features: cancel location, Calendar or Messages review before deliberately approving an action; verify no success is claimed for cancellation. For local inference, use an already downloaded package or an explicitly chosen download and record latency/heat rather than trusting catalog estimates. Text-only models use saved OCR; direct image interpretation requires a vision-capable model.
-
-Watch, Health entitlement, PCC entitlement, continuous background work, Python and full browser control are not acceptance claims for this iPhone-only package.
+Existing Files/export/folder workflows should still work. Real document-provider persistence, account-specific model support, local-model performance and hardware behavior remain separate checks.
 
 ## Not part of this installed profile
 

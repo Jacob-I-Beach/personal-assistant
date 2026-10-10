@@ -1,0 +1,25 @@
+{
+  "run": "38062830456",
+  "source": "c8855c12341ec73241333c285fb12db81d0cb109",
+  "version": "0.5.0",
+  "build": "5",
+  "core_tests": 119,
+  "platform_tests": 15,
+  "ui_tests": 9,
+  "ui_scenarios": [
+    "testAttachmentPreviewWorkingSurfacesAndActualMessageEdit",
+    "testConnectedFolderAndFilesOutputs",
+    "testDarkAndLargeTextControlsRemainUsable",
+    "testFreshLaunchSidebarFoldersAndAttachmentActions",
+    "testKeyboardAndDisclosurePreserveReadingPosition",
+    "testOrderedProgressWebAndReadableCalculation",
+    "testRichConversationArtifactAndHistory",
+    "testSourcesThinkingAndPhotoPicker",
+    "testWelcomeCatalogAndSettings"
+  ],
+  "sha256": "fb9cc533223697d04a5d274e0b029fb2473b85b12bba97d4787c523224500f03",
+  "bytes": 19990620,
+  "debug_model_excluded": true,
+  "dependency_pins_verified": 20,
+  "physical_device_validation": "pending"
+}

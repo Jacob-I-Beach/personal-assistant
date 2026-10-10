@@ -1,0 +1,11 @@
+{
+  "run": "38062830456",
+  "source": "c8855c12341ec73241333c285fb12db81d0cb109",
+  "reviewed": [
+    "Welcome-dark-large-text.png",
+    "Compact-tools-keyboard-dismissed.png",
+    "Interactive-scenario-result.png",
+    "Edited-conversation-replacement.png"
+  ],
+  "observations": "The accessibility-size empty conversation now starts at the top with the entire welcome heading visible below navigation; remaining welcome content is available by scrolling. The normal-size research response preserves separate public updates, compact gray web/calculation rows, native math, a saved draft and one final response action row. The scenario shows Count 10 and Total 185 after actual slider interaction. Edit/regenerate shows only the replacement 1+2 and result 3, with a tight user bubble and external actions. These are selected synthetic simulator captures from the final successful run, not real account output, a complete accessibility audit, or physical-device evidence."
+}
