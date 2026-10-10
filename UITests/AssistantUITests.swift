@@ -41,7 +41,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Personal Assistant"].waitForExistence(timeout: 5))
         let search = app.searchFields.firstMatch
         search.tap(); search.typeText("Recall")
-        XCTAssertTrue(app.staticTexts["Burgundy study project"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(identifier: "Burgundy study project").firstMatch.waitForExistence(timeout: 5))
         saveScreenshot(app, name: "History-search")
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
@@ -59,7 +59,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose files"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["From Library"].exists)
         XCTAssertFalse(app.buttons["Read responses aloud"].exists)
-        app.tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
         app.buttons["History"].tap()
         XCTAssertTrue(app.buttons["New folder"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Sidebar-folders")

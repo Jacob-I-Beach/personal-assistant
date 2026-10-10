@@ -53,3 +53,5 @@ The nine completed hosted-Mac jobs total 80 rounded minutes, estimated at $4.96 
 - [Apple one-shot location](https://developer.apple.com/documentation/corelocation/cllocationmanager/requestlocation()) and [Calendar/EventKitUI access](https://developer.apple.com/documentation/eventkit/accessing-calendar-using-eventkit-and-eventkitui).
 - [MLX Swift LM 3.32.3](https://github.com/ml-explore/mlx-swift-lm/tree/3.32.3); package revisions and metadata in ModelCatalogAudit.json.
 - [ZIPFoundation 0.9.20](https://github.com/weichsel/ZIPFoundation/releases/tag/0.9.20).
+
+Native run 38012150464 passed 75 Mac core tests but failed typechecking because the model tokenizer location is immutable. The loader now creates a local configuration through the upstream initializer. Its seven rounded minutes bring the estimate to $5.394 under the approved $10 total. Native validation is being repeated; no package was delivered from the failed run.

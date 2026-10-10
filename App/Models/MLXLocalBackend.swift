@@ -132,15 +132,23 @@ actor MLXLocalBackend: ModelBackend {
         // Preserve upstream EOS tokens, tool format and reasoning parser when resolving a local package.
         if supportsVision {
             let factory = VLMModelFactory.shared
-            var configuration = factory.configuration(id: repository)
-            configuration.id = .directory(directory); configuration.tokenizerSource = .directory(directory)
+            let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: directory)
             container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
         } else {
             let factory = LLMModelFactory.shared
-            var configuration = factory.configuration(id: repository)
-            configuration.id = .directory(directory); configuration.tokenizerSource = .directory(directory)
+            let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: directory)
             container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
         }
+    }
+
+    private static func diskConfiguration(_ source: ModelConfiguration, directory: URL) -> ModelConfiguration {
+        var result = ModelConfiguration(directory: directory, tokenizerSource: .directory(directory),
+            defaultPrompt: source.defaultPrompt, extraEOSTokens: source.extraEOSTokens,
+            stopStrings: source.stopStrings, eosTokenIds: source.eosTokenIds,
+            toolCallFormat: source.toolCallFormat, reasoningConfig: source.reasoningConfig,
+            messageGenerator: source.messageGenerator)
+        result.weightFileSelection = source.weightFileSelection
+        return result
     }
 
     private func savedDirectory() throws -> URL {

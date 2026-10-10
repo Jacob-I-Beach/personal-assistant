@@ -727,7 +727,7 @@ final class AppModel: ObservableObject {
     #if DEBUG
     private func installDemoFixture() async {
         guard let store else { return }
-        var sample = Conversation(title: "Burgundy study project")
+        var sample = Conversation(id: UUID(uuidString: "00000000-0000-4000-8000-000000000003")!, title: "Burgundy study project")
         sample.messages = [Message(role: .user, text: "Help me turn these study blocks into a simple plan."),
             Message(role: .assistant, text: """
             Here's a starting plan you can adjust.
@@ -749,7 +749,9 @@ final class AppModel: ObservableObject {
             """, providerID: "synthetic-ui-fixture")]
         do {
             try await store.save(sample)
-            try await store.saveArtifact(ArtifactRecord(conversationID: sample.id, filename: "study-plan.md", content: "# Study plan\n\n- Read and annotate: 25 minutes\n- Practice: 20 minutes\n- Recall: 10 minutes\n"))
+            if try await store.artifacts(conversationID: sample.id).isEmpty {
+                try await store.saveArtifact(ArtifactRecord(conversationID: sample.id, filename: "study-plan.md", content: "# Study plan\n\n- Read and annotate: 25 minutes\n- Practice: 20 minutes\n- Recall: 10 minutes\n"))
+            }
             conversation = sample
         } catch { errorMessage = error.localizedDescription }
     }

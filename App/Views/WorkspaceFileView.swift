@@ -31,7 +31,9 @@ struct WorkspaceFileView: View {
                     Section {
                         WorkspaceFileRow(file: file)
                         if let url {
-                            Button("Preview original", systemImage: "doc.viewfinder") { preview = url }
+                            if ["html", "htm", "svg"].contains(url.pathExtension.lowercased()) {
+                                NavigationLink("Preview source text") { ScrollView { Text(String(file.text.prefix(100_000))).font(.caption.monospaced()).textSelection(.enabled).padding() }.navigationTitle(file.filename) }
+                            } else { Button("Preview original", systemImage: "doc.viewfinder") { preview = url } }
                             ShareLink(item: url) { Label("Share original", systemImage: "square.and.arrow.up") }
                         }
                         Button("Attach to current chat", systemImage: "paperclip") { model.attachFile(id); dismiss() }.disabled(model.isRunning || (file.containsHealthData && file.conversationID != model.conversation.id))
