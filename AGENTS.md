@@ -21,3 +21,6 @@
 - The next release must start with a fresh conversation on launch, provide a coherent sidebar with folders, archive/delete controls, file import and previews, and search across permitted app chats/documents. Read-aloud belongs with response actions or voice settings, not the attachment menu.
 - Keep styling restrained, native, and consistent. Show real work progress and failure states; do not display fabricated reasoning or claim tool success without receipts.
 - Catalog entries need verified runtime/format compatibility and honest memory estimates. Mark performance as unmeasured until tested on this phone; MoE active parameter count is not its total weight-memory requirement.
+
+- Current user-confirmed install: 0.3.0 build 3 opens and prior chats remain. The live GPT 6.1 Sol complex-response test is pending; do not infer it passed from CI.
+- Hosted-Mac validation ceiling is now $10 total, explicitly approved by Jacob. Read Documentation/BuildValidation.json before dispatching another run; the recorded estimate is $8.618 after final 0.3 validation. Preserve prior release archives.

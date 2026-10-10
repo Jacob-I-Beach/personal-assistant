@@ -1,6 +1,6 @@
-# Private 0.2 device validation
+# Private 0.3 device validation
 
-This is a substantial development candidate. Jacob reported that the updated 0.2.0 app installs and opens after the signing-service retry described below. Simulator tests and core tests establish implementation behavior with synthetic fixtures; they do not establish live account access, on-phone model performance, or real sensor behavior.
+The 0.3.0 build 3 package passed native validation 38016040142 and archive inspection. Jacob reports that the in-place update opens and previous chats are present. Automated tests use synthetic data; live accounts and hardware need the checks below.
 
 ## Installation profile
 
@@ -19,10 +19,10 @@ Source evidence: [official iLoader 2.3.6](https://github.com/nab138/iloader/tree
 
 ## User-operated installation
 
-1. Leave the existing Personal Assistant installed. Connect and unlock the iPhone, then select it in iLoader with the same Apple account used for 0.1.
-2. Choose **Import IPA** and select the verified `0.2.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
+1. Leave the existing Personal Assistant installed. Connect and unlock the iPhone, then select it in iLoader with the same Apple account used for the working installation.
+2. Choose **Import IPA** and select the verified `0.3.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
 3. Complete any Apple authentication prompt yourself. If iLoader proposes revoking a certificate, deleting another app, or changing accounts, stop and report the exact message so the existing installation can be preserved.
-4. After iLoader reports success, open Personal Assistant on the phone. Existing saved conversations should remain. Do not uninstall the old app to solve an update failure.
+4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.3.0 · Build 3** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
 
 The agent performs code/CLI/file validation; Jacob requested instructions for all GUI interactions rather than computer-use automation.
 
@@ -34,17 +34,20 @@ Sources: [official preset list](https://github.com/nab138/iloader/blob/v2.3.6/sr
 
 ## First functional pass
 
-Keep the first test small so failures have a clear cause.
+Check About shows Version 0.3.0, Build 3. Reopen the app to a fresh conversation, then find the old 0.2 chats in the sidebar. Test folder/move/archive/restore with a disposable chat before deleting anything you need.
 
-1. **Launch and persistence:** confirm the new interface opens and old conversations are present. Check Settings and Models, then reopen the app.
-2. **A real model:** choose an available Apple on-device model for a quick test, or download/import Qwen 3.5 4B. A Locally AI download can be reused only if that app exposes a complete compatible MLX folder matching the catalog revision; GGUF files and private app storage are not interchangeable. The catalog's Download action verifies the package; Use loads it separately.
-3. **Tools and durable work:** ask, "Use JavaScript to calculate the total of [18.5, 27.25, 14.75], and save a CSV with the three values and the total." Check that the execution receipt reports 60.5 and that the artifact opens. This also tests whether the selected model can call tools correctly.
-4. **ChatGPT:** tap Continue with ChatGPT. Complete authorization on OpenAI's page. Return to the app, choose an account model, and run a short conversation. Inspect the network-sharing prompt before allowing it. This does not import the ChatGPT app's existing chats, memories, Health permissions, or hosted tools.
-5. **Memory:** save an on-device-only preference. Confirm it can be used locally and is withheld after switching to a connected model. Notes intended for connected models require their separate sharing setting.
-6. **Voice/capture:** test editable dictation, stop/read-aloud, and one deliberate camera capture. These still need actual hardware verification.
+Priority regression: choose GPT 6.1 Sol. Ask it to estimate Jupiter's circumference from explicitly limited observations, identify assumptions, research any missing factual inputs, and calculate with JavaScript. An answer, tool receipt or visible error must remain; silently disappearing generation fails the check. Repeat with a camera/depth image. Source links must open and correspond to claims.
 
-The local model test should record the exact model/revision, whether loading succeeds, a short response's latency, whether tool use succeeds, and whether the app stops reliably. Larger model options remain available; no claim about their practical RAM or thermal performance is made before measurement.
+Calculation: Use JavaScript to add [18.5, 27.25, 14.75] and save the values and computed total as totals.csv. The total must be 60.5 and the file must contain CSV rows. Repeat with the Apple on-device model if available.
+
+Files: attach a non-sensitive PDF or DOCX using the plus menu. Ask for a cited summary and a small new PDF. Confirm originals and generated PDF appear in Library and can preview/share. Verify a new unrelated chat cannot find a private file until workspace/file access is enabled.
+
+Actions: ask for device memory/thermal state. Request location and first Cancel; no coordinates should appear. For Calendar and Messages, cancel the native composer first and verify the assistant does not claim success. Save/send only a deliberate test you actually want. Calling and Maps require their separate review.
+
+Local inference: select one already downloaded package or explicitly choose a download. Record first-load time, approximate response speed, device heat and any visible failure; do not infer performance from the catalog estimate. Vision behavior needs a vision model; text models can use saved OCR.
+
+Watch, Health entitlement, PCC entitlement, continuous background work, Python and full browser control are not acceptance claims for this iPhone-only package.
 
 ## Not part of this installed profile
 
-Health reads and Watch installation are blocked by the current signing route. Direct PCC awaits the app's entitlement. Document/PDF ingestion, full web research, larger Python/PC/cloud execution, conversation branching, richer interactive artifact previews, and broader organizer/sensor workflows remain development work. This candidate does not represent completion of the full product design.
+Health reads and Watch installation remain blocked by the current signing route. Direct PCC awaits the app entitlement. Full browser automation, Python, a cloud execution workspace, unattended continuous background work and arbitrary iOS device control are not implemented. Local model throughput/thermal suitability and actual Siri shortcut discovery remain unmeasured/unverified. Web search depends on the selected ChatGPT model and account policy.

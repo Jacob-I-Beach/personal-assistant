@@ -4,14 +4,14 @@ A private native iPhone application for Jacob's iPhone on iOS 27. The app owns c
 
 Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
 
-Jacob has reported that the private 0.2.0 update is installed and opens on his iPhone. It implements a substantial part of [the product design](Documentation/PRODUCT_DESIGN.md): ChatGPT account connection and downloaded models as equal first-class experiences, rebuilt native screens, saved memory, and actual sandbox execution. Live model/account behavior and hardware workflows still require device validation, and the full design remains in progress.
+Jacob confirms that **0.3.0 build 3 opens on his iPhone and preserves his previous chats**. ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
-## Current source: 0.2 candidate
+## Current source: 0.3
 
 - A portable Swift core with SQLite transactions, retained legacy JSON migration, full-text history search, bounded working context, and app-owned records.
 - Shared app-controlled tools for captures, history, saved memory, actual offline JavaScript execution, editable artifacts, and authorized native Health overviews. External streamed calls are held until terminal completion; native Foundation Models tools use complete validated arguments through the same executor.
-- ChatGPT account registration, PKCE/nonce/state checks, JOSE signature verification, separate Keychain registrations, token rotation, account catalogs, and streamed Responses with namespaced tools. Live account authorization still needs the phone.
-- Downloaded MLX model catalog with Qwen 3.5 2B/4B/9B, published revisions/sizes/weight hashes, and matching-package import through Files. Downloads are separate from inference and do not select or load a model automatically.
+- ChatGPT account registration, PKCE/nonce/state checks, JOSE signature verification, separate Keychain registrations, token rotation, account catalogs, and streamed Responses with namespaced tools. Jacob previously verified live account authorization, model loading and a simple response in 0.2; the 0.3 complex-request regression test is pending.
+- Ten downloaded MLX choices across Qwen, Granite, Liquid, SmolLM and Gemma, with pinned revisions/sizes/weight hashes, working-memory estimates, and matching-package import through Files. Downloads are separate from inference and do not select or load a model automatically.
 - Apple on-device Foundation Models and an entitlement-gated PCC adapter. This is not the complete Siri assistant; a native App Intent exposes the app's own request entry point to Siri/Shortcuts.
 - A native conversation interface, rich Markdown/code/tables, model sheet, searchable history, saved-memory editor, artifact previews/revisions, and draft recovery.
 - On-device speech transcription where supported and native read-aloud, with interruption and background handling.
@@ -21,11 +21,13 @@ Jacob has reported that the private 0.2.0 update is installed and opens on his i
 - A replay command that runs the same depth-summary code on a saved observation.
 - A manual, unsigned Mac CI compile workflow. It has no signing secrets and does not publish an app.
 
-**Validation:** The shared core passes 50 tests on Windows and macOS. The final native run, [38003037939](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38003037939) at source `c403e18`, also passed four iOS platform tests, three native UI tests, and the iPhone/Watch Release build. The verified 0.2.0 build 2 installation input is retained in the sibling `PersonalAssistant-iPhone/0.2.0` folder. These are synthetic implementation checks, not a claim that live ChatGPT access, Health permissions, Watch delivery, or model performance has passed on Jacob's devices. See [STATUS.md](STATUS.md) and [the engineering record](Documentation/IMPLEMENTATION.md).
+**Current release:** 0.3.0 build 3, source 6b0ba6ba51b22df7c3821d6b53e4c4607a31da6c, passed [native validation 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142): **75 core tests, 8 platform tests, 4 interface tests, and the iPhone/Watch Release build**. The shared-core suite also passes on Windows. The verified iPhone-only IPA is in the sibling **PersonalAssistant-iPhone/0.3.0** folder. Jacob confirms that 0.3 opens and previous chats are present; live-model regression and hardware checks are underway.
 
-The original 0.1 screenshots remain in `Documentation/Screenshots/`. [Current native screenshots](Documentation/Screenshots/0.2.0/README.md) are recorded with the final validation run; conversation/artifact content is synthetic UI fixture data. Visual review corrected the welcome asset, dark-mode button contrast, code-block header, and model size totals. Large-text coverage is limited to the exercised screens, not a full accessibility audit.
+The 0.3 batch adds ChatGPT-primary onboarding, a sidebar with folders and chat management, file attachments and native previews, document reading and PDF writing, scoped workspace search, public work progress, web-search/source support, corrected empty-response and calculation failure handling, native device actions, and ten pinned local model choices. See [release scope](Documentation/RELEASE_03.md), [operating behavior](Documentation/OPERATING_BEHAVIOR.md), and [current status](STATUS.md).
 
-**Current installation scope:** official iLoader 2.3.6 does not provision the embedded Watch or request HealthKit for this app. Install `PersonalAssistant-iPhone-only.ipa` through the existing iLoader account; the full archive is retained for a future compatible signing route. Health is clearly unavailable and its authorization/query paths are disabled in this deployment. Follow the [manual installation and device-validation steps](Documentation/DEVICE_VALIDATION.md); preserve the existing app rather than uninstalling it.
+[Fourteen native screenshots](Documentation/Screenshots/0.3.0/README.md) use synthetic UI fixtures. The sidebar, Library, file attachment/detail and rendered PDF were visually inspected. The interface test exercises create/archive/restore/delete and a file-preview round trip. This is not a claim of live inference quality, full accessibility coverage or phone performance.
+
+**Installation scope:** official iLoader 2.3.6 does not provision the Watch companion or request HealthKit for this app. Use **PersonalAssistant-iPhone-only.ipa**, keeping the existing app and the same account. The full compiled archive is retained for a compatible signing route. Health remains clearly unavailable in this profile. Follow the [manual installation and device checks](Documentation/DEVICE_VALIDATION.md).
 
 ## Run meaningful tests on Windows
 
@@ -43,7 +45,7 @@ The Swift 6.4 Windows build can emit a warning about its optional `.build/debug`
 
 Use an Apple silicon Mac with Xcode 27 and a compatible macOS version:
 
-The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 15-minute job timeout. A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
+The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 20-minute job timeout. A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
 
 ```bash
 brew install xcodegen

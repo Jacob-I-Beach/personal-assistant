@@ -1,6 +1,6 @@
 # Personal Assistant 0.3 — implementation and validation
 
-Status: source implementation ready for native validation. Installed phone version remains 0.2.0 build 2. This is a coherent release batch, not an installable update yet.
+Status: **0.3.0 build 3 is built, verified and installed by Jacob; it opens and his previous chats are present.** [Final native run 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142) passed 75 core, 8 platform and 4 interface tests plus the device build. Live-model regression checks are underway.
 
 ## Implemented in the working source
 
@@ -30,21 +30,21 @@ The ChatGPT blank-response symptom also occurred for a text-only Jupiter questio
 - 75 shared-core tests passed, including real localhost HTTP streaming/tool loops, persistence/migration, file-sharing boundaries, original-byte preservation, compact tool discovery, public plan validation, source links, and original-file request encoding.
 - 34 native app/test Swift sources passed syntax parsing only. This does not typecheck Apple frameworks or certify UI behavior.
 - Info.plist parses; all 10 catalog totals and weight hashes are internally consistent. Seven new model revisions and architecture metadata were read from Hugging Face; no weights were downloaded to the PC.
-- Native platform tests added for DOCX/XLSX extraction, XML entity rejection, multipage PDF creation and device identity minimization. UI coverage adds fresh launch, attachment actions, folders and sidebar. These tests await Xcode.
+- Native platform tests added for DOCX/XLSX extraction, XML entity rejection, multipage PDF creation and device identity minimization. UI coverage adds fresh launch, attachment actions, folders and sidebar. All of these tests passed on the final Xcode 27 run.
 
-## Pending release gates
+## Release gates and phone follow-up
 
-1. Approved hosted-Mac validation and any necessary repairs: core tests, native typecheck/build, platform tests, UI tests and actual simulator screenshots.
-2. Inspect native screenshots for light/dark mode, larger text, sidebar, Library and attachments; fix layout issues found.
-3. Produce and verify a versioned iPhone-only unsigned IPA while retaining the full compiled Watch archive.
-4. Jacob installs via iLoader; all GUI, Apple authentication and phone prompts remain user-operated.
+1. **Complete:** final Mac validation 38016040142, including native build and all automated tests.
+2. **Complete:** native screenshot review of sidebar, Library, file attachment/detail and rendered PDF; light/dark and larger-text captures retained.
+3. **Complete:** iPhone-only and full iPhone/Watch packages verified, checksums and executable provenance recorded in the 0.3.0 output folder.
+4. **User-confirmed:** Jacob installed 0.3.0 build 3 through iLoader, it opens, and previous chats are present. All GUI, authentication and phone prompts remained user-operated.
 5. Phone checks: GPT 6.1 Sol Jupiter/tool request and image/depth request; calculation-to-CSV; file reading/PDF creation; web search/source links; action cancellation/save/send; local model load/tool behavior and measured resources.
 6. Watch companion and HealthKit are still unavailable in the current official iLoader iPhone-only signing route. Private Cloud Compute requires the app's actual approved entitlement; consumer availability alone is not assumed to establish it.
 7. Full browser automation, Python, an always-running background agent, cloud execution workspace and arbitrary iOS device control are not implemented. Do not label them complete.
 
 ## Build spending boundary
 
-The nine completed hosted-Mac jobs total 80 rounded minutes, estimated at $4.96 if fully billable at $0.062/minute. Actual account credits/invoice have not been read. Jacob explicitly raised the total hosted-Mac validation ceiling to $10 in chat after reviewing this batch. The workflow has a 20-minute per-job timeout (about $1.24 per fully billed run at the recorded rate). Keep total estimated compute within $10.
+Jacob approved a **$10 total** hosted-Mac validation ceiling. The final ledger contains 16 completed jobs and 139 rounded minutes, estimated **USD 8.618 if fully billable** at the recorded $0.062/minute rate. The account invoice/allowance was not read. Each job was capped at 20 minutes during 0.3 validation. No further run is needed for the verified candidate.
 
 ## Sources checked for this batch
 
@@ -53,5 +53,3 @@ The nine completed hosted-Mac jobs total 80 rounded minutes, estimated at $4.96 
 - [Apple one-shot location](https://developer.apple.com/documentation/corelocation/cllocationmanager/requestlocation()) and [Calendar/EventKitUI access](https://developer.apple.com/documentation/eventkit/accessing-calendar-using-eventkit-and-eventkitui).
 - [MLX Swift LM 3.32.3](https://github.com/ml-explore/mlx-swift-lm/tree/3.32.3); package revisions and metadata in ModelCatalogAudit.json.
 - [ZIPFoundation 0.9.20](https://github.com/weichsel/ZIPFoundation/releases/tag/0.9.20).
-
-Native run 38012150464 passed 75 Mac core tests but failed typechecking because the model tokenizer location is immutable. The loader now creates a local configuration through the upstream initializer. Its seven rounded minutes bring the estimate to $5.394 under the approved $10 total. Native validation is being repeated; no package was delivered from the failed run.

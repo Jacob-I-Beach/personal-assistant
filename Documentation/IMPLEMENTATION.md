@@ -1,4 +1,18 @@
-# Next substantial release: engineering record
+# Engineering record: 0.3 released for phone validation
+
+The current source milestone is **0.3.0 build 3**, compiled from **6b0ba6ba51b22df7c3821d6b53e4c4607a31da6c**. [Run 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142) passed 75 core, 8 platform and 4 interface tests plus the physical-device build. Jacob confirms that the update opens and previous chats are present. Live GPT 6.1 Sol regression testing is pending. See [current status](../STATUS.md) and [release scope](RELEASE_03.md).
+
+The batch adds durable folders/archive/delete; private file originals and scoped cross-chat/file retrieval; PDF/Office/text reading with ZIP integrity and XML limits; actual PDF creation; native reviewed location/calendar/message/Maps/Phone tools; an expanded pinned MLX catalog with upstream configuration preserved; and public progress/receipt UI. The exact rejected-array calculation and empty-final-output tool-call defects have regression coverage. The operating guide is compact and tested alongside execution policies.
+
+Native validation caught and corrected immutable MLX tokenizer configuration, sidebar tap areas, and a Quick Look test selector changed by iOS 27. The final test exercises folder creation, archive/restore/delete, attachment from Library, PDF preview including its text, and return to the file. Fourteen synthetic screenshots are retained; changed sidebar/Library/file/PDF screens were visually inspected. Private user screenshots were not copied into Git.
+
+Hosted-Mac usage is recorded in BuildValidation.json: 139 rounded minutes over 16 completed jobs, estimated USD 8.618 if fully billable under the authorized USD 10 total. Failures and cancellations are included. A push alone never starts a paid validation run.
+
+The nonfatal SSU archive diagnostic and voice-session API/main-thread warnings remain; actual Siri/Shortcuts discovery and microphone behavior still need a phone check. Watch/Health installation and direct PCC remain separate signing/entitlement work. This release has neither Python nor a hosted code workspace/full browser controller.
+
+The sections below are the historical implementation sequence for 0.2 and its initial corrections. Their earlier counts and pending statements are superseded by the current release record above.
+
+# Historical 0.2 engineering record
 
 Started October 9, 2026, after Jacob approved continuing from PRODUCT_DESIGN.md. This record distinguishes implemented source, synthetic verification, native validation, and physical-device evidence. The installed 0.1.0 app is not being replaced by each internal iteration.
 
