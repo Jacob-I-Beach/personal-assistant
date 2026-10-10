@@ -186,6 +186,7 @@ final class AppModel: ObservableObject {
         responseWasBackgrounded = true
         guard settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
         pauseResponseForBackground()
+        guard settings.choice == .localMLX else { return }
         let backend = localBackend, engine = engine
         Task {
             await engine?.waitUntilIdle()

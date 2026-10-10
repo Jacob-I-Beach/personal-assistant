@@ -1,9 +1,9 @@
 {
   "version": "0.6.0",
   "build": "6",
-  "recorded_at_utc": "2026-10-10T20:54:53+00:00",
+  "recorded_at_utc": "2026-10-10T21:17:05+00:00",
   "scope": "source candidate; Windows validation only",
-  "source_and_test_fingerprint_sha256": "8436ac0fc1c1665727f7d00b178f36dc232d414217fdc662e9e66bf22d0b6d72",
+  "source_and_test_fingerprint_sha256": "e10c55b68faf1b8b7e32b21b057dd0f682f415064aa380e1c5b3caf13bcb5df2",
   "fingerprint_file_count": 131,
   "fingerprint_definition": "Sorted relative path, NUL, LF-normalized bytes, NUL for App/Sources/Tests/PlatformTests/UITests Swift files plus project.yml and Package.swift",
   "core": {
@@ -16,18 +16,18 @@
   },
   "swift_syntax_parse": "passed; not an iOS type check or build",
   "native_platform_tests": {
-    "scenarios": 17,
-    "result": "not_run"
+    "scenarios": 18,
+    "result": "not_run_on_current_source"
   },
   "native_ui_tests": {
     "scenarios": 13,
-    "result": "not_run"
+    "result": "not_run_on_current_source"
   },
   "iphone_archive": "not_built",
   "device_validation": "pending",
   "hosted_mac": {
-    "completed_runs_since_05": 1,
-    "existing_estimate_usd": 16.306,
+    "completed_runs_since_05": 2,
+    "existing_estimate_usd": 17.174,
     "authorized_total_usd": 20
   },
   "public_module_construction_typecheck": "passed on Windows without @testable import",

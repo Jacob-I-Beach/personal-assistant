@@ -165,18 +165,20 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     }
     private func rememberPosition() {
         lastOffset = scroll.contentOffset.y
-        let visible = scroll.markers.compactMap { id, weakMarker -> (UUID, CGRect)? in
+        let tops = scroll.markers.compactMap { id, weakMarker -> (UUID, CGFloat)? in
             guard let marker = weakMarker.value, marker.window != nil else { return nil }
-            let rect = marker.convert(marker.bounds, to: scroll)
-            guard rect.maxY > scroll.contentOffset.y + 1, rect.minY < scroll.contentOffset.y + scroll.bounds.height else { return nil }
-            return (id, rect)
-        }.sorted { $0.1.minY < $1.1.minY }
-        if let first = visible.first { anchor = (first.0, first.1.minY - scroll.contentOffset.y) }
+            return (id, marker.convert(.zero, to: scroll).y)
+        }.sorted { $0.1 < $1.1 }
+        // A zero-size background defaults to the response's center, which moves as it
+        // grows. Explicit top markers stay fixed even when reading inside a long reply.
+        let visible = tops.last { $0.1 <= scroll.contentOffset.y + 1 }
+            ?? tops.first { $0.1 < scroll.contentOffset.y + scroll.bounds.height }
+        if let visible { anchor = (visible.0, visible.1 - scroll.contentOffset.y) }
         scroll.markers = scroll.markers.filter { $0.value.value != nil }
     }
     private func publishPosition() {
         #if DEBUG
-        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))"
+        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))|\(scroll.isDragging || scroll.isDecelerating ? "moving" : "idle")"
         #endif
         let value = follow.isFollowing || nearBottom
         DispatchQueue.main.async { [weak self] in self?.viewport?.updateNearBottom(value) }

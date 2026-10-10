@@ -8,10 +8,11 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-continuity", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Continue reply"].waitForExistence(timeout: 15))
-        let open = app.buttons["open-prepared-route"]
+        let open = app.buttons["Open in Maps"]
         for _ in 0..<4 { if open.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(open.isHittable)
         saveScreenshot(app, name: "In-chat-route-and-saved-progress")
+        for _ in 0..<4 { if app.buttons["Continue reply"].isHittable { break }; app.swipeUp() }
         app.buttons["Continue reply"].tap()
         XCTAssertTrue(app.staticTexts["The saved route is ready. Open it when you’re ready."].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Continue reply"].exists)
@@ -80,9 +81,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
         XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 8))
         let scroll = app.scrollViews["conversation-scroll"]
-        func position() -> (String, Double, Double) {
+        func position() -> (String, Double, Double, String) {
             let parts = (scroll.value as? String ?? "").split(separator: "|").map(String.init)
-            return (parts.first ?? "", parts.count > 1 ? Double(parts[1]) ?? -1 : -1, parts.count > 2 ? Double(parts[2]) ?? -1 : -1)
+            return (parts.first ?? "", parts.count > 1 ? Double(parts[1]) ?? -1 : -1, parts.count > 2 ? Double(parts[2]) ?? -1 : -1, parts.count > 3 ? parts[3] : "")
         }
         let moving = NSPredicate { _, _ in let p = position(); return p.0 == "following" && p.1 > 0 }
         expectation(for: moving, evaluatedWith: scroll); waitForExpectations(timeout: 8)
@@ -93,11 +94,13 @@ final class AssistantUITests: XCTestCase {
             let next = position().1; XCTAssertGreaterThanOrEqual(next, prior - 2); prior = next
         }
         scroll.swipeDown()
-        let detached = NSPredicate { _, _ in position().0 == "reading" }
-        expectation(for: detached, evaluatedWith: scroll); waitForExpectations(timeout: 4)
+        let detached = NSPredicate { _, _ in let p = position(); return p.0 == "reading" && p.3 == "idle" }
+        expectation(for: detached, evaluatedWith: scroll); waitForExpectations(timeout: 8)
         Thread.sleep(forTimeInterval: 0.5)
         let reading = position().1
         Thread.sleep(forTimeInterval: 1)
+        let evidence = XCTAttachment(string: "Before: \(reading); after: \(position())\n" + app.debugDescription)
+        evidence.name = "Streaming reading position"; evidence.lifetime = .keepAlways; add(evidence)
         XCTAssertLessThan(abs(position().1 - reading), 8)
         saveScreenshot(app, name: "Streaming-reader-detached")
         // Scroll to the actual bottom rather than using the jump button.

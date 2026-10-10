@@ -25,6 +25,7 @@ actor MLXLocalBackend: ModelBackend {
     private var container: ModelContainer?
     private var busy = false
     private var downloadBusy = false
+    private var runtimeInitialized = false
 
     init(repository: String, revision: String, root: URL, responseTokens: Int, supportsVision: Bool = true, weightBytes: Int64 = 0) {
         self.repository = repository; self.revision = revision; self.root = root
@@ -72,7 +73,9 @@ actor MLXLocalBackend: ModelBackend {
     func unload() throws {
         guard !busy else { throw AssistantError.busy }
         container = nil
-        MLX.Memory.clearCache()
+        // An unused backend must never initialize Metal merely to clear an empty cache,
+        // especially after the app has already moved into the background.
+        if runtimeInitialized { MLX.Memory.clearCache() }
     }
     func importFolder(_ source: URL, expectedFiles: [LocalModelCatalogEntry.File], progress: @Sendable @escaping (Double) -> Void) async throws {
         guard !busy, !downloadBusy else { throw AssistantError.busy }
@@ -128,6 +131,7 @@ actor MLXLocalBackend: ModelBackend {
         guard ProcessInfo.processInfo.thermalState != .critical else { throw AssistantError.provider("The iPhone is too warm to load a model. Let it cool, or use ChatGPT for now.") }
         let available = Int64(os_proc_available_memory())
         guard weightBytes == 0 || available >= weightBytes else { throw AssistantError.provider("The selected model's weights exceed the memory currently available to this app. Release another loaded model or try again with more memory available. Your download is kept.") }
+        runtimeInitialized = true
         MLX.Memory.cacheLimit = 32 * 1024 * 1024
         // Preserve upstream EOS tokens, tool format and reasoning parser when resolving a local package.
         if supportsVision {

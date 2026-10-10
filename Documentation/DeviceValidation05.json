@@ -23,6 +23,6 @@
     "earlier_chat_retrieval": "keyword_miss_and_empty_query_failed_to_recover_context_in_screenshot"
   },
   "note": "Installation, visible history, tool-disclosure position, swipe dismissal and Maps opening have user evidence. Streaming jitter and handoff recovery remain defects in installed 0.5. Automated tests and untested 0.6 source changes are separate evidence.",
-  "followup_recorded_at_utc": "2026-10-10T20:54:53+00:00",
+  "followup_recorded_at_utc": "2026-10-10T21:17:05+00:00",
   "followup_evidence": "User device report and two supplied screenshot batches (12 + 8); personal captures are not repository fixtures."
 }

@@ -157,7 +157,7 @@ struct ChatView: View {
                     let actionIDs = model.conversation.responseActionMessageIDs(isRunning: model.isRunning)
                     ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || !$0.captureIDs.isEmpty || !$0.fileIDs.isEmpty || !$0.displayParts.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
                         MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id)).environmentObject(voice)
-                            .background(ChatScrollAnchor(id: message.id)).id(message.id)
+                            .background(alignment: .topLeading) { ChatScrollAnchor(id: message.id).frame(width: 1, height: 1) }.id(message.id)
                     }
                     ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains($0.id) }.prefix(6)) { artifact in
                         Button { chatNavigation.destination = .artifact(artifact.id) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)

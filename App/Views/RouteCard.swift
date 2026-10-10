@@ -43,7 +43,8 @@ struct RouteCard: View {
                         catch { self.error = error.localizedDescription }
                     }
                 } label: { Label(opening ? "Opening…" : "Open in Maps", systemImage: "arrow.up.right").frame(maxWidth: .infinity).padding(.vertical, 4) }
-                    .buttonStyle(.bordered).disabled(model.isRunning || opening || model.settings.localOnly).accessibilityIdentifier("open-prepared-route")
+                    .buttonStyle(.bordered).disabled(model.isRunning || opening || model.settings.localOnly)
+                    .accessibilityLabel(opening ? "Opening Maps" : "Open in Maps").accessibilityIdentifier("open-prepared-route")
                 if model.isRunning { Text("Available when the reply finishes.").font(.caption).foregroundStyle(.secondary) }
                 else if route.handoffStatus == "opened" { Text("Opened in Maps. Navigation status isn’t available here.").font(.caption).foregroundStyle(.secondary) }
                 else if route.handoffStatus == "opening" { Text("The last handoff was interrupted. Check Maps before opening again.").font(.caption).foregroundStyle(.secondary) }
@@ -51,7 +52,7 @@ struct RouteCard: View {
             }
             if let error { Text(error).font(.footnote).foregroundStyle(.secondary) }
         }.padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
-            .accessibilityIdentifier("prepared-route")
+            .accessibilityElement(children: .contain)
             .task(id: id) {
                 do { route = try await model.store?.route(id, in: model.conversation.id) }
                 catch { self.error = error.localizedDescription }

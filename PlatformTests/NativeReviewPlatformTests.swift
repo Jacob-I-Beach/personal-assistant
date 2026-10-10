@@ -5,6 +5,13 @@ import XCTest
 
 @MainActor
 final class NativeReviewPlatformTests: XCTestCase {
+    func testUnusedDownloadedBackendUnloadsWithoutInitializingMetal() async throws {
+        let backend = MLXLocalBackend(repository: "synthetic/model", revision: "synthetic", root: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString), responseTokens: 256, supportsVision: false)
+        try await backend.unload()
+        try await backend.unload()
+        let downloaded = await backend.isDownloaded()
+        XCTAssertFalse(downloaded)
+    }
     func testInterruptedReviewIsNotRecordedAsAUserCancellation() async throws {
         let model = AppModel(); try await model.waitUntilReady()
         let request = NativeActionRequest(kind: .approval, title: "Fixture", detail: "Synthetic review", arguments: .object([:]))
