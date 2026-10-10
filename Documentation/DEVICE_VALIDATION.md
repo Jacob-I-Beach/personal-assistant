@@ -1,6 +1,6 @@
 # Private 0.5 device validation
 
-The 0.5.0 build 5 package passed [full native validation 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456) and archive inspection. Jacob has not yet confirmed installing this version. Automated checks use synthetic data; the following phone checks establish real behavior.
+The 0.5.0 build 5 package passed [full native validation 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456) and archive inspection. On October 10, 2026, Jacob confirmed it is installed, opens as version 0.5.0 build 5, and retains previous chats. [DeviceValidation05.json](DeviceValidation05.json) records the user report and outstanding checks. Automated checks use synthetic data; the remaining phone checks establish real behavior.
 
 ## Installation profile
 

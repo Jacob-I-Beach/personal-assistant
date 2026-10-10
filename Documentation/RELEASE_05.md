@@ -1,6 +1,6 @@
 # 0.5 working scope — conversation reliability and interactive work
 
-**Verified package ready for personal signing: 0.5.0 build 5**, source `c8855c12341ec73241333c285fb12db81d0cb109`. Jacob's phone screenshots established the original defects; those personal captures are not repository fixtures. Installation and live phone behavior still require Jacob's confirmation.
+**Verified and user-installed package: 0.5.0 build 5**, source `c8855c12341ec73241333c285fb12db81d0cb109`. Jacob's phone screenshots established the original defects; those personal captures are not repository fixtures. Jacob confirmed installation, launch and retained chats on October 10, 2026. Live functional phone checks remain pending; see [device evidence](DeviceValidation05.json).
 
 ## Acceptance targets
 

@@ -1,6 +1,6 @@
 # Implementation status
 
-**0.5.0 build 5 is verified and ready for personal signing and installation.** Source `c8855c12341ec73241333c285fb12db81d0cb109`. Jacob reported the 0.4-era thinking/source controls and sent four screenshots establishing its interaction defects. This does not establish that 0.5 has been installed. The previous packages remain available.
+**0.5.0 build 5 is installed and opens on Jacob's iPhone, with previous chats present.** Jacob confirmed the version and retained history on October 10, 2026. The supplied package was built from source `c8855c12341ec73241333c285fb12db81d0cb109`. [Device evidence](Documentation/DeviceValidation05.json) distinguishes this confirmation from the remaining functional phone checks. The previous packages remain available.
 
 ## Current evidence
 

@@ -4,7 +4,7 @@ A private native iPhone application for Jacob's iPhone on iOS 27. The app owns c
 
 Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
 
-Jacob confirms that **0.3.0 build 3 opens on his iPhone and preserves his previous chats**. ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
+Jacob confirms that **0.5.0 build 5 opens on his iPhone and preserves his previous chats** (October 10, 2026). ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
 ## Current source: 0.5
 
@@ -21,7 +21,7 @@ Jacob confirms that **0.3.0 build 3 opens on his iPhone and preserves his previo
 - A replay command that runs the same depth-summary code on a saved observation.
 - A manual, unsigned Mac CI compile workflow. It has no signing secrets and does not publish an app.
 
-**Current verified package: 0.5.0 build 5**, source `c8855c12341ec73241333c285fb12db81d0cb109`, ready for personal signing. Installation of this version has not yet been confirmed. [Native run 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456), source `c8855c12341ec73241333c285fb12db81d0cb109`, passed **119 core tests, 15 native platform tests and 9 interface scenarios**, then built the Release iPhone and Watch targets. The final app source was validated in a full run. The shared suite also passed on Windows. Tests use synthetic local fixtures and do not make paid model requests.
+**Current verified package: 0.5.0 build 5**, source `c8855c12341ec73241333c285fb12db81d0cb109`, installed and opened on Jacob's iPhone with previous chats present. Live functional checks remain pending; see [device evidence](Documentation/DeviceValidation05.json). [Native run 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456), source `c8855c12341ec73241333c285fb12db81d0cb109`, passed **119 core tests, 15 native platform tests and 9 interface scenarios**, then built the Release iPhone and Watch targets. The final app source was validated in a full run. The shared suite also passed on Windows. Tests use synthetic local fixtures and do not make paid model requests.
 
 The sibling **PersonalAssistant-iPhone/0.5.0** folder contains the verified iPhone-only IPA. The batch focuses on stable conversation interaction, compact tools/thinking control, exact attachment-only input, proper edit/regenerate, previewable images and saved-depth inspection, native interactive working surfaces, and memory lifecycle. See [release scope](Documentation/RELEASE_05.md), [current status](STATUS.md) and [native screenshots](Documentation/Screenshots/0.5.0/README.md).
 

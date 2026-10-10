@@ -1,0 +1,21 @@
+{
+  "version": "0.5.0",
+  "build": "5",
+  "recorded_at_utc": "2026-10-10T16:08:30Z",
+  "evidence_type": "user_report",
+  "report": "Installed: 0.5.0 build 5, previous chats present",
+  "installation": "confirmed",
+  "launch": "confirmed",
+  "previous_chats_present": true,
+  "expected_package_source": "c8855c12341ec73241333c285fb12db81d0cb109",
+  "functional_checks": {
+    "long_conversation_scrolling": "pending",
+    "tool_disclosure_position": "pending",
+    "keyboard_swipe_dismissal": "pending",
+    "live_model_edit_regenerate": "pending",
+    "image_only_send_and_preview": "pending",
+    "live_model_working_surfaces": "pending",
+    "physical_depth_accuracy": "not_measured"
+  },
+  "note": "Installation and visible history are user-confirmed. Native automated validation is recorded separately in ReleaseValidation05.json; it is not physical-device functional evidence."
+}
