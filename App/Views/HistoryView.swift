@@ -20,9 +20,9 @@ struct HistoryView: View {
         NavigationStack {
             List {
                 Section {
-                    Button { model.newConversation(folderID: selectedFolder); close() } label: { Label("New chat", systemImage: "square.and.pencil").fontWeight(.medium) }.disabled(model.isRunning)
-                    Button { close(); open("library") } label: { Label("Library", systemImage: "square.stack") }
-                    Button { close(); open("models") } label: { Label("Models", systemImage: "slider.horizontal.3") }
+                    Button { model.newConversation(folderID: selectedFolder); close() } label: { rowLabel("New chat", icon: "square.and.pencil").fontWeight(.medium) }.disabled(model.isRunning)
+                    Button { close(); open("library") } label: { rowLabel("Library", icon: "square.stack") }
+                    Button { close(); open("models") } label: { rowLabel("Models", icon: "slider.horizontal.3") }
                 }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                 if query.isEmpty {
                     Section {
@@ -36,7 +36,7 @@ struct HistoryView: View {
                                 } label: { Image(systemName: "ellipsis").frame(width: 28, height: 32) }.disabled(model.isRunning).accessibilityLabel("Options for \(folder.name)")
                             }
                         }
-                        Button { editingFolder = ChatFolder(name: "") } label: { Label("New folder", systemImage: "folder.badge.plus").foregroundStyle(.secondary) }.disabled(model.isRunning)
+                        Button { editingFolder = ChatFolder(name: "") } label: { rowLabel("New folder", icon: "folder.badge.plus").foregroundStyle(.secondary) }.disabled(model.isRunning)
                     } header: { Text("Folders") }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                     Section(title) {
                         if visible.isEmpty { Text(archived ? "Archived chats will appear here." : "Your conversations will appear here.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 12).listRowSeparator(.hidden) }
@@ -69,9 +69,9 @@ struct HistoryView: View {
                     }.listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
                 Section {
-                    Button { selectedFolder = nil; archived.toggle(); query = "" } label: { Label(archived ? "Back to chats" : "Archived chats", systemImage: archived ? "bubble.left.and.bubble.right" : "archivebox") }
-                    Button { close(); open("settings") } label: { Label("Settings & access", systemImage: "gearshape") }
-                    Button { close(); open("watch") } label: { Label("Watch requests", systemImage: "applewatch") }
+                    Button { selectedFolder = nil; archived.toggle(); query = "" } label: { rowLabel(archived ? "Back to chats" : "Archived chats", icon: archived ? "bubble.left.and.bubble.right" : "archivebox") }
+                    Button { close(); open("settings") } label: { rowLabel("Settings & access", icon: "gearshape") }
+                    Button { close(); open("watch") } label: { rowLabel("Watch requests", icon: "applewatch") }
                 }.listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
@@ -100,6 +100,9 @@ struct HistoryView: View {
         HStack { Label(text, systemImage: icon).lineLimit(1); Spacer(); if selected { Image(systemName: "checkmark").font(.caption.weight(.semibold)) } }
             .font(.subheadline).contentShape(Rectangle())
     }
+    private func rowLabel(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon).frame(maxWidth: .infinity, minHeight: 38, alignment: .leading).contentShape(Rectangle())
+    }
 }
 
 struct ChatActionsMenu: View {
@@ -115,7 +118,7 @@ struct ChatActionsMenu: View {
             Button("Move to folder", systemImage: "folder") { moving = true }
             Button(chat.archivedAt == nil ? "Archive" : "Restore", systemImage: chat.archivedAt == nil ? "archivebox" : "tray.and.arrow.up") { Task { await model.changeChat(chat.id, .archive(chat.archivedAt == nil)) } }
             Button("Delete", systemImage: "trash", role: .destructive) { deleting = true }
-        } label: { Image(systemName: "ellipsis").frame(width: 30, height: 36).foregroundStyle(.secondary) }
+        } label: { Image(systemName: "ellipsis").frame(width: 36, height: 44).contentShape(Rectangle()).foregroundStyle(.secondary) }
             .accessibilityLabel("Options for \(chat.title)").disabled(model.isRunning)
             .alert("Rename chat", isPresented: $renaming) {
                 TextField("Chat title", text: $name)

@@ -71,7 +71,7 @@ actor DocumentImporter {
             // OOXML does not need DTDs or external entities. Reject declarations before parsing.
             let decoded = bytes.starts(with: [0xff, 0xfe]) || bytes.starts(with: [0xfe, 0xff])
                 ? String(data: bytes, encoding: .utf16) : String(data: bytes, encoding: .utf8)
-            guard let decoded else { throw AssistantError.provider("The Office XML text encoding is unsupported.") }
+            guard let decoded, !decoded.contains("\0") else { throw AssistantError.provider("The Office XML text encoding is unsupported.") }
             let prefix = decoded.uppercased()
             guard !prefix.contains("<!DOCTYPE"), !prefix.contains("<!ENTITY") else { throw AssistantError.provider("Document XML entity declarations are not supported.") }
             let delegate = OfficeXML(shared: shared, spreadsheet: spreadsheet)

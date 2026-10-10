@@ -45,13 +45,19 @@ struct RootView: View {
                 }
         }
         .disabled(!model.isInitialized)
+        .allowsHitTesting(!showHistory)
+        .accessibilityHidden(showHistory)
         .overlay { if !model.isInitialized { ProgressView("Preparing your workspace").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14)) } }
         .overlay(alignment: .leading) {
             if showHistory {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
-                        Button { withAnimation(.snappy(duration: 0.25)) { showHistory = false } } label: { Color.black.opacity(0.25).ignoresSafeArea() }
-                            .accessibilityLabel("Close sidebar")
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            Button { withAnimation(.snappy(duration: 0.25)) { showHistory = false } } label: { Color.black.opacity(0.25).ignoresSafeArea() }
+                                .frame(width: max(0, geometry.size.width - min(geometry.size.width * 0.9, 390)))
+                                .accessibilityLabel("Dismiss sidebar")
+                        }
                         HistoryView(close: { withAnimation(.snappy(duration: 0.25)) { showHistory = false } }, open: { destination in
                             switch destination {
                             case "library": showLibrary = true

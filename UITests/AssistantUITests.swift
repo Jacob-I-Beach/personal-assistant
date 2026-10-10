@@ -46,6 +46,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
     func testFreshLaunchSidebarFoldersAndAttachmentActions() {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo"]
         app.launch()

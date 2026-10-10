@@ -115,11 +115,20 @@
       "started_at": "2026-10-10T01:22:24Z",
       "status": "completed",
       "rounded_minutes": 12
+    },
+    {
+      "run_id": 38014035120,
+      "completed_at": "2026-10-10T01:50:17Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-10T01:39:53Z",
+      "status": "completed",
+      "rounded_minutes": 11
     }
   ],
-  "rounded_runner_minutes": 101,
+  "rounded_runner_minutes": 112,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 6.262,
+  "estimated_compute_usd_if_fully_billable": 6.944,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 10
 }
