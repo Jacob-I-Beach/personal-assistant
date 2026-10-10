@@ -56,7 +56,15 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Interactive-comparison")
         let chart = app.staticTexts["Verified sample values"].firstMatch
         for _ in 0..<5 { if chart.isHittable { break }; app.swipeUp() }
-        saveScreenshot(app, name: "Native-chart-scenario")
+        XCTAssertTrue(chart.isHittable)
+        saveScreenshot(app, name: "Native-chart")
+        let count = app.sliders["Count"]
+        for _ in 0..<6 { if count.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(count.isHittable)
+        count.adjust(toNormalizedSliderPosition: 1)
+        // The scenario must recompute the displayed result from the changed input.
+        XCTAssertTrue(app.staticTexts["185"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Interactive-scenario-result")
         let first = app.staticTexts["1+1"]
         for _ in 0..<12 { if first.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(first.isHittable)

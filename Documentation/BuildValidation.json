@@ -205,6 +205,34 @@
       "started_at": "2026-10-10T13:39:58Z",
       "status": "completed",
       "rounded_minutes": 14
+    },
+    {
+      "run_id": 38057965045,
+      "attempt": 1,
+      "job_id": 114230204173,
+      "source_revision": "e3194131b07c044015ff2a7ce3b6d926bdaa75ef",
+      "completed_at": "2026-10-10T14:01:23Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-10T14:01:18Z",
+      "status": "completed",
+      "rounded_minutes": 0,
+      "runner_started": false,
+      "note": "GitHub rejected this attempt before assigning a runner; no execution steps ran."
+    },
+    {
+      "run_id": 38057965045,
+      "attempt": 2,
+      "job_id": 114232096313,
+      "source_revision": "e3194131b07c044015ff2a7ce3b6d926bdaa75ef",
+      "completed_at": "2026-10-10T14:11:22Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-10T14:11:16Z",
+      "status": "completed",
+      "rounded_minutes": 0,
+      "runner_started": false,
+      "note": "GitHub rejected this attempt before assigning a runner; no execution steps ran."
     }
   ],
   "rounded_runner_minutes": 203,
