@@ -96,15 +96,19 @@ extension LocalStore {
         try database.execute("UPDATE workspace_files SET payload = ? WHERE id = ?", [.blob(try Self.encode(file)), .text(id.uuidString)])
     }
     public func readableFiles(attached: Set<UUID>, workspace: Bool, remote: Bool, conversationID: UUID) throws -> [WorkspaceFile] {
-        try workspaceFiles().filter { file in
+        let excluded = Set(try conversations().flatMap(\.excludedFileIDs))
+        return try workspaceFiles().filter { file in
+            if excluded.contains(file.id) && !attached.contains(file.id) { return false }
             if file.containsHealthData { return file.conversationID == conversationID && attached.contains(file.id) }
             return attached.contains(file.id) || (workspace && file.allowsWorkspaceSearch && (!remote || file.allowsConnectedModels))
         }
     }
     public func readableArtifacts(conversationID: UUID, workspace: Bool, remote: Bool) throws -> [ArtifactRecord] {
-        let permitted = Set(try conversations().filter { chat in
+        let chats = try conversations()
+        let excluded = Set(chats.flatMap(\.excludedArtifactIDs))
+        let permitted = Set(chats.filter { chat in
             chat.id == conversationID || (workspace && chat.archivedAt == nil && (!remote || (!chat.networkDisabled && !chat.containsHealthData && !chat.messages.contains(where: \.containsLocalOnlyContext))))
         }.map(\.id))
-        return try artifacts().filter { permitted.contains($0.conversationID) && (!remote || (!$0.containsLocalOnlyContext && (!$0.containsHealthData || $0.conversationID == conversationID))) }
+        return try artifacts().filter { !excluded.contains($0.id) && permitted.contains($0.conversationID) && (!remote || (!$0.containsLocalOnlyContext && (!$0.containsHealthData || $0.conversationID == conversationID))) }
     }
 }

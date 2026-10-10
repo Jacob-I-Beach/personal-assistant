@@ -3,6 +3,12 @@ import XCTest
 @testable import AssistantCore
 
 final class WorkspaceUpgradeTests: XCTestCase, @unchecked Sendable {
+    func testAnImageOnlyConversationCanReceiveATopicTitle() async throws {
+        var conversation = Conversation()
+        conversation.messages = [Message(role: .user, text: "", captureIDs: [UUID()]), Message(role: .assistant, text: "This is a photograph of a desk.")]
+        let title = try await ConversationNamer.generate(for: conversation, backend: NamingFixture())
+        XCTAssertNotNil(title)
+    }
     func testFileToolArgumentsCanExceedTheOldLimitButRemainBounded() throws {
         func terminal(_ count: Int) throws -> ServerSentEvent {
             let arguments = try JSONValue.object(["content": .string(String(repeating: "x", count: count))]).jsonString()
@@ -141,7 +147,7 @@ final class WorkspaceUpgradeTests: XCTestCase, @unchecked Sendable {
         let result = try await tools.execute(.init(id: "caps", name: "get_capabilities", arguments: .object([:])))
         XCTAssertTrue(result.succeeded)
         let names = result.output["tools"]!.arrayValue!.compactMap { $0["name"]?.stringValue }
-        XCTAssertTrue(names.contains("run_javascript")); XCTAssertFalse(names.contains("read_capture")); XCTAssertFalse(names.contains("read_memory"))
+        XCTAssertTrue(names.contains("run_javascript")); XCTAssertFalse(names.contains("read_capture")); XCTAssertTrue(names.contains("read_memory"))
         XCTAssertLessThan(try result.modelText().utf8.count, 9500)
         let cancelled = ToolResult(callID: "export", name: "export_artifact", succeeded: false, output: .object(["status": .string("cancelled")]))
         let receipt = try JSONValue.parse(cancelled.modelText())

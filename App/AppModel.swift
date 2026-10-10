@@ -16,7 +16,10 @@ final class AppModel: ObservableObject {
     @Published var captures: [CaptureObservation] = []
     @Published var artifacts: [ArtifactRecord] = []
     @Published var attachedCaptureIDs: [UUID] = []
+    @Published var selectedImagePoints: [String: [ImagePoint]] = [:]
     @Published var draft = ""
+    @Published var editingMessageID: UUID?
+    private var draftBeforeEditing: (text: String, captures: [UUID], files: [UUID], health: Bool, selections: [String: [ImagePoint]])?
     @Published var draftContainsHealthData = false
     @Published var libraryContainsHealthData = false
     @Published var isRunning = false
@@ -121,6 +124,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-demo") { await installDemoFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { await installPresentationFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-workspace") { await installWorkspaceFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { await installInteractionFixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -187,12 +191,13 @@ final class AppModel: ObservableObject {
         drafts["health:" + conversation.id.uuidString] = draftContainsHealthData ? "true" : "false"
         drafts["files:" + conversation.id.uuidString] = attachedFileIDs.map(\.uuidString).joined(separator: ",")
         drafts["captures:" + conversation.id.uuidString] = attachedCaptureIDs.map(\.uuidString).joined(separator: ",")
+        if let data = try? JSONEncoder().encode(selectedImagePoints) { drafts["points:" + conversation.id.uuidString] = String(decoding: data, as: UTF8.self) }
         guard let draftURL else { return }
         do { try JSONEncoder().encode(drafts).write(to: draftURL, options: .atomic) }
         catch { errorMessage = "Your draft could not be saved. Free some storage before closing the app." }
     }
     func newConversation(folderID: UUID? = nil) {
-        guard !isRunning else { return }; detachWatchRequest(); draftTask?.cancel(); flushDraft()
+        guard !isRunning else { return }; cancelEditing(); detachWatchRequest(); draftTask?.cancel(); flushDraft()
         if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) {
             let savedDraft = conversation
             Task {
@@ -201,16 +206,17 @@ final class AppModel: ObservableObject {
             }
         }
         conversation = Conversation(); conversation.folderID = folderID
-        attachedCaptureIDs = []; attachedFileIDs = []; draft = ""; draftContainsHealthData = false; errorMessage = nil; noticeMessage = nil
+        attachedCaptureIDs = []; selectedImagePoints = [:]; attachedFileIDs = []; draft = ""; draftContainsHealthData = false; errorMessage = nil; noticeMessage = nil
         requiresManualResume = false
     }
     func selectConversation(_ summary: ConversationSummary) async {
-        guard !isRunning, let store else { return }; if summary.id != conversation.id { detachWatchRequest() }; draftTask?.cancel(); flushDraft()
+        guard !isRunning, let store else { return }; cancelEditing(); if summary.id != conversation.id { detachWatchRequest() }; draftTask?.cancel(); flushDraft()
         do {
             if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) { try await store.save(conversation) }
             conversation = try await store.loadConversation(summary.id)
             attachedFileIDs = (drafts["files:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }.filter { id in files.contains { $0.id == id } }
             attachedCaptureIDs = (drafts["captures:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }
+            selectedImagePoints = (try? JSONDecoder().decode([String: [ImagePoint]].self, from: Data((drafts["points:" + summary.id.uuidString] ?? "{}").utf8))) ?? [:]
             draft = drafts[summary.id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + summary.id.uuidString] == "true"
             noticeMessage = nil; errorMessage = nil
         }
@@ -332,8 +338,8 @@ final class AppModel: ObservableObject {
     func send(_ suppliedText: String? = nil) {
         let enteredText = suppliedText ?? draft
         let hasAttachments = !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty
-        let text = enteredText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasAttachments ? "Help me understand the attached material." : enteredText
-        guard isInitialized, !isRunning, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let text = enteredText
+        guard isInitialized, !isRunning, hasAttachments || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if isManagingAccount && settings.choice == .chatGPT { noticeMessage = "The account change is finishing. Your draft is saved."; return }
         if settings.choice == .chatGPT && (settings.chatGPTAccountID == nil || settings.chatGPTModel.isEmpty) {
             showModels = true; noticeMessage = "Connect ChatGPT or choose an on-device model. Your draft is saved."; return
@@ -366,16 +372,30 @@ final class AppModel: ObservableObject {
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
     }
     func stop() { responseTask?.cancel() }
+    func beginEditing(_ message: Message) {
+        guard !isRunning, message.role == .user, conversation.messages.contains(where: { $0.id == message.id }) else { return }
+        if editingMessageID == nil { draftBeforeEditing = (draft, attachedCaptureIDs, attachedFileIDs, draftContainsHealthData, selectedImagePoints) }
+        editingMessageID = message.id; draft = message.text
+        attachedCaptureIDs = message.captureIDs; attachedFileIDs = message.fileIDs; draftContainsHealthData = message.containsHealthData
+        selectedImagePoints = message.imageSelections
+    }
+    func cancelEditing() {
+        guard editingMessageID != nil else { return }
+        if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections }
+        editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
+    }
     private func startResponse(_ text: String) {
         guard let engine else { return }
-        let current = conversation, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
-        let previousIDs = Set(current.messages.map(\.id))
+        let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
+        let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
+        let previousIDs = Set(original.messages.map(\.id))
         draftTask?.cancel()
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
         requiresManualResume = false
         let previousTitleTask = titleTask
         previousTitleTask?.cancel(); titleTask = nil
         responseTask = Task {
+            var current = original
             await previousTitleTask?.value
             var titleBackend: (any ModelBackend)?
             if let requestID = activeWatchRequestID {
@@ -384,22 +404,26 @@ final class AppModel: ObservableObject {
             }
             do {
                 try Task.checkCancellation()
-                try await store?.save(current)
                 let selectedBackend = try await backend(for: selection)
                 titleBackend = selectedBackend
                 try Task.checkCancellation()
+                if let editID, let store {
+                    current = try await store.prepareMessageEdit(in: original, messageID: editID)
+                    conversation = current; editingMessageID = nil; draftBeforeEditing = nil
+                } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + WorkspaceTools.definitions + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
                 let destination = selection.networkDestination
                 for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
-                    containsHealthData: healthData, fileIDs: fileAttachments, workspaceEnabled: selection.workspaceSearchEnabled, additionalTools: extras, additionalExecutor: { [weak self] call in
+                    containsHealthData: healthData, fileIDs: fileAttachments, imageSelections: imageSelections, workspaceEnabled: selection.workspaceSearchEnabled, additionalTools: extras, additionalExecutor: { [weak self, conversationID = original.id] call in
                         guard let self else { throw CancellationError() }
-                        return try await self.executeNativeTool(call, conversationID: current.id, destination: destination)
+                        return try await self.executeNativeTool(call, conversationID: conversationID, destination: destination)
                     }) {
                     switch event {
                     case .conversation(let updated):
                         conversation = updated
                         if updated.messages.contains(where: { $0.role == .user && $0.text == text && !previousIDs.contains($0.id) }) {
                             attachedCaptureIDs = []
+                            selectedImagePoints = [:]
                             attachedFileIDs = []
                             if draft == text || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = ""; flushDraft() }
                         }
@@ -451,6 +475,9 @@ final class AppModel: ObservableObject {
         }
     }
     private func backend(for selection: ModelSettings) async throws -> any ModelBackend {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { return UIInteractionBackend() }
+        #endif
         switch selection.choice {
         case .localMLX:
             guard let localBackend else { throw AccountConnectionError.unavailable }; return localBackend

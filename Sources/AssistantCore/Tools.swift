@@ -51,13 +51,25 @@ public struct CaptureToolBroker: Sendable {
     public func execute(_ call: ToolCall) async -> ToolResult {
         do {
             try Task.checkCancellation()
-            guard call.name == Self.definition.name else { throw AssistantError.invalidTool("Unknown tool: \(call.name)") }
-            guard let object = call.arguments.objectValue, Set(object.keys) == ["capture_id"],
+            guard [Self.definition.name, DepthInspection.tool.name].contains(call.name) else { throw AssistantError.invalidTool("Unknown tool: \(call.name)") }
+            let expected: Set<String> = call.name == DepthInspection.tool.name ? ["capture_id", "points_json"] : ["capture_id"]
+            guard let object = call.arguments.objectValue, Set(object.keys) == expected,
                   let raw = object["capture_id"]?.stringValue, let id = UUID(uuidString: raw) else {
-                throw AssistantError.invalidTool("read_capture requires exactly one valid capture_id UUID.")
+                throw AssistantError.invalidTool("Supply a valid capture_id UUID and the exact fields required by \(call.name).")
             }
             guard allowedCaptureIDs.contains(id) else { throw AssistantError.invalidTool("This capture is not attached to the current conversation.") }
             let observation = try await store.loadCapture(id)
+            if call.name == DepthInspection.tool.name {
+                guard let raw = object["points_json"]?.stringValue, raw.utf8.count <= 2048,
+                      let values = try JSONValue.parse(raw).arrayValue,
+                      values.allSatisfy({ $0.objectValue.map { Set($0.keys) == ["x", "y"] } == true }) else {
+                    throw AssistantError.invalidTool("Provide one or two normalized image points.")
+                }
+                let points = try JSONDecoder().decode([ImagePoint].self, from: Data(raw.utf8))
+                let result = try DepthInspection.inspect(observation, points: points)
+                let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+                return ToolResult(callID: call.id, name: call.name, succeeded: true, output: try JSONDecoder().decode(JSONValue.self, from: encoder.encode(result)))
+            }
             let summary = try observation.depth?.centerSummary()
             let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
             var output: [String: JSONValue] = [

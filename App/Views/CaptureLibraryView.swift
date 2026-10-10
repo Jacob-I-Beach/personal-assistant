@@ -27,9 +27,10 @@ private struct CaptureDetailView: View {
     let capture: CaptureObservation
     @State private var image: UIImage?
     @State private var exportURLs: [URL] = []
+    @State private var showImage = false
     var body: some View {
         List {
-            if let image { Image(uiImage: image).resizable().scaledToFit() }
+            if let image { Button { showImage = true } label: { Image(uiImage: image).resizable().scaledToFit() }.buttonStyle(.plain).accessibilityLabel("Open image") }
             Section("Saved observation") {
                 LabeledContent("Captured", value: capture.capturedAt.formatted())
                 LabeledContent("Source", value: capture.source)
@@ -54,6 +55,7 @@ private struct CaptureDetailView: View {
             }
         }
         .navigationTitle("Capture")
+        .sheet(isPresented: $showImage) { CaptureViewer(captureID: capture.id) }
         .task {
             image = await model.image(capture.id)
             exportURLs = await model.captureExportURLs(capture.id)

@@ -37,7 +37,8 @@ public enum ContextPlanner {
             chosen.append(turn); used += size
         }
         let selected = chosen.reversed().flatMap { $0 }
-        let images = selected.reversed().flatMap(\.captureIDs).prefix(max(0, limits.maximumImages))
+        var seen = Set<UUID>()
+        let images = selected.reversed().flatMap(\.captureIDs).filter { seen.insert($0).inserted }.prefix(max(0, limits.maximumImages))
         return ContextSelection(messages: selected, omittedMessageCount: messages.count - selected.count, imageCaptureIDs: Set(images))
     }
 }

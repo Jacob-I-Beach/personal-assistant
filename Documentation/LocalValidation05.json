@@ -1,0 +1,17 @@
+{
+  "version": "0.5.0",
+  "build": "5",
+  "platform": "Windows",
+  "command": "powershell -File scripts/Test-Core.ps1 -Integration",
+  "shared_core_tests": 119,
+  "failures": 0,
+  "transport": "Synthetic localhost HTTP/SSE fixture; no external model inference",
+  "swift_syntax_parse": "passed",
+  "native_compile": "pending",
+  "native_platform_tests_prepared": 15,
+  "native_ui_scenarios_prepared": 9,
+  "physical_device_validation": "pending",
+  "required_workflow_scope": "full",
+  "mac_estimate_before_this_batch_usd": 11.718,
+  "authorized_total_ceiling_usd": 12
+}

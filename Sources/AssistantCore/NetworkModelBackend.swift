@@ -100,7 +100,7 @@ public struct NetworkModelBackend: ModelBackend {
             } else {
                 if !m.text.isEmpty || !entry.images.isEmpty || !entry.files.isEmpty {
                     let type = m.role == .user ? "input_text" : "output_text"
-                    var content: [JSONValue] = [.object(["type": .string(type), "text": .string(m.text)])]
+                    var content: [JSONValue] = m.text.isEmpty ? [] : [.object(["type": .string(type), "text": .string(m.text)])]
                     if m.role == .user { content += entry.images.map { imagePart($0, responses: true) } }
                     if m.role == .user && supportsFileInputs {
                         content += entry.files.map { .object(["type": .string("input_file"), "filename": .string($0.filename),
@@ -149,7 +149,7 @@ public struct NetworkModelBackend: ModelBackend {
             var item: [String: JSONValue] = ["role": .string(m.role.rawValue)]
             if entry.images.isEmpty { item["content"] = .string(m.text) }
             else {
-                item["content"] = .array([.object(["type": .string("text"), "text": .string(m.text)])]
+                item["content"] = .array((m.text.isEmpty ? [] : [.object(["type": .string("text"), "text": .string(m.text)])])
                     + entry.images.map { imagePart($0, responses: false) })
             }
             if let callID = m.toolCallID { item["tool_call_id"] = .string(callID) }

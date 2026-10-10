@@ -27,6 +27,34 @@ public actor LocalStore {
         updated.updatedAt = Date()
         try database.transaction { try Self.persist(updated, in: database) }
     }
+    /// Commit an explicit user edit. Search uses the same transaction as the active transcript.
+    public func prepareMessageEdit(in original: Conversation, messageID: UUID) throws -> Conversation {
+        let saved = try loadConversation(original.id)
+        guard try Self.encode(saved.messages) == Self.encode(original.messages),
+              let index = original.messages.firstIndex(where: { $0.id == messageID && $0.role == .user }) else {
+            throw AssistantError.provider("This conversation changed. Open the message again before editing it.")
+        }
+        var revised = original
+        let removed = original.messages[index...]
+        let calls = Set(removed.flatMap(\.toolCalls).map(\.id))
+        let retainedFiles = Set(original.messages[..<index].flatMap(\.fileIDs))
+        let threshold = original.messages[index].createdAt
+        for artifact in try artifacts() where artifact.conversationID == original.id {
+            if artifact.createdAt >= threshold || artifact.sourceCallID.map(calls.contains) == true {
+                revised.excludedArtifactIDs.insert(artifact.id)
+            }
+        }
+        for file in try workspaceFiles() where file.conversationID == original.id && !retainedFiles.contains(file.id) {
+            revised.excludedFileIDs.insert(file.id)
+        }
+        revised.messages = Array(original.messages[..<index])
+        // A title produced from the removed request is also prior context, even through search.
+        revised.modelTitleOverride = "Conversation"
+        if revised.titleWasGenerated { revised.title = "New conversation"; revised.needsAutomaticTitle = true }
+        revised.updatedAt = Date()
+        try database.transaction { try Self.persist(revised, in: database) }
+        return revised
+    }
     public func loadConversation(_ id: UUID) throws -> Conversation {
         guard let record = try database.execute("SELECT payload FROM conversations WHERE id = ?", [.text(id.uuidString)]).first?[0].data else {
             throw AssistantError.provider("The saved conversation could not be found.")
@@ -62,7 +90,7 @@ public actor LocalStore {
         if let folderID { parameters.append(.text(folderID.uuidString)) }
         parameters.append(.integer(Int64(min(max(limit, 1), 30))))
         return try database.execute("""
-            SELECT m.id, m.conversation_id, c.title, snippet(message_search, 0, '', '', ' … ', 36), m.payload
+            SELECT m.id, m.conversation_id, COALESCE(json_extract(CAST(c.payload AS TEXT),'$.modelTitleOverride'),c.title), snippet(message_search, 0, '', '', ' … ', 36), m.payload
             FROM message_search JOIN messages m ON m.rowid = message_search.rowid
             JOIN conversations c ON c.id = m.conversation_id
             WHERE message_search MATCH ? \(scope) ORDER BY rank LIMIT ?
@@ -99,6 +127,7 @@ public actor LocalStore {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title.count <= 160 else { throw AssistantError.provider("Use a chat title between 1 and 160 characters.") }
         var conversation = try loadConversation(id); conversation.title = title; conversation.needsAutomaticTitle = false
+        conversation.titleWasGenerated = false; conversation.modelTitleOverride = nil
         try save(conversation)
     }
     public func moveConversation(_ id: UUID, to folderID: UUID?) throws {
@@ -214,7 +243,7 @@ public actor LocalStore {
     public func saveMemory(_ memory: SavedMemory) throws {
         guard !memory.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               memory.title.utf8.count <= 200, !memory.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              memory.text.utf8.count <= 16_384 else { throw AssistantError.provider("Give this memory a title and a focused note, up to 16 KB.") }
+              memory.text.utf8.count <= 16_384, memory.source.utf8.count <= 600 else { throw AssistantError.provider("Give this memory a title and a focused note, up to 16 KB, with a short source label.") }
         var updated = memory; updated.updatedAt = Date()
         try database.execute("INSERT INTO memories(id,updated_at,payload) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload",
             [.text(updated.id.uuidString), .real(updated.updatedAt.timeIntervalSince1970), .blob(try Self.encode(updated))])

@@ -129,14 +129,12 @@ struct ChatView: View {
     @State private var photo: PhotosPickerItem?
     @State private var importing = false
     @State private var photoImportTask: Task<Void, Never>?
-    @State private var followBottom = true
-    @State private var nearBottom = true
+    @StateObject private var viewport = ChatViewport()
     @State private var visibleMessageCount = 100
     @FocusState private var composerFocused: Bool
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+        StableChatScrollView(conversationID: model.conversation.id, isStreaming: model.isRunning, viewport: viewport) {
+                VStack(alignment: .leading, spacing: 18) {
                     if model.conversation.messages.isEmpty { welcome }
                     if model.conversation.messages.count > visibleMessageCount {
                         Button("Show earlier messages") { visibleMessageCount += 100 }.font(.footnote).frame(maxWidth: .infinity)
@@ -145,13 +143,14 @@ struct ChatView: View {
                         Label(folder.name, systemImage: "folder").font(.caption).foregroundStyle(.secondary)
                     }
                     let actionIDs = model.conversation.responseActionMessageIDs(isRunning: model.isRunning)
-                    ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || !$0.displayParts.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
-                        MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id)).environmentObject(voice).id(message.id)
+                    ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || !$0.captureIDs.isEmpty || !$0.fileIDs.isEmpty || !$0.displayParts.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
+                        MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id)).environmentObject(voice)
+                            .background(ChatScrollAnchor(id: message.id)).id(message.id)
                     }
-                    ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id }.prefix(6)) { artifact in
+                    ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains($0.id) }.prefix(6)) { artifact in
                         NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
                     }
-                    ForEach(model.files.filter { $0.conversationID == model.conversation.id }.prefix(6)) { file in
+                    ForEach(model.files.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedFileIDs.contains($0.id) }.prefix(6)) { file in
                         NavigationLink { WorkspaceFileView(id: file.id) } label: { WorkspaceFileRow(file: file) }.buttonStyle(.plain)
                     }
                     if let activity = model.activity {
@@ -161,38 +160,28 @@ struct ChatView: View {
                     Color.clear.frame(height: 10).id("conversation-bottom")
                 }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 12)
                     .frame(maxWidth: 720).frame(maxWidth: .infinity)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 100
-            } action: { _, value in nearBottom = value }
-            .onScrollPhaseChange { _, phase in
-                if phase == .interacting { followBottom = false }
-                else if phase == .idle && nearBottom { followBottom = true }
-            }
-            .onChange(of: model.conversation.messages.last?.text) { _, _ in
-                if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
-            }
-            .onChange(of: model.conversation.messages.last?.responseParts.count) { _, _ in
-                if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
-            }
-            .onChange(of: model.conversation.messages.count) { _, _ in
-                if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
-            }
-            .onChange(of: model.conversation.id) { _, _ in
-                photoImportTask?.cancel()
-                voice.stopAll(); voicePrefix = ""
-                followBottom = true; visibleMessageCount = 100; proxy.scrollTo("conversation-bottom", anchor: .bottom)
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if !nearBottom && !model.conversation.messages.isEmpty {
-                    Button { followBottom = true; withAnimation { proxy.scrollTo("conversation-bottom", anchor: .bottom) } } label: {
-                        Image(systemName: "arrow.down").padding(12).background(.regularMaterial, in: Circle())
-                    }.padding().accessibilityLabel("Jump to latest message")
-                }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .environmentObject(model).environmentObject(voice)
         }
+        .overlay(alignment: .bottomTrailing) {
+            if !viewport.nearBottom && !model.conversation.messages.isEmpty {
+                Button { viewport.jumpToLatest() } label: {
+                    Image(systemName: "arrow.down").padding(12).background(.regularMaterial, in: Circle())
+                }.padding().accessibilityLabel("Jump to latest message")
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button { composerFocused = false } label: { Image(systemName: "keyboard.chevron.compact.down") }
+                    .accessibilityLabel("Dismiss keyboard")
+            }
+        }
+        .onChange(of: model.conversation.id) { _, _ in
+            photoImportTask?.cancel(); voice.stopAll(); voicePrefix = ""; visibleMessageCount = 100
+        }
+        .onChange(of: model.editingMessageID) { _, value in if value != nil { composerFocused = true } }
         .background(Color(uiColor: .systemBackground))
         .sheet(isPresented: $showCapture) { SceneCaptureSheet().environmentObject(model) }
         .sheet(isPresented: $showAttachmentLibrary) { FileAttachmentPicker() }
@@ -255,7 +244,17 @@ struct ChatView: View {
         Button(action: action) { Label(title, systemImage: icon).font(.subheadline).foregroundStyle(Color.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6) }
     }
     private var composer: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
+            if model.editingMessageID != nil {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Editing message").font(.caption.weight(.semibold))
+                        Text("Later replies will be replaced.").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Cancel") { model.cancelEditing() }.font(.caption)
+                }.padding(.horizontal, 10)
+            }
             if voice.isRecording || voice.isSpeaking {
                 HStack {
                     Label(voice.isRecording ? "Listening on this iPhone" : "Reading response", systemImage: "waveform").font(.footnote)
@@ -296,21 +295,21 @@ struct ChatView: View {
                         ForEach(model.attachedCaptureIDs, id: \.self) { id in
                             HStack(spacing: 8) {
                                 CaptureThumbnail(id: id).frame(width: 34, height: 34).clipShape(RoundedRectangle(cornerRadius: 7))
-                                Text("Image").font(.caption)
+                                Text(model.selectedImagePoints[id.uuidString].map { "Image · \($0.count) selected points" } ?? "Image").font(.caption)
                                 Button { model.attachedCaptureIDs.removeAll { $0 == id } } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.accessibilityLabel("Remove attached image")
                             }.padding(7).background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
                         }
                     }
                 }.scrollIndicators(.hidden)
             }
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .bottom, spacing: 4) {
                 Menu {
                     Button("Camera and depth", systemImage: "camera") { showCapture = true }
                     Button("Photo library", systemImage: "photo") { showPhotos = true }
                     Button("Choose files", systemImage: "doc.badge.plus") { showFiles = true }
                     Button("From Library", systemImage: "square.stack") { showAttachmentLibrary = true }
                     Button("Connected folders", systemImage: "folder") { model.showConnectedFolders = true }
-                } label: { Image(systemName: "plus").font(.title3).frame(width: 32, height: 40) }
+                } label: { Image(systemName: "plus").font(.title3).frame(width: 44, height: 44) }
                     .accessibilityLabel("Add to message").disabled(importing || model.isImportingFiles || model.isRunning)
                 TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
                     .padding(.vertical, 10).focused($composerFocused).accessibilityIdentifier("message-composer").disabled(voice.isRecording)
@@ -320,73 +319,22 @@ struct ChatView: View {
                         model.stop(); voice.stopSpeaking(); voicePrefix = model.draft.isEmpty ? "" : model.draft + " "
                         Task { await voice.startRecording() }
                     }
-                } label: { Image(systemName: voice.isRecording ? "mic.fill" : "mic").font(.title3).frame(width: 28, height: 38) }
+                } label: { Image(systemName: voice.isRecording ? "mic.fill" : "mic").font(.title3).frame(width: 44, height: 44) }
                     .accessibilityLabel(voice.isRecording ? "Stop voice input" : "Dictate message").disabled(voice.isPreparing)
+                if let effort = model.selectedReasoningEffort {
+                    ThinkingLevelButton(effort: effort) { showReasoningEffort = true }.disabled(model.isRunning)
+                }
                 if model.isRunning {
-                    Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 13, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }.accessibilityLabel("Stop response")
+                    Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 13, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle()) }.accessibilityLabel("Stop response")
                 } else {
-                    Button { voice.stopRecording(); followBottom = true; model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }
+                    Button { voice.stopRecording(); composerFocused = false; viewport.jumpToLatest(); model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .accessibilityLabel("Send message").disabled((model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty) || importing || model.isImportingFiles)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 7).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 27))
-            if let effort = model.selectedReasoningEffort {
-                HStack {
-                    Button { showReasoningEffort = true } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "brain")
-                            Text("Thinking · \(effort.title)")
-                            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
-                        }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                    }.frame(minHeight: 44).contentShape(Rectangle()).accessibilityLabel("Thinking effort, \(effort.title)").disabled(model.isRunning)
-                    Spacer()
-                }.padding(.horizontal, 6)
-            }
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8).background(.bar)
     }
 }
 
-private struct MessageRow: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var voice: VoiceController
-    let message: Message
-    let showsResponseActions: Bool
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            if message.role == .tool {
-                WorkReceiptView(message: message)
-            } else {
-                if !message.text.isEmpty || !message.displayParts.isEmpty { ResponseContentView(message: message) }
-                if message.state == .interrupted || message.state == .failed {
-                    Label(message.state == .interrupted ? "Stopped · partial response saved" : "Incomplete response", systemImage: "pause.circle").font(.caption).foregroundStyle(.secondary)
-                    if let reason = message.failureReason { Text(reason).font(.footnote).foregroundStyle(Color.secondary).textSelection(.enabled) }
-                }
-                if message.containsLocalOnlyContext { Label("On-device-only context", systemImage: "iphone").font(.caption2).foregroundStyle(Color.secondary) }
-                if !message.displayCitations.isEmpty { SourceListView(citations: message.displayCitations) }
-                if !message.captureIDs.isEmpty {
-                    HStack { ForEach(message.captureIDs, id: \.self) { id in CaptureThumbnail(id: id).frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 12)) } }
-                }
-                ForEach(message.fileIDs, id: \.self) { id in
-                    if let file = model.files.first(where: { $0.id == id }) {
-                        NavigationLink { WorkspaceFileView(id: id) } label: { Label(file.filename, systemImage: file.icon).font(.footnote).lineLimit(2).padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 10)) }
-                    } else { Label("File removed from Library", systemImage: "doc").font(.caption).foregroundStyle(.secondary) }
-                }
-                if !message.text.isEmpty && (message.role == .user || showsResponseActions) {
-                    HStack(spacing: 18) {
-                        Button { UIPasteboard.general.string = message.answerText } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy message")
-                        ShareLink(item: message.answerText) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share message")
-                        if message.role == .assistant { Button { voice.speak(MarkdownContent(message.answerText).renderPlainText()) } label: { Image(systemName: "speaker.wave.2") }.accessibilityLabel("Read response aloud") }
-                        if message.role == .user { Button { model.draft = message.text } label: { Image(systemName: "pencil") }.accessibilityLabel("Use message as draft") }
-                    }.font(.caption).foregroundStyle(.secondary).padding(.top, 3)
-                        .accessibilityIdentifier(message.role == .assistant ? "final-response-actions" : "user-message-actions")
-                }
-            }
-        }
-        .padding(message.role == .user ? 15 : 0)
-        .background(message.role == .user ? Color(uiColor: .secondarySystemBackground) : .clear, in: RoundedRectangle(cornerRadius: 22))
-        .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
-    }
-}
 struct CaptureThumbnail: View {
     @EnvironmentObject private var model: AppModel
     let id: UUID

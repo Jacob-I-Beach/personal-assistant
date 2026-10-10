@@ -2,6 +2,75 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testKeyboardAndDisclosurePreserveReadingPosition() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-presentation", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
+        let row = app.staticTexts["Searched the web"]
+        for _ in 0..<6 { if row.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(row.isHittable)
+        let before = row.frame.minY
+        row.tap()
+        XCTAssertTrue(app.staticTexts["Example reference"].waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertLessThan(abs(row.frame.minY - before), 24)
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        composer.tap(); composer.typeText("A saved draft")
+        XCTAssertTrue(app.buttons["Dismiss keyboard"].waitForExistence(timeout: 5))
+        app.buttons["Dismiss keyboard"].tap()
+        let stable = NSPredicate { _, _ in abs(row.frame.minY - before) < 30 }
+        expectation(for: stable, evaluatedWith: row); waitForExpectations(timeout: 5)
+        saveScreenshot(app, name: "Compact-tools-keyboard-dismissed")
+        composer.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.scrollViews["conversation-scroll"].swipeDown()
+        let dismissed = NSPredicate { _, _ in app.keyboards.count == 0 }
+        expectation(for: dismissed, evaluatedWith: app); waitForExpectations(timeout: 5)
+        app.swipeUp(); app.swipeDown()
+        if row.isHittable {
+            let settled = row.frame.minY
+            for _ in 0..<3 { Thread.sleep(forTimeInterval: 0.2); XCTAssertLessThan(abs(row.frame.minY - settled), 30) }
+        }
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+    func testAttachmentPreviewWorkingSurfacesAndActualMessageEdit() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-interactions", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
+        let picture = app.buttons["Open attached image"].firstMatch
+        for _ in 0..<6 { if picture.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(picture.isHittable); picture.tap()
+        XCTAssertTrue(app.navigationBars["Image"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Synthetic camera + depth"].exists)
+        saveScreenshot(app, name: "Image-depth-viewer")
+        app.buttons["Done"].tap()
+        let option = app.buttons["Option B"]
+        for _ in 0..<8 { if option.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(option.isHittable); option.tap()
+        let chosen = NSPredicate(format: "value == %@", "Selected")
+        expectation(for: chosen, evaluatedWith: option); waitForExpectations(timeout: 5)
+        saveScreenshot(app, name: "Interactive-comparison")
+        let chart = app.staticTexts["Verified sample values"].firstMatch
+        for _ in 0..<5 { if chart.isHittable { break }; app.swipeUp() }
+        saveScreenshot(app, name: "Native-chart-scenario")
+        let first = app.staticTexts["1+1"]
+        for _ in 0..<12 { if first.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(first.isHittable)
+        app.buttons["Edit message"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Editing message"].waitForExistence(timeout: 5))
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        composer.tap(); composer.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "1+2")
+        app.buttons["Send message"].tap()
+        XCTAssertTrue(app.staticTexts["3"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["1+1"].exists)
+        XCTAssertFalse(app.staticTexts["This later message must disappear after editing."].exists)
+        saveScreenshot(app, name: "Edited-conversation-replacement")
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
     func testSourcesThinkingAndPhotoPicker() {
         continueAfterFailure = false
         let app = XCUIApplication()

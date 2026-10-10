@@ -1,6 +1,7 @@
 """Synthetic loopback SSE fixture. No LLM, credentials, or external network calls."""
 import argparse
 import json
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import time
@@ -39,7 +40,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/empty/"):
             events = [{"type": "response.completed", "response": {"status": "completed", "output": []}}]
         elif self.path.startswith(("/tool/", "/tool-empty/")) and not any(item.get("type") == "function_call_output" for item in body.get("input", [])):
-            capture_id = body["input"][-1]["content"][0]["text"].split("[Attached capture ", 1)[1].split(",", 1)[0]
+            # Attachments are app metadata, never invented user-authored text.
+            capture_id = re.search(r'"capture_id":"([A-Fa-f0-9-]+)"', body["instructions"]).group(1)
             call = {"type": "function_call", "id": "fc_fixture", "call_id": "call_fixture", "name": "read_capture", "arguments": json.dumps({"capture_id": capture_id})}
             events = [{"type": "response.output_item.done", "output_index": 0, "item": call}, {"type": "response.completed", "response": {"output": [] if self.path.startswith("/tool-empty/") else [call]}}]
         else:

@@ -8,13 +8,13 @@ public enum ConversationNamer {
             guard !conversation.networkDisabled, conversation.allowedNetworkDestinations.contains(destination) else { return nil }
         }
         let eligible = conversation.messages.filter {
-            ($0.role == .user || $0.role == .assistant) && $0.state == .complete && !$0.text.isEmpty
+            ($0.role == .user || $0.role == .assistant) && $0.state == .complete && (!$0.text.isEmpty || !$0.captureIDs.isEmpty || !$0.fileIDs.isEmpty)
                 && (!remote || !$0.containsLocalOnlyContext)
                 && (!$0.containsHealthData || !remote || conversation.allowedHealthDestinations.contains(backend.networkDestination ?? ""))
         }
         guard let first = eligible.first(where: { $0.role == .user }),
               let answer = eligible.last(where: { $0.role == .assistant }) else { return nil }
-        let source = try JSONValue.object(["request": .string(String(first.text.prefix(2200))),
+        let source = try JSONValue.object(["request": .string(String(first.text.prefix(2200))), "attached_images": .number(Double(first.captureIDs.count)), "attached_files": .number(Double(first.fileIDs.count)),
                                           "answer": .string(String(answer.answerText.prefix(1800)))]).jsonString()
         var request = ModelRequest(instructions: """
             Name this conversation with a specific, natural topic title of 3–7 words in the user's language.
@@ -53,6 +53,7 @@ extension LocalStore {
         var conversation = try loadConversation(conversationID)
         guard conversation.needsAutomaticTitle else { return false }
         conversation.title = cleaned; conversation.needsAutomaticTitle = false
+        conversation.titleWasGenerated = true; conversation.modelTitleOverride = nil
         try save(conversation)
         return true
     }

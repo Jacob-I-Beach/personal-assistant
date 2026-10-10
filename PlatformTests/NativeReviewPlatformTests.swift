@@ -5,6 +5,22 @@ import XCTest
 
 @MainActor
 final class NativeReviewPlatformTests: XCTestCase {
+    func testCancelMessageEditRestoresDraftAndAttachmentsWithoutChangingHistory() async throws {
+        let model = AppModel(); try await model.waitUntilReady()
+        let originalCapture = UUID(), draftCapture = UUID()
+        var message = Message(role: .user, text: "Original", captureIDs: [originalCapture])
+        message.imageSelections = [originalCapture.uuidString: [.init(x: 0.2, y: 0.3)]]
+        model.conversation.messages = [message, Message(role: .assistant, text: "Later answer")]
+        model.draft = "Unsent draft"; model.attachedCaptureIDs = [draftCapture]
+        model.beginEditing(message)
+        XCTAssertEqual(model.editingMessageID, message.id)
+        XCTAssertEqual(model.draft, "Original")
+        XCTAssertEqual(model.selectedImagePoints[originalCapture.uuidString]?.count, 1)
+        model.draft = "Changed but not sent"; model.cancelEditing()
+        XCTAssertNil(model.editingMessageID); XCTAssertEqual(model.draft, "Unsent draft")
+        XCTAssertEqual(model.attachedCaptureIDs, [draftCapture]); XCTAssertTrue(model.selectedImagePoints.isEmpty)
+        XCTAssertEqual(model.conversation.messages.last?.text, "Later answer")
+    }
     func testDismissalResolvesOnlyTheMatchingNativeRequest() async throws {
         let model = AppModel()
         try await model.waitUntilReady()

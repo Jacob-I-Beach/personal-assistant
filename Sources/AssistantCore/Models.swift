@@ -60,6 +60,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var failureReason: String?
     public var citations: [WebCitation]
     public var responseParts: [ResponsePart]
+    public var imageSelections: [String: [ImagePoint]] = [:]
 
     public init(id: UUID = UUID(), role: MessageRole, text: String, state: MessageState = .complete,
                 captureIDs: [UUID] = [], fileIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
@@ -74,7 +75,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         self.citations = citations
         self.responseParts = responseParts
     }
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts, imageSelections }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
@@ -89,6 +90,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         failureReason = try c.decodeIfPresent(String.self, forKey: .failureReason)
         citations = try c.decodeIfPresent([WebCitation].self, forKey: .citations) ?? []
         responseParts = try c.decodeIfPresent([ResponsePart].self, forKey: .responseParts) ?? []
+        imageSelections = try c.decodeIfPresent([String: [ImagePoint]].self, forKey: .imageSelections) ?? [:]
     }
     public var toolFailureDescription: String? {
         guard role == .tool else { return nil }
@@ -132,7 +134,12 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var folderID: UUID?
     public var archivedAt: Date?
     public var needsAutomaticTitle: Bool
+    public var titleWasGenerated = false
+    public var modelTitleOverride: String?
     public var workspaceIDs: Set<UUID> = []
+    /// Library originals survive editing, but removed-turn outputs must not leak into the new context.
+    public var excludedArtifactIDs: Set<UUID> = []
+    public var excludedFileIDs: Set<UUID> = []
 
     public init(id: UUID = UUID(), title: String = "New conversation") {
         self.id = id; self.title = title; self.createdAt = Date(); self.updatedAt = Date()
@@ -142,7 +149,7 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var attachedCaptureIDs: Set<UUID> { Set(messages.flatMap(\.captureIDs)) }
     public var attachedFileIDs: Set<UUID> { Set(messages.flatMap(\.fileIDs)) }
     public var containsHealthData: Bool { messages.contains(where: \.containsHealthData) }
-    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, folderID, archivedAt, needsAutomaticTitle, workspaceIDs }
+    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, folderID, archivedAt, needsAutomaticTitle, titleWasGenerated, modelTitleOverride, workspaceIDs, excludedArtifactIDs, excludedFileIDs }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion); id = try c.decode(UUID.self, forKey: .id)
@@ -154,7 +161,11 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
         folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
         archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
         needsAutomaticTitle = try c.decodeIfPresent(Bool.self, forKey: .needsAutomaticTitle) ?? false
+        titleWasGenerated = try c.decodeIfPresent(Bool.self, forKey: .titleWasGenerated) ?? false
+        modelTitleOverride = try c.decodeIfPresent(String.self, forKey: .modelTitleOverride)
         workspaceIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .workspaceIDs) ?? []
+        excludedArtifactIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedArtifactIDs) ?? []
+        excludedFileIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedFileIDs) ?? []
     }
     public mutating func recoverInterruptedMessages() {
         for i in messages.indices where messages[i].state == .streaming { messages[i].state = .interrupted }

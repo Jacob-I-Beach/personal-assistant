@@ -8,12 +8,12 @@ struct ResponseContentView: View {
         if parts.isEmpty {
             AssistantMarkdown(text: message.citationMarkdown)
         } else {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 14) {
                 ForEach(Array(parts.enumerated()), id: \.element.id) { index, part in
                     if part.kind == .text {
                         let offset = parts.prefix(index).reduce(0) { $0 + $1.citations.count }
                         AssistantMarkdown(text: Message.citationMarkdown(text: part.text, citations: part.citations, startingAt: offset))
-                            .foregroundStyle(part.phase == "commentary" ? Color.secondary : Color.primary)
+                            .foregroundStyle(Color.primary)
                             .accessibilityIdentifier("response-text-\(index)")
                     } else if let activity = part.web {
                         WebActivityView(activity: activity)
@@ -47,18 +47,15 @@ struct WebActivityView: View {
                 }
             }.padding(.top, 10)
         } label: {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
                 if activity.isRunning { ProgressView().controlSize(.small) }
                 else { Image(systemName: activity.isSuccessful ? "globe" : "exclamationmark.circle").padding(.top, 2) }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(activity.title).font(.subheadline.weight(.medium))
-                    if let query = activity.queries.first { Text(query).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                    else if let page = activity.sources.first { Text(page.url.host ?? "").font(.caption).foregroundStyle(.secondary) }
-                }
-            }
+                Text(activity.title).font(.caption.weight(.medium))
+                if let page = activity.sources.first { Text(page.url.host ?? "").font(.caption2).lineLimit(1) }
+            }.foregroundStyle(.secondary).padding(.vertical, 3)
         }
         .tint(.secondary)
-        .padding(14).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .font(.caption).transaction { $0.animation = nil }
         .accessibilityIdentifier("web-activity")
     }
 }

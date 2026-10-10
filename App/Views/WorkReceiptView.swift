@@ -8,6 +8,11 @@ struct WorkReceiptView: View {
     private var toolName: String { call?.name == "use_tool" ? call?.arguments["name"]?.stringValue ?? "use_tool" : call?.name ?? "tool" }
     private var output: JSONValue? { try? JSONValue.parse(message.text) }
     private var arguments: JSONValue? { ToolResultPresentation.arguments(of: call) }
+    private var depthInspection: DepthInspection? {
+        guard let data = message.text.data(using: .utf8) else { return nil }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(DepthInspection.self, from: data)
+    }
     private var resultFields: [ToolResultPresentation.Field] {
         guard let value = output?["result"] else { return [] }
         return ToolResultPresentation.fields(value)
@@ -17,6 +22,9 @@ struct WorkReceiptView: View {
         if message.toolFailureDescription != nil { return "Action needs attention" }
         switch toolName {
         case "get_capabilities": return "Checked available tools"
+        case "get_surface_schema": return "Prepared an interactive view"
+        case "read_surface": return "Read the current selections"
+        case "inspect_depth": return "Inspected saved depth"
         case "connect_workspace": return "Connected a folder"
         case "list_workspaces", "list_files": return "Browsed connected folders"
         case "read_file", "get_file_metadata": return "Read a connected file"
@@ -43,7 +51,9 @@ struct WorkReceiptView: View {
         }
     }
     var body: some View {
-        if toolName == "update_plan", let steps = output?["steps"]?.arrayValue, message.toolFailureDescription == nil {
+        if toolName == "present_surface", let raw = output?["surface_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
+            WorkingSurfaceView(id: id)
+        } else if toolName == "update_plan", let steps = output?["steps"]?.arrayValue, message.toolFailureDescription == nil {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Work plan").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
@@ -57,6 +67,17 @@ struct WorkReceiptView: View {
         } else {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 14) {
+                    if toolName == "read_capture", message.toolFailureDescription == nil {
+                        if let source = output?["source"]?.stringValue { LabeledContent("Source", value: source).font(.subheadline) }
+                        if let meters = output?["center_depth"]?["medianMeters"]?.numberValue {
+                            LabeledContent("Depth near the center", value: "\(meters.formatted(.number.precision(.fractionLength(2)))) m").font(.subheadline)
+                            Text("Saved at capture time; this is not the size of an object.").font(.caption).foregroundStyle(.secondary)
+                        }
+                        if let text = output?["recognized_text"]?.arrayValue {
+                            Text(text.isEmpty ? "No readable text was detected." : "\(text.count) text regions detected.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if toolName == "inspect_depth", let inspection = depthInspection { DepthInspectionView(inspection: inspection) }
                     if toolName == "run_javascript", message.toolFailureDescription == nil {
                         ForEach(resultFields) { field in
                             ViewThatFits(in: .horizontal) {
@@ -97,25 +118,16 @@ struct WorkReceiptView: View {
                     }.font(.footnote)
                 }.padding(.top, 12)
             } label: {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 3) {
                     Label(title, systemImage: message.toolFailureDescription == nil ? "checkmark.circle" : "exclamationmark.circle")
-                        .font(.footnote.weight(.medium)).foregroundStyle(message.toolFailureDescription == nil || output?["status"]?.stringValue == "cancelled" ? Color.secondary : Color.red)
+                        .font(.caption.weight(.medium)).foregroundStyle(message.toolFailureDescription == nil || output?["status"]?.stringValue == "cancelled" ? Color.secondary : Color.red)
                     if output?["status"]?.stringValue == "cancelled" { Text("No completed action was reported.").font(.caption).foregroundStyle(.secondary) }
                     else if let failure = message.toolFailureDescription { Text(failure).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
                     else if let filename = output?["filename"]?.stringValue { Text(filename).font(.caption).foregroundStyle(.secondary) }
-                    else if toolName == "run_javascript" {
-                        Text(resultFields.count == 1 ? (resultFields.first?.value ?? "Completed") : "\(resultFields.count) calculated values")
-                            .font(.subheadline).foregroundStyle(.primary).lineLimit(2)
-                        Text("On this iPhone").font(.caption).foregroundStyle(.secondary)
-                    } else if let matches = output?["matches"]?.arrayValue {
-                        Text("\(matches.count) matches").font(.caption).foregroundStyle(.secondary)
-                    } else if toolName == "find_tools", let tools = output?["tools"]?.arrayValue {
-                        Text("\(tools.count) available tools").font(.caption).foregroundStyle(.secondary)
-                    }
                 }
             }
             .tint(.secondary)
-            .padding(14).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+            .font(.caption).padding(.vertical, 3).transaction { $0.animation = nil }
             .accessibilityIdentifier("tool-receipt")
         }
     }
