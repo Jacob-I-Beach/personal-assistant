@@ -56,7 +56,7 @@ struct ModelLibraryView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("This iPhone").font(.headline)
-                        Text("\(ByteCountFormatter.string(fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory), countStyle: .memory)) physical memory · \(ByteCountFormatter.string(fromByteCount: Int64(availableMemory), countStyle: .memory)) currently available to this app").font(.caption).foregroundStyle(.secondary)
+                        Text("\(ByteCountFormatter.string(fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory), countStyle: .memory)) physical memory · " + (availableMemory == 0 ? "Available memory not reported" : "\(ByteCountFormatter.string(fromByteCount: Int64(availableMemory), countStyle: .memory)) currently available to this app")).font(.caption).foregroundStyle(.secondary)
                         Text("Memory availability changes as iOS manages other work. Estimates below include working overhead, but context and images can increase it.").font(.caption2).foregroundStyle(.secondary)
                     }.padding(.vertical, 5)
                     ForEach(model.catalog) { entry in
@@ -97,6 +97,7 @@ struct ModelLibraryView: View {
                 }
             }
             .navigationTitle("Models")
+            .buttonStyle(.plain)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads() }
             .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in

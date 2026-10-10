@@ -78,7 +78,7 @@ final class AppModel: ObservableObject {
     var modelLocation: String {
         switch settings.choice {
         case .localMLX, .appleOnDevice: "On this iPhone"
-        case .chatGPT: "Using your ChatGPT plan"
+        case .chatGPT: settings.chatGPTAccountID == nil ? "Connect your account" : "Using your ChatGPT plan"
         case .appleCloud: "Apple Private Cloud Compute"
         case .openAI: "OpenAI API"
         case .compatibleServer: "Connected computer"
@@ -574,7 +574,8 @@ final class AppModel: ObservableObject {
                   (call.arguments["notes"]?.stringValue?.count ?? 0) <= 8000, (call.arguments["location"]?.stringValue?.count ?? 0) <= 500 else { throw AssistantError.invalidTool("Use a short title, valid ISO8601 dates with time zones, and an end after the start.") }
             let status = try await reviewNativeAction(NativeActionRequest(kind: .calendar, title: "Review event", detail: "", arguments: call.arguments))
             guard status == "saved" else { throw AssistantError.invalidTool("The user cancelled the calendar event. No event was saved by this action.") }
-            return nativeResult(.object(["status": .string("saved_by_user"), "title": .string(title)]))
+            return nativeResult(.object(["status": .string("saved_by_user"), "proposed_title": .string(title),
+                "note": .string("The user may have edited details in Apple's editor. The app did not query the saved event contents.")]))
         case NativeTools.message.name:
             guard MFMessageComposeViewController.canSendText(), let body = call.arguments["body"]?.stringValue, body.count <= 8000,
                   let recipients = call.arguments["recipients"]?.stringValue, recipients.count <= 300 else { throw AssistantError.invalidTool("Text messaging is unavailable or the proposed message is too long.") }
@@ -749,8 +750,18 @@ final class AppModel: ObservableObject {
             """, providerID: "synthetic-ui-fixture")]
         do {
             try await store.save(sample)
+            var disposable = Conversation(id: UUID(uuidString: "00000000-0000-4000-8000-000000000004")!, title: "Disposable test chat")
+            disposable.messages = [Message(role: .user, text: "Synthetic chat for exercising delete controls.")]
+            try await store.save(disposable)
             if try await store.artifacts(conversationID: sample.id).isEmpty {
                 try await store.saveArtifact(ArtifactRecord(conversationID: sample.id, filename: "study-plan.md", content: "# Study plan\n\n- Read and annotate: 25 minutes\n- Practice: 20 minutes\n- Recall: 10 minutes\n"))
+            }
+            let csvID = UUID(uuidString: "00000000-0000-4000-8000-000000000005")!
+            if (try? await store.workspaceFile(csvID)) == nil {
+                let csv = "value\n18.5\n27.25\n14.75\n60.5\n", bytes = Data("value\n18.5\n27.25\n14.75\n60.5\n".utf8)
+                try await store.saveWorkspaceFile(WorkspaceFile(id: csvID, filename: "sample.csv", mediaType: "text/csv", byteCount: bytes.count, text: csv, extractionNote: "Synthetic UI fixture."), data: bytes)
+                let (pdf, text) = try PDFDocumentWriter.make(title: "Study report", markdown: "A sample document for the Library.\n\nThe verified example sum is **60.5**.")
+                try await store.saveWorkspaceFile(WorkspaceFile(filename: "study-report.pdf", mediaType: "application/pdf", byteCount: pdf.count, text: text, extractionNote: "Synthetic PDF created by the native writer for interface validation."), data: pdf)
             }
             conversation = sample
         } catch { errorMessage = error.localizedDescription }

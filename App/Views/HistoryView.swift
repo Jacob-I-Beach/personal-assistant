@@ -1,5 +1,6 @@
 import AssistantCore
 import SwiftUI
+import MarkdownUI
 
 struct HistoryView: View {
     @EnvironmentObject private var model: AppModel
@@ -22,7 +23,7 @@ struct HistoryView: View {
                     Button { model.newConversation(folderID: selectedFolder); close() } label: { Label("New chat", systemImage: "square.and.pencil").fontWeight(.medium) }.disabled(model.isRunning)
                     Button { close(); open("library") } label: { Label("Library", systemImage: "square.stack") }
                     Button { close(); open("models") } label: { Label("Models", systemImage: "slider.horizontal.3") }
-                }.listRowSeparator(.hidden)
+                }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                 if query.isEmpty {
                     Section {
                         Button { selectedFolder = nil; archived = false } label: { selectionRow("All chats", icon: "bubble.left.and.bubble.right", selected: selectedFolder == nil && !archived) }
@@ -36,7 +37,7 @@ struct HistoryView: View {
                             }
                         }
                         Button { editingFolder = ChatFolder(name: "") } label: { Label("New folder", systemImage: "folder.badge.plus").foregroundStyle(.secondary) }.disabled(model.isRunning)
-                    } header: { Text("Folders") }.listRowSeparator(.hidden)
+                    } header: { Text("Folders") }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                     Section(title) {
                         if visible.isEmpty { Text(archived ? "Archived chats will appear here." : "Your conversations will appear here.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 12).listRowSeparator(.hidden) }
                         ForEach(visible) { chat in
@@ -60,20 +61,21 @@ struct HistoryView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(match.title).font(.subheadline.weight(.medium)).lineLimit(2)
-                                    Text(match.excerpt).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                                    Text(MarkdownContent(match.excerpt).renderPlainText()).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                                 }.padding(.vertical, 5)
                             }.disabled(model.isRunning)
                         }
                         if matches.isEmpty { Text("No matching chats").foregroundStyle(.secondary) }
-                    }
+                    }.listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
                 Section {
                     Button { selectedFolder = nil; archived.toggle(); query = "" } label: { Label(archived ? "Back to chats" : "Archived chats", systemImage: archived ? "bubble.left.and.bubble.right" : "archivebox") }
                     Button { close(); open("settings") } label: { Label("Settings & access", systemImage: "gearshape") }
                     Button { close(); open("watch") } label: { Label("Watch requests", systemImage: "applewatch") }
-                }.listRowSeparator(.hidden)
+                }.listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
+            .buttonStyle(.plain)
             .background(Color(uiColor: .secondarySystemBackground))
             .navigationTitle("Personal Assistant").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Close sidebar", systemImage: "sidebar.left") { close() }.labelStyle(.iconOnly) } }
