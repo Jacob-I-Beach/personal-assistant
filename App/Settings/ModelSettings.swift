@@ -32,11 +32,13 @@ struct ModelSettings: Codable, Equatable {
     var chatGPTWebSearch = true
     var workspaceSearchEnabled = false
     var speakReplies = false
+    var automaticChatTitles = true
+    var reasoningByModel: [String: String] = [:]
 
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
         case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled, chatGPTWebSearch
-        case workspaceSearchEnabled, speakReplies
+        case workspaceSearchEnabled, speakReplies, automaticChatTitles, reasoningByModel
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -57,6 +59,8 @@ struct ModelSettings: Codable, Equatable {
         chatGPTWebSearch = try values.decodeIfPresent(Bool.self, forKey: .chatGPTWebSearch) ?? true
         workspaceSearchEnabled = try values.decodeIfPresent(Bool.self, forKey: .workspaceSearchEnabled) ?? false
         speakReplies = try values.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? false
+        automaticChatTitles = try values.decodeIfPresent(Bool.self, forKey: .automaticChatTitles) ?? true
+        reasoningByModel = try values.decodeIfPresent([String: String].self, forKey: .reasoningByModel) ?? [:]
     }
 
     var endpoint: URL? {
@@ -75,6 +79,19 @@ struct ModelSettings: Codable, Equatable {
 }
 
 enum PrivatePaths {
+    static func outputs() throws -> URL {
+        let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        var name = "Outputs"
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--ui-") }) { name = "Test Outputs" }
+        #endif
+        var directory = documents.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues(); values.isExcludedFromBackup = true
+        try directory.setResourceValues(values)
+        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: directory.path)
+        return directory
+    }
     static func root() throws -> URL {
         var folder = "PersonalAssistant"
         #if DEBUG
@@ -96,7 +113,7 @@ enum PrivatePaths {
     static func configureBackup(root: URL, includeUserData: Bool) throws {
         // Preserve the original private default. Only an explicit preference includes user data in device backups.
         for (url, exclude) in [(root, false), (root.appendingPathComponent("data"), !includeUserData),
-                                (root.appendingPathComponent("models"), true)] {
+                                (root.appendingPathComponent("models"), true), (try outputs(), !includeUserData)] {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
             var target = url
             var values = URLResourceValues(); values.isExcludedFromBackup = exclude

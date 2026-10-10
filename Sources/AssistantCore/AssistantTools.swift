@@ -29,10 +29,10 @@ public struct AssistantTools: Sendable {
         classification = ToolDataClassification(health: healthData, localOnly: artifactLocalOnly)
     }
     public var definitions: [ToolDefinition] {
-        compactCatalog ? [Self.discover, Self.invoke] : availableDefinitions
+        compactCatalog ? [Self.capabilities, Self.discover, Self.invoke] : availableDefinitions
     }
     private var availableDefinitions: [ToolDefinition] {
-        (captureIDs.isEmpty ? [] : [CaptureToolBroker.definition]) + [Self.search, Self.read, Self.script, Self.artifact, Self.workspaceSearch, Self.workspaceRead, Self.plan]
+        (captureIDs.isEmpty ? [] : [CaptureToolBroker.definition]) + [Self.capabilities, Self.search, Self.read, Self.script, Self.artifact, Self.workspaceSearch, Self.workspaceRead, Self.plan]
         + (memoryEnabled ? [Self.memory] : []) + additionalDefinitions
     }
     private static func definition(_ name: String, _ description: String, fields: [String: String]) -> ToolDefinition {
@@ -51,6 +51,7 @@ public struct AssistantTools: Sendable {
     static let plan = definition("update_plan", "Show a concise public work plan for a multi-step task. Update statuses as actual work proceeds; do not expose private reasoning or invent completed actions.", fields: ["steps_json": "JSON array of 1 to 8 objects with title and status (pending, in_progress, completed)."])
     static let discover = definition("find_tools", "Find app tools for code, files, history, memory, captures, device information and enabled native actions. Discover the exact schema before calling use_tool.", fields: ["query": "Words describing the capability needed, or an exact tool name."])
     static let invoke = definition("use_tool", "Run an app tool whose schema was returned by find_tools. All permissions and execution limits still apply.", fields: ["name": "Exact discovered tool name", "arguments_json": "JSON object matching that tool's schema; all field values are strings."])
+    static let capabilities = definition("get_capabilities", "Inspect the app tools available in this conversation, processing location, review requirements, and limits. Capability descriptions are not permission grants; application checks still apply.", fields: [:])
 
     public func execute(_ call: ToolCall) async throws -> ToolResult {
         if compactCatalog && [Self.discover.name, Self.invoke.name].contains(call.name) {
@@ -95,6 +96,15 @@ public struct AssistantTools: Sendable {
             }
             let output: JSONValue
             switch call.name {
+            case "get_capabilities":
+                output = .object([
+                    "model_processing": .string(remote ? "connected model; authorized context leaves this iPhone" : "on this iPhone"),
+                    "tools": .array(availableDefinitions.map { ToolCapability.describe($0, compact: compactCatalog) }),
+                    "workspace_search_enabled": .bool(workspaceEnabled),
+                    "file_outputs": .string(store.outputsRoot == nil ? "App Library; explicit export available" : "App Library and Files > On My iPhone > Personal Assistant > Outputs"),
+                    "runtime": .string("JavaScript: fresh offline sandbox, 3 seconds, 64 MiB. No Python, shell, modules, network, or direct filesystem access."),
+                    "continuity": .string("Conversation, completed tool receipts and files persist. Work may stop when iOS suspends the app. Ask the user to continue; do not imply an always-running background agent."),
+                ])
             case "update_plan":
                 guard let steps = try JSONValue.parse(arguments["steps_json"]!.stringValue!).arrayValue, (1...8).contains(steps.count),
                       steps.allSatisfy({ step in
@@ -194,7 +204,7 @@ public struct AssistantTools: Sendable {
                         "updated_at": .string(ISO8601DateFormatter().string(from: note.updatedAt))])
                 }
             default:
-                if call.name == "create_pdf", !(await execution.canAuthorArtifact) {
+                if ["create_pdf", "create_file", "propose_file_edit", "apply_file_edit"].contains(call.name), !(await execution.canAuthorArtifact) {
                     throw AssistantError.invalidTool("Repair and rerun the failed or unfinished calculation before creating a document. Do not invent a replacement result.")
                 }
                 guard additionalDefinitions.contains(where: { $0.name == call.name }), let additionalExecutor else { throw AssistantError.invalidTool("Unknown tool.") }
@@ -227,7 +237,11 @@ public struct AssistantTools: Sendable {
         let artifact = ArtifactRecord(conversationID: conversationID, filename: name, content: content, sourceCallID: callID,
                                       containsLocalOnlyContext: flags.localOnly, containsHealthData: flags.health)
         try await store.saveArtifact(artifact)
-        return .object(["artifact_id": .string(artifact.id.uuidString), "filename": .string(artifact.filename), "bytes": .number(Double(content.utf8.count))])
+        let copy = try await store.publishOutput(id: artifact.id, filename: artifact.filename, data: Data(content.utf8), conversationID: conversationID)
+        return .object(["artifact_id": .string(artifact.id.uuidString), "filename": .string(artifact.filename), "bytes": .number(Double(content.utf8.count)),
+                        "saved_to": .string(copy?.status == "saved_local" ? copy!.location : "App Library"),
+                        "verification": .string(copy?.status ?? "stored_in_library"),
+                        "warning": copy?.warning.map(JSONValue.string) ?? .null])
     }
     public func protectLocalContext() async { await classification.includeLocalOnly() }
     private func classify(_ result: ToolResult) async -> ToolResult {

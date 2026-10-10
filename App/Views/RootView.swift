@@ -123,9 +123,12 @@ struct ChatView: View {
     @State private var voicePrefix = ""
     @State private var showCapture = false
     @State private var showFiles = false
+    @State private var showPhotos = false
+    @State private var showReasoningEffort = false
     @State private var showAttachmentLibrary = false
     @State private var photo: PhotosPickerItem?
     @State private var importing = false
+    @State private var photoImportTask: Task<Void, Never>?
     @State private var followBottom = true
     @State private var nearBottom = true
     @State private var visibleMessageCount = 100
@@ -177,6 +180,7 @@ struct ChatView: View {
                 if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
             }
             .onChange(of: model.conversation.id) { _, _ in
+                photoImportTask?.cancel()
                 voice.stopAll(); voicePrefix = ""
                 followBottom = true; visibleMessageCount = 100; proxy.scrollTo("conversation-bottom", anchor: .bottom)
             }
@@ -192,6 +196,11 @@ struct ChatView: View {
         .background(Color(uiColor: .systemBackground))
         .sheet(isPresented: $showCapture) { SceneCaptureSheet().environmentObject(model) }
         .sheet(isPresented: $showAttachmentLibrary) { FileAttachmentPicker() }
+        .sheet(isPresented: $showReasoningEffort) { ReasoningEffortView() }
+        .sheet(isPresented: $model.showConnectedFolders) {
+            NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.showConnectedFolders = false } } } }
+        }
+        .photosPicker(isPresented: $showPhotos, selection: $photo, matching: .images, preferredItemEncoding: .compatible)
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls): model.importFiles(urls)
@@ -204,17 +213,19 @@ struct ChatView: View {
         .onChange(of: model.isRunning) { _, running in
             if !running && model.settings.speakReplies, let message = model.conversation.messages.last, message.role == .assistant, message.state == .complete { voice.speak(MarkdownContent(message.text).renderPlainText()) }
         }
-        .onDisappear { voice.stopAll() }
+        .onDisappear { voice.stopAll(); photoImportTask?.cancel() }
         .onChange(of: photo) { _, selected in
             guard let selected else { return }
             importing = true
-            Task {
+            let targetConversation = model.conversation.id
+            photoImportTask = Task {
                 defer { importing = false; photo = nil }
                 do {
                     guard let data = try await selected.loadTransferable(type: Data.self) else { throw AssistantError.invalidCapture("The photo could not be opened.") }
                     let (capture, jpeg) = try await CaptureProcessor.shared.importPhoto(data)
-                    _ = await model.saveCapture(capture, jpeg: jpeg)
-                } catch { model.errorMessage = error.localizedDescription }
+                    try Task.checkCancellation()
+                    _ = await model.saveCapture(capture, jpeg: jpeg, attachTo: targetConversation)
+                } catch { if !Task.isCancelled { model.errorMessage = error.localizedDescription } }
             }
         }
     }
@@ -263,6 +274,9 @@ struct ChatView: View {
                 HStack { ProgressView(value: model.downloadProgress).frame(width: 50); Text(model.modelStatus).font(.caption).lineLimit(1); Spacer(); Button("View") { model.showModels = true }.font(.caption) }
             }
             if model.isImportingFiles { HStack { ProgressView().controlSize(.small); Text("Adding files to your Library").font(.caption); Spacer() } }
+            if importing {
+                HStack { ProgressView().controlSize(.small); Text("Preparing image").font(.caption); Spacer(); Button("Cancel") { photoImportTask?.cancel() }.font(.caption) }
+            }
             if !model.attachedFileIDs.isEmpty {
                 ScrollView(.horizontal) {
                     HStack {
@@ -292,9 +306,10 @@ struct ChatView: View {
             HStack(alignment: .bottom, spacing: 12) {
                 Menu {
                     Button("Camera and depth", systemImage: "camera") { showCapture = true }
-                    PhotosPicker(selection: $photo, matching: .images) { Label("Photo library", systemImage: "photo") }
+                    Button("Photo library", systemImage: "photo") { showPhotos = true }
                     Button("Choose files", systemImage: "doc.badge.plus") { showFiles = true }
                     Button("From Library", systemImage: "square.stack") { showAttachmentLibrary = true }
+                    Button("Connected folders", systemImage: "folder") { model.showConnectedFolders = true }
                 } label: { Image(systemName: "plus").font(.title3).frame(width: 32, height: 40) }
                     .accessibilityLabel("Add to message").disabled(importing || model.isImportingFiles || model.isRunning)
                 TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
@@ -314,6 +329,19 @@ struct ChatView: View {
                         .accessibilityLabel("Send message").disabled((model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty) || importing || model.isImportingFiles)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 7).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 27))
+            if let effort = model.selectedReasoningEffort {
+                HStack {
+                    Button { showReasoningEffort = true } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "brain")
+                            Text("Thinking · \(effort.title)")
+                            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                        }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                    }.frame(minHeight: 44).contentShape(Rectangle()).accessibilityLabel("Thinking effort, \(effort.title)").disabled(model.isRunning)
+                    Spacer()
+                }.padding(.horizontal, 6)
+            }
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8).background(.bar)
     }
 }
@@ -334,19 +362,7 @@ private struct MessageRow: View {
                     if let reason = message.failureReason { Text(reason).font(.footnote).foregroundStyle(Color.secondary).textSelection(.enabled) }
                 }
                 if message.containsLocalOnlyContext { Label("On-device-only context", systemImage: "iphone").font(.caption2).foregroundStyle(Color.secondary) }
-                if !message.displayCitations.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Sources").font(.caption.weight(.semibold)).foregroundStyle(Color.secondary)
-                        ForEach(Array(message.displayCitations.enumerated()), id: \.offset) { index, citation in
-                            Link(destination: citation.url) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("[\(index + 1)] \(citation.title)").font(.footnote).multilineTextAlignment(.leading)
-                                    Text(citation.url.host ?? "").font(.caption2).foregroundStyle(Color.secondary)
-                                }.padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                    }.padding(.vertical, 6)
-                }
+                if !message.displayCitations.isEmpty { SourceListView(citations: message.displayCitations) }
                 if !message.captureIDs.isEmpty {
                     HStack { ForEach(message.captureIDs, id: \.self) { id in CaptureThumbnail(id: id).frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 12)) } }
                 }

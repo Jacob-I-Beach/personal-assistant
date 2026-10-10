@@ -2,6 +2,69 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testSourcesThinkingAndPhotoPicker() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-demo", "--ui-workspace", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let thinking = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Thinking effort,")).firstMatch
+        XCTAssertTrue(thinking.waitForExistence(timeout: 15)); thinking.tap()
+        for title in ["Low", "Medium", "High", "Extra High", "Max"] {
+            if !app.staticTexts[title].exists { app.swipeUp() }
+            XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 3))
+        }
+        saveScreenshot(app, name: "Thinking-effort")
+        app.staticTexts["High"].tap()
+        XCTAssertTrue(app.buttons["Thinking effort, High"].waitForExistence(timeout: 5))
+        for _ in 0..<3 { if app.staticTexts["4 sources"].isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["4 sources"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["[1] Reference 1"].exists)
+        saveScreenshot(app, name: "Sources-collapsed")
+        app.staticTexts["4 sources"].tap()
+        XCTAssertTrue(app.staticTexts["[1] Reference 1"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Sources-expanded")
+        app.buttons["Add to message"].tap()
+        app.buttons["Photo library"].tap()
+        let cancel = app.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Add to message"].isHittable)
+        saveScreenshot(app, name: "Photo-library-picker")
+        cancel.tap()
+        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+    func testConnectedFolderAndFilesOutputs() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-demo", "--ui-workspace", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
+        app.buttons["Add to message"].tap(); app.buttons["Connected folders"].tap()
+        XCTAssertTrue(app.staticTexts["Sample workspace"].waitForExistence(timeout: 5))
+        app.staticTexts["Sample workspace"].tap()
+        XCTAssertTrue(app.switches["Use in this chat"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Folder-access")
+        app.buttons["Browse files"].tap()
+        XCTAssertTrue(app.staticTexts["notes.md"].waitForExistence(timeout: 5))
+        app.staticTexts["notes.md"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Verified total: 60.5")).firstMatch.waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Connected-file")
+        for _ in 0..<3 { app.navigationBars.buttons.element(boundBy: 0).tap() }
+        app.buttons["Done"].tap()
+        app.buttons["Assistant menu"].tap(); app.buttons["Library"].tap()
+        app.buttons["Outputs in Files"].tap()
+        XCTAssertTrue(app.staticTexts["verified-total.csv"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Files-outputs")
+        app.staticTexts["verified-total.csv"].tap()
+        XCTAssertTrue(app.buttons["Export another copy"].waitForExistence(timeout: 5))
+        app.buttons["Export another copy"].tap()
+        let cancel = app.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 8))
+        saveScreenshot(app, name: "Native-file-export")
+        cancel.tap()
+        XCTAssertTrue(app.staticTexts["Export cancelled."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
     func testOrderedProgressWebAndReadableCalculation() {
         continueAfterFailure = false
         let app = XCUIApplication()

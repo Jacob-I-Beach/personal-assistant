@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import UIKit
 import MessageUI
+import PDFKit
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -40,12 +41,18 @@ final class AppModel: ObservableObject {
     @Published var showModels = false
     @Published var watchRequests: [WatchRequest] = []
     @Published var nativeAction: NativeActionRequest?
+    @Published var connectedFolders: [FolderConnection] = []
+    @Published var showConnectedFolders = false
+    private(set) var workspaceService: FolderWorkspaceService?
+    var pickedFolderURL: URL?
     private var nativeActionWaiter: CheckedContinuation<String, any Error>?
     private let locationService = ForegroundLocation()
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
     private var localBackend: MLXLocalBackend?
     private var responseTask: Task<Void, Never>?
+    private var titleTask: Task<Void, Never>?
+    private var titleGenerationID = UUID()
     private var downloadTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
     private var draftTask: Task<Void, Never>?
@@ -88,8 +95,9 @@ final class AppModel: ObservableObject {
     init() {
         do {
             let root = try PrivatePaths.root(); self.root = root
-            let store = try LocalStore(root: root.appendingPathComponent("data"))
+            let store = try LocalStore(root: root.appendingPathComponent("data"), outputsRoot: PrivatePaths.outputs())
             self.store = store; engine = AssistantEngine(store: store)
+            workspaceService = try FolderWorkspaceService(storage: root.appendingPathComponent("data/workspaces"))
             settingsURL = root.appendingPathComponent("settings.json")
             draftURL = root.appendingPathComponent("data/drafts.json")
             modelRoot = root.appendingPathComponent("models")
@@ -111,8 +119,10 @@ final class AppModel: ObservableObject {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--ui-demo") { await installDemoFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { await installPresentationFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-workspace") { await installWorkspaceFixture() }
                 #endif
                 await refresh()
+                await refreshWorkspaces()
                 // A cold launch opens a fresh canvas. Saved chats/drafts are resumed only by selection.
                 // Scene activation after a picker or authentication does not replace the current chat.
                 await refreshDownloads()
@@ -150,6 +160,7 @@ final class AppModel: ObservableObject {
     }
     func enteredBackground() {
         flushDraft()
+        titleTask?.cancel()
         guard isRunning, settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
         stop()
         let backend = localBackend, engine = engine
@@ -279,10 +290,15 @@ final class AppModel: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
     func attach(_ id: UUID) { if !attachedCaptureIDs.contains(id) { attachedCaptureIDs.append(id) } }
-    func saveCapture(_ capture: CaptureObservation, jpeg: Data) async -> Bool {
+    func saveCapture(_ capture: CaptureObservation, jpeg: Data, attachTo conversationID: UUID? = nil) async -> Bool {
         guard let store else { return false }
-        do { try await store.saveCapture(capture, jpeg: jpeg); attach(capture.id); await refresh(); return true }
-        catch { errorMessage = error.localizedDescription; return false }
+        let target = conversationID ?? conversation.id
+        do {
+            try Task.checkCancellation()
+            try await store.saveCapture(capture, jpeg: jpeg)
+            if !Task.isCancelled, conversation.id == target { attach(capture.id); flushDraft() }
+            await refresh(); return !Task.isCancelled
+        } catch { if !Task.isCancelled { errorMessage = error.localizedDescription }; return false }
     }
     func image(_ id: UUID) async -> UIImage? {
         guard let data = try? await store?.imageData(id) else { return nil }
@@ -305,6 +321,7 @@ final class AppModel: ObservableObject {
                 content: content, previousRevisionID: artifact.id, containsLocalOnlyContext: artifact.containsLocalOnlyContext,
                 containsHealthData: artifact.containsHealthData)
             try await store.saveArtifact(revised)
+            _ = try await store.publishOutput(id: revised.id, filename: revised.filename, data: Data(content.utf8), conversationID: revised.conversationID)
             try await store.saveArtifactDraft(id: artifact.id, text: nil)
             await refresh()
             return revised
@@ -342,6 +359,7 @@ final class AppModel: ObservableObject {
     func declineNetworkConversation() { pendingText = nil; needsNetworkConsent = false }
     func revokeNetworkConsent() {
         guard !isRunning else { return }
+        titleTask?.cancel()
         conversation.allowedNetworkDestinations = []
         conversation.allowedHealthDestinations = []
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
@@ -354,7 +372,11 @@ final class AppModel: ObservableObject {
         draftTask?.cancel()
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
         requiresManualResume = false
+        let previousTitleTask = titleTask
+        previousTitleTask?.cancel(); titleTask = nil
         responseTask = Task {
+            await previousTitleTask?.value
+            var titleBackend: (any ModelBackend)?
             if let requestID = activeWatchRequestID {
                 await publishWatch(WatchReply(requestID: requestID, conversationID: current.id, state: .working,
                     message: "Your iPhone is working on it.", modelName: modelTitle))
@@ -363,8 +385,9 @@ final class AppModel: ObservableObject {
                 try Task.checkCancellation()
                 try await store?.save(current)
                 let selectedBackend = try await backend(for: selection)
+                titleBackend = selectedBackend
                 try Task.checkCancellation()
-                let extras = NativeTools.definitions + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
+                let extras = NativeTools.definitions + WorkspaceTools.definitions + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
                 let destination = selection.networkDestination
                 for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
                     containsHealthData: healthData, fileIDs: fileAttachments, workspaceEnabled: selection.workspaceSearchEnabled, additionalTools: extras, additionalExecutor: { [weak self] call in
@@ -394,6 +417,27 @@ final class AppModel: ObservableObject {
             if let saved = try? await store?.loadConversation(current.id) { conversation = saved }
             requiresManualResume = errorMessage != nil || Task.isCancelled || conversation.messages.last?.state != .complete
             isRunning = false; responseTask = nil; activity = nil
+            if !requiresManualResume, let titleBackend, conversation.needsAutomaticTitle, selection.automaticChatTitles {
+                let namedConversation = conversation
+                let generationID = UUID(); titleGenerationID = generationID
+                titleTask = Task { [weak self] in
+                    let timeout = Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(25))
+                        if !Task.isCancelled, self?.titleGenerationID == generationID { self?.titleTask?.cancel() }
+                    }
+                    defer { timeout.cancel() }
+                    do {
+                        guard let title = try await ConversationNamer.generate(for: namedConversation, backend: titleBackend),
+                              !Task.isCancelled, let self, let store = self.store else { return }
+                        if try await store.saveAutomaticTitle(title, conversationID: namedConversation.id) {
+                            if self.conversation.id == namedConversation.id && !self.isRunning {
+                                self.conversation = try await store.loadConversation(namedConversation.id)
+                            }
+                            await self.refresh()
+                        }
+                    } catch { /* Naming is optional metadata; never replace a successful answer with an error. */ }
+                }
+            }
             if let requestID = activeWatchRequestID {
                 activeWatchRequestID = nil
                 let answer = conversation.messages.last(where: { $0.role == .assistant })
@@ -415,18 +459,22 @@ final class AppModel: ObservableObject {
             guard let account = selection.chatGPTAccountID, let accountService, !selection.chatGPTModel.isEmpty else { throw AccountConnectionError.signInRequired }
             let access = try await accountService.accessToken(for: account)
             return try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel,
-                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch)
+                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort)
         case .openAI, .compatibleServer:
             guard let url = selection.endpoint else { throw AssistantError.invalidEndpoint("Add a valid server address in Connections.") }
             let credential = try selection.credentialAccount.map { try CredentialStore.read(account: $0) } ?? ""
             if selection.choice == .openAI && credential.isEmpty { throw AssistantError.provider("Add an OpenAI API key, or use Continue with ChatGPT in the model picker.") }
             return try NetworkModelBackend(baseURL: url, model: selection.choice == .openAI ? selection.openAIModel : selection.compatibleModel,
-                wireProtocol: selection.choice == .openAI ? .responses : .chatCompletions, credential: credential)
+                wireProtocol: selection.choice == .openAI ? .responses : .chatCompletions, credential: credential, reasoningEffort: selection.choice == .openAI ? selectedReasoningEffort : nil)
         }
     }
 
     func saveSettings(_ value: ModelSettings, credential: String = "") throws {
         guard !isRunning else { throw AssistantError.busy }
+        if value.choice != settings.choice || value.networkDestination != settings.networkDestination || value.localRepository != settings.localRepository
+            || value.chatGPTModel != settings.chatGPTModel || value.openAIModel != settings.openAIModel || value.localOnly || !value.automaticChatTitles {
+            titleTask?.cancel()
+        }
         guard !value.includeInDeviceBackup || !libraryContainsHealthData else { throw AssistantError.provider("A library containing Health-derived information stays excluded from device backups. You can export selected items yourself.") }
         if let endpoint = value.endpoint { try EndpointPolicy.validate(endpoint) }
         if !credential.isEmpty, let account = value.credentialAccount { try CredentialStore.save(credential, account: account) }
@@ -551,6 +599,7 @@ final class AppModel: ObservableObject {
     private func executeNativeTool(_ call: ToolCall, conversationID: UUID, destination: String?) async throws -> ToolResult {
         try Task.checkCancellation()
         guard isRunning, conversation.id == conversationID else { throw CancellationError() }
+        if WorkspaceTools.names.contains(call.name) { return try await executeWorkspaceTool(call, conversationID: conversationID, destination: destination) }
         func nativeResult(_ value: JSONValue) -> ToolResult { ToolResult(callID: call.id, name: call.name, succeeded: true, output: value) }
         switch call.name {
         case NativeTools.device.name: return nativeResult(DeviceContext.snapshot())
@@ -561,8 +610,12 @@ final class AppModel: ObservableObject {
             let file = WorkspaceFile(filename: filename, mediaType: "application/pdf", byteCount: data.count, text: text,
                 extractionNote: "PDF generated on this iPhone. Text layout; original Markdown formatting and images are not embedded.",
                 conversationID: conversationID, containsHealthData: conversation.containsHealthData)
+            guard let verified = PDFDocument(data: data), verified.pageCount > 0, !verified.isLocked else { throw AssistantError.invalidTool("The generated PDF could not be reopened for verification.") }
             try await store.saveWorkspaceFile(file, data: data)
-            return nativeResult(.object(["file_id": .string(file.id.uuidString), "filename": .string(filename), "bytes": .number(Double(data.count)), "saved_to": .string("Library")]))
+            let output = try await store.publishOutput(id: file.id, filename: filename, data: data, conversationID: conversationID)
+            return nativeResult(.object(["file_id": .string(file.id.uuidString), "filename": .string(filename), "bytes": .number(Double(data.count)),
+                "page_count": .number(Double(verified.pageCount)), "verification": .string("PDF reopened successfully"),
+                "saved_to": .string(output?.status == "saved_local" ? output!.location : "App Library"), "warning": output?.warning.map(JSONValue.string) ?? .null]))
         case NativeTools.location.name:
             let purpose = String((call.arguments["reason"]?.stringValue ?? "").prefix(500))
             let status = try await reviewNativeAction(NativeActionRequest(kind: .approval, title: "Use your current location?", detail: purpose + "\n\nThis one location fix will be available to \(modelTitle) \(modelLocation.lowercased()) in this conversation.", arguments: call.arguments))
@@ -623,7 +676,7 @@ final class AppModel: ObservableObject {
         result.containsHealthData = true; result.authorizedHealthDestination = destination
         return result
     }
-    private func reviewNativeAction(_ request: NativeActionRequest) async throws -> String {
+    func reviewNativeAction(_ request: NativeActionRequest) async throws -> String {
         guard nativeActionWaiter == nil, UIApplication.shared.applicationState == .active else { throw AssistantError.invalidTool("Bring the app to the foreground and finish the current review before another action.") }
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
@@ -633,7 +686,8 @@ final class AppModel: ObservableObject {
             self?.resolveNativeAction("cancelled")
         } }
     }
-    func resolveNativeAction(_ status: String) {
+    func resolveNativeAction(_ status: String, for requestID: UUID? = nil) {
+        if let requestID, nativeAction?.id != requestID { return }
         let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeAction = nil
         waiter?.resume(returning: status)
     }
@@ -727,6 +781,27 @@ final class AppModel: ObservableObject {
         Task { await publishWatch(reply) }
     }
     #if DEBUG
+    private func installWorkspaceFixture() async {
+        guard let store, let workspaceService else { return }
+        do {
+            settings.choice = .chatGPT; settings.chatGPTModel = "gpt-6.1-sol"
+            chatGPTModels = try ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list"}]}"#.utf8))
+            if let index = conversation.messages.lastIndex(where: { $0.role == .assistant }) {
+                conversation.messages[index].citations = (1...4).compactMap { WebCitation(title: "Reference \($0)", url: "https://example.com/source-\($0)") }
+                try await store.save(conversation)
+            }
+            let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            let selected = documents.appendingPathComponent("Sample workspace")
+            try FileManager.default.createDirectory(at: selected, withIntermediateDirectories: true)
+            try Data("Project notes\n\nThis is a synthetic folder document. Verified total: 60.5.".utf8).write(to: selected.appendingPathComponent("notes.md"), options: .atomic)
+            let folder = try await workspaceService.connect(selected)
+            conversation.workspaceIDs.insert(folder.id)
+            try await store.save(conversation)
+            await refreshWorkspaces()
+            let id = UUID(uuidString: "00000000-0000-4000-8000-000000000040")!
+            _ = try await store.publishOutput(id: id, filename: "verified-total.csv", data: Data("value\n60.5\n".utf8), conversationID: conversation.id)
+        } catch { errorMessage = error.localizedDescription }
+    }
     private func installPresentationFixture() async {
         guard let store else { return }
         do {

@@ -9,6 +9,8 @@
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key><true/>
+    <key>UIFileSharingEnabled</key><true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>UILaunchScreen</key><dict/>
     <key>NSCameraUsageDescription</key><string>Capture an image and available depth data when you ask the assistant to inspect something.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>Read one current location when you approve an assistant request. The app shows which model will receive the location and does not track it in the background.</string>

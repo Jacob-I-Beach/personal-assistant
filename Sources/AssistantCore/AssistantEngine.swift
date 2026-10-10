@@ -70,7 +70,6 @@ public actor AssistantEngine {
         let user = Message(role: .user, text: text, captureIDs: captureIDs, fileIDs: fileIDs, containsHealthData: containsHealthData,
                            containsLocalOnlyContext: original.networkDisabled)
         conversation.messages.append(user)
-        if conversation.title == "New conversation" { conversation.title = String(text.prefix(65)) }
         try await store.save(conversation)
         output.yield(.conversation(conversation))
         let availableMemories = MemoryContext.eligible(try await store.memories(), conversationID: conversation.id, remote: backend.networkDestination != nil)
@@ -178,6 +177,7 @@ public actor AssistantEngine {
     }
 
     private func applyHealthAuthorization(_ result: ToolResult, destination: String?, conversation: inout Conversation) throws {
+        if result.succeeded, let workspace = result.authorizedWorkspaceID { conversation.workspaceIDs.insert(workspace) }
         guard result.containsHealthData == true, let destination else { return }
         guard conversation.allowedHealthDestinations.contains(destination) || result.authorizedHealthDestination == destination else {
             throw AssistantError.networkNotAuthorized
@@ -191,6 +191,8 @@ public actor AssistantEngine {
         var instructions = AssistantInstructions.base + MemoryContext.instructions(notes, query: conversation.messages.last(where: { $0.role == .user })?.text ?? "",
             conversationID: conversation.id, remote: remote)
         instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())). Time zone: \(TimeZone.current.identifier)."
+        instructions += "\nThis session uses \(remote ? "a connected model" : "on-device inference"). get_capabilities reports the actual app tools and limits. Connected folders require selection for this chat and per-folder model-sharing permission."
+        if store.outputsRoot != nil { instructions += "\nGenerated files are kept in Library and published to the app's Outputs folder in Files when the save receipt confirms it." }
         if let folderID = conversation.folderID, let folder = try await store.folders().first(where: { $0.id == folderID }) {
             instructions += "\nUser-selected topic folder: \(folder.name). User's folder instructions: \(folder.instructions)"
         }

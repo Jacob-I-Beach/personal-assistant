@@ -5,12 +5,14 @@ import MessageUI
 import SwiftUI
 
 struct NativeActionRequest: Identifiable, Sendable {
-    enum Kind: Sendable { case approval, calendar, message }
+    enum Kind: Sendable { case approval, calendar, message, folder, exportFile, fileEdit }
     let id = UUID()
     var kind: Kind
     var title: String
     var detail: String
     var arguments: JSONValue
+    var fileURL: URL?
+    var proposal: FileEditProposal?
 }
 
 struct NativeActionView: View {
@@ -25,15 +27,24 @@ struct NativeActionView: View {
                         Text(request.title).font(.title2.weight(.semibold))
                         Text(request.detail).foregroundStyle(.secondary)
                         Spacer()
-                        Button { model.resolveNativeAction("approved") } label: { Text("Continue").fontWeight(.semibold).frame(maxWidth: .infinity).padding(8).foregroundStyle(Color(uiColor: .systemBackground)) }
+                        Button { model.resolveNativeAction("approved", for: request.id) } label: { Text("Continue").fontWeight(.semibold).frame(maxWidth: .infinity).padding(8).foregroundStyle(Color(uiColor: .systemBackground)) }
                             .buttonStyle(.borderedProminent).tint(.primary)
-                        Button("Cancel", role: .cancel) { model.resolveNativeAction("cancelled") }.frame(maxWidth: .infinity)
-                    }.padding(24).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.resolveNativeAction("cancelled") } } }
+                        Button("Cancel", role: .cancel) { model.resolveNativeAction("cancelled", for: request.id) }.frame(maxWidth: .infinity)
+                    }.padding(24).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.resolveNativeAction("cancelled", for: request.id) } } }
                 }.presentationDetents([.medium, .large])
             case .calendar:
-                CalendarEventEditor(arguments: request.arguments) { model.resolveNativeAction($0) }
+                CalendarEventEditor(arguments: request.arguments) { model.resolveNativeAction($0, for: request.id) }
             case .message:
-                TextMessageEditor(arguments: request.arguments) { model.resolveNativeAction($0) }
+                TextMessageEditor(arguments: request.arguments) { model.resolveNativeAction($0, for: request.id) }
+            case .folder:
+                FolderPicker { url in
+                    guard model.nativeAction?.id == request.id else { return }
+                    model.pickedFolderURL = url; model.resolveNativeAction(url == nil ? "cancelled" : "selected", for: request.id)
+                }
+            case .exportFile:
+                if let url = request.fileURL { DocumentExportPicker(url: url) { model.resolveNativeAction($0, for: request.id) } }
+            case .fileEdit:
+                if let proposal = request.proposal { FileEditReviewView(proposal: proposal) { model.resolveNativeAction($0, for: request.id) } }
             }
         }.interactiveDismissDisabled()
     }

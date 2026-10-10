@@ -3,12 +3,14 @@ import Foundation
 /// The app owns durable history independently of provider sessions. Credentials are never stored here.
 public actor LocalStore {
     public nonisolated let root: URL
+    public nonisolated let outputsRoot: URL?
     public nonisolated let initiallyContainsHealthData: Bool
     private let files = FileManager.default
     let database: SQLiteDatabase
 
-    public init(root: URL) throws {
+    public init(root: URL, outputsRoot: URL? = nil) throws {
         self.root = root
+        self.outputsRoot = outputsRoot
         for directory in [root, root.appendingPathComponent("conversations"), root.appendingPathComponent("captures")] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
@@ -96,7 +98,7 @@ public actor LocalStore {
     public func renameConversation(_ id: UUID, title: String) throws {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title.count <= 160 else { throw AssistantError.provider("Use a chat title between 1 and 160 characters.") }
-        var conversation = try loadConversation(id); conversation.title = title
+        var conversation = try loadConversation(id); conversation.title = title; conversation.needsAutomaticTitle = false
         try save(conversation)
     }
     public func moveConversation(_ id: UUID, to folderID: UUID?) throws {

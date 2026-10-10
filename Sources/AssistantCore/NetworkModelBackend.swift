@@ -13,6 +13,7 @@ public struct NetworkModelBackend: ModelBackend {
     private let transport: any HTTPStreamingTransport
     private let chatGPTAccountID: String?
     private let webSearchEnabled: Bool
+    private let reasoningEffort: ReasoningEffort?
     public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") + (webSearchEnabled ? ":web-search" : "") }
     public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
     public var supportsFileInputs: Bool { wireProtocol == .responses && baseURL.absoluteString == "https://api.openai.com/v1" }
@@ -22,7 +23,7 @@ public struct NetworkModelBackend: ModelBackend {
 
     public init(baseURL: URL, model: String, wireProtocol: NetworkProtocol,
                 credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil,
-                webSearchEnabled: Bool = false) throws {
+                webSearchEnabled: Bool = false, reasoningEffort: ReasoningEffort? = nil) throws {
         try EndpointPolicy.validate(baseURL)
         guard !credential.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             throw AssistantError.invalidEndpoint("The credential contains a line break or control character. Paste only the credential value.")
@@ -42,6 +43,7 @@ public struct NetworkModelBackend: ModelBackend {
             throw AssistantError.invalidEndpoint("This web-search setting is available for ChatGPT account connections only.")
         }
         self.webSearchEnabled = webSearchEnabled
+        self.reasoningEffort = reasoningEffort
     }
 
     public func makeRequest(_ input: ModelRequest) throws -> URLRequest {
@@ -85,6 +87,7 @@ public struct NetworkModelBackend: ModelBackend {
     }
 
     private func responsesBody(_ input: ModelRequest) throws -> JSONValue {
+        let webSearchEnabled = self.webSearchEnabled && !input.isMetadata
         var items: [JSONValue] = []
         for entry in input.messages {
             let m = entry.message
@@ -131,6 +134,10 @@ public struct NetworkModelBackend: ModelBackend {
         if webSearchEnabled {
             body["tools"] = .array((body["tools"]?.arrayValue ?? []) + [.object(["type": .string("web_search")])])
             body["include"] = .array([.string("reasoning.encrypted_content"), .string("web_search_call.action.sources")])
+        }
+        if let reasoningEffort {
+            let effort: ReasoningEffort = input.isMetadata && ReasoningEffort.documented(for: model).contains(.low) ? .low : reasoningEffort
+            body["reasoning"] = .object(["effort": .string(effort.rawValue)])
         }
         return .object(body)
     }
@@ -209,7 +216,7 @@ public struct ModelWireDecoder: Sendable {
             if let id = item["id"]?.stringValue { call.id = id }
             if let name = item["function"]?["name"]?.stringValue { call.name += name }
             if let arguments = item["function"]?["arguments"]?.stringValue { call.arguments += arguments }
-            guard call.arguments.utf8.count <= 32768 else { throw AssistantError.malformedStream("Tool arguments are too large.") }
+            guard call.arguments.utf8.count <= 512 * 1024 else { throw AssistantError.malformedStream("Tool arguments exceed the 512 KB transport limit.") }
             chatCalls[index] = call
         }
         return results
@@ -272,7 +279,7 @@ public struct ModelWireDecoder: Sendable {
             for item in output where item["type"]?.stringValue == "function_call" {
                 if let status = item["status"]?.stringValue, status != "completed" { throw AssistantError.incompleteResponse }
                 guard let id = item["call_id"]?.stringValue, !id.isEmpty, let name = item["name"]?.stringValue, !name.isEmpty,
-                      let arguments = item["arguments"]?.stringValue, arguments.utf8.count <= 32768 else {
+                      let arguments = item["arguments"]?.stringValue, arguments.utf8.count <= 512 * 1024 else {
                     throw AssistantError.malformedStream("Incomplete function call in completed response.")
                 }
                 events.append(.toolCall(ToolCall(id: id, name: name, arguments: try JSONValue.parse(arguments))))

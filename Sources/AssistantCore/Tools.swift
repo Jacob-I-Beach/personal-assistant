@@ -18,12 +18,17 @@ public struct ToolResult: Codable, Equatable, Sendable {
     public var containsHealthData: Bool?
     public var authorizedHealthDestination: String?
     public var containsLocalOnlyContext: Bool?
+    public var authorizedWorkspaceID: UUID?
     public init(callID: String, name: String, succeeded: Bool, output: JSONValue) {
         self.callID = callID; self.name = name; self.succeeded = succeeded; self.output = output; self.completedAt = Date()
     }
     public func modelText() throws -> String {
         var value = output.objectValue ?? ["result": output]
         value["tool_succeeded"] = .bool(succeeded)
+        value["status"] = value["status"] ?? .string(succeeded ? "completed" : "failed")
+        value["operation_id"] = .string(callID)
+        value["completed_at"] = .string(ISO8601DateFormatter().string(from: completedAt))
+        value["execution_location"] = value["execution_location"] ?? .string("on-device")
         return try JSONValue.object(value).jsonString()
     }
 }

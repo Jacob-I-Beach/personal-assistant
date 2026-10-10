@@ -15,6 +15,8 @@ struct LibraryView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink { ConnectedFoldersView() } label: { Label("Connected folders", systemImage: "folder") }
+                    NavigationLink { OutputsView() } label: { Label("Outputs in Files", systemImage: "externaldrive") }
                     NavigationLink { CaptureLibraryView() } label: { Label("Captures · \(model.captures.count)", systemImage: "viewfinder") }
                     NavigationLink { MemoryView() } label: { Label("Saved memory", systemImage: "brain.head.profile") }
                 }
@@ -69,6 +71,8 @@ struct ArtifactDetailView: View {
     @State private var editing = false
     @State private var exportURL: URL?
     @State private var saving = false
+    @State private var showExport = false
+    @State private var exportNotice: String?
     @State private var draftTask: Task<Void, Never>?
     init(artifact: ArtifactRecord) { _artifact = State(initialValue: artifact) }
     var body: some View {
@@ -96,9 +100,25 @@ struct ArtifactDetailView: View {
                     }.disabled(saving || text == artifact.content)
                 } else {
                     Button("Edit", systemImage: "pencil") { editing = true }
-                    if let exportURL { ShareLink(item: exportURL) { Image(systemName: "square.and.arrow.up") } }
+                    if let exportURL {
+                        Menu {
+                            ShareLink(item: exportURL) { Label("Share", systemImage: "square.and.arrow.up") }
+                            Button("Save to Files", systemImage: "folder.badge.plus") { exportNotice = nil; showExport = true }
+                        } label: { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Artifact actions")
+                    }
                 }
             }
+        }
+        .sheet(isPresented: $showExport, onDismiss: { if exportNotice == nil { exportNotice = "Export cancelled." } }) {
+            if let exportURL {
+                DocumentExportPicker(url: exportURL) { status in
+                    exportNotice = status == "completed" ? "Export completed. Cloud synchronization was not checked." : "Export cancelled."
+                    showExport = false
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let exportNotice { Text(exportNotice).font(.caption).foregroundStyle(.secondary).padding().frame(maxWidth: .infinity).background(.bar) }
         }
         .task {
             if let draft = try? await model.store?.artifactDraft(id: artifact.id) { text = draft; editing = true }

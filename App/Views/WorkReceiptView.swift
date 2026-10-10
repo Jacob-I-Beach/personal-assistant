@@ -13,8 +13,18 @@ struct WorkReceiptView: View {
         return ToolResultPresentation.fields(value)
     }
     private var title: String {
+        if output?["status"]?.stringValue == "cancelled" { return "Action cancelled" }
         if message.toolFailureDescription != nil { return "Action needs attention" }
         switch toolName {
+        case "get_capabilities": return "Checked available tools"
+        case "connect_workspace": return "Connected a folder"
+        case "list_workspaces", "list_files": return "Browsed connected folders"
+        case "read_file", "get_file_metadata": return "Read a connected file"
+        case "search_files": return "Searched a connected folder"
+        case "create_file": return "Saved a file in your folder"
+        case "propose_file_edit": return "Prepared file changes"
+        case "apply_file_edit": return "Applied reviewed file changes"
+        case "export_artifact": return "Exported to Files"
         case "run_javascript": return "Calculated with JavaScript"
         case "create_artifact": return "Created a file"
         case "create_pdf": return "Created a PDF"
@@ -89,8 +99,9 @@ struct WorkReceiptView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 5) {
                     Label(title, systemImage: message.toolFailureDescription == nil ? "checkmark.circle" : "exclamationmark.circle")
-                        .font(.footnote.weight(.medium)).foregroundStyle(message.toolFailureDescription == nil ? Color.secondary : Color.red)
-                    if let failure = message.toolFailureDescription { Text(failure).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
+                        .font(.footnote.weight(.medium)).foregroundStyle(message.toolFailureDescription == nil || output?["status"]?.stringValue == "cancelled" ? Color.secondary : Color.red)
+                    if output?["status"]?.stringValue == "cancelled" { Text("No completed action was reported.").font(.caption).foregroundStyle(.secondary) }
+                    else if let failure = message.toolFailureDescription { Text(failure).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
                     else if let filename = output?["filename"]?.stringValue { Text(filename).font(.caption).foregroundStyle(.secondary) }
                     else if toolName == "run_javascript" {
                         Text(resultFields.count == 1 ? (resultFields.first?.value ?? "Completed") : "\(resultFields.count) calculated values")

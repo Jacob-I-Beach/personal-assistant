@@ -1,5 +1,7 @@
 # Implementation status
 
+**0.4.0 build 4 is the current source batch, not an installable release yet.** It combines the pending response-presentation repairs with source collapse, semantic chat names, photo-picker repair, GPT effort controls, capability-grounded instructions and the Files/folder workspace workflow. Shared logic passes 97 Windows tests; native tests and phone checks remain pending. See [RELEASE_04.md](Documentation/RELEASE_04.md). The current ledger is 153 rounded minutes, estimated USD 9.486 if fully billable, within the approved USD 12 ceiling.
+
 ## Current 0.3 release
 
 **Jacob reports that 0.3.0 build 3 opens on his iPhone and his previous chats are present. He also confirmed that GPT 6.1 Sol completed the Jupiter request very well, with web sources and JavaScript.** His five screenshots identify presentation defects addressed by the pending 0.3.1 build 4 batch: separate public updates, final-answer actions, persistent web receipts, readable calculation results and native math.

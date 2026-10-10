@@ -106,8 +106,10 @@ public struct ChatGPTModel: Codable, Identifiable, Equatable, Sendable {
     public var slug: String
     public var displayName: String
     public var visibility: String
+    public var supportedReasoningEfforts: [ReasoningEffort]?
     public var id: String { slug }
-    enum CodingKeys: String, CodingKey { case slug, displayName = "display_name", visibility }
+    public var reasoningEfforts: [ReasoningEffort] { supportedReasoningEfforts ?? ReasoningEffort.documented(for: slug) }
+    enum CodingKeys: String, CodingKey { case slug, displayName = "display_name", visibility, supportedReasoningEfforts }
     public static func catalog(from data: Data) throws -> [Self] {
         guard data.count <= 2 * 1024 * 1024 else { throw ChatGPTAuthorizationError.invalidResponse }
         let response = try JSONDecoder().decode(JSONValue.self, from: data)
@@ -116,7 +118,10 @@ public struct ChatGPTModel: Codable, Identifiable, Equatable, Sendable {
         return models.compactMap { item in
             guard item["visibility"]?.stringValue == "list", let slug = item["slug"]?.stringValue, !slug.isEmpty,
                   let title = item["display_name"]?.stringValue, !title.isEmpty, seen.insert(slug).inserted else { return nil }
-            return ChatGPTModel(slug: slug, displayName: title, visibility: "list")
+            let supported = item["supported_reasoning_levels"]?.arrayValue.map { values in
+                ReasoningEffort.allCases.filter { effort in values.contains { ($0["effort"]?.stringValue ?? $0.stringValue) == effort.rawValue } }
+            }
+            return ChatGPTModel(slug: slug, displayName: title, visibility: "list", supportedReasoningEfforts: supported)
         }
     }
 }

@@ -19,7 +19,12 @@ actor DocumentImporter {
         try WorkspaceFile.validateFilename(url.lastPathComponent)
         let data = try Data(contentsOf: url, options: .mappedIfSafe)
         guard data.count <= Self.maximumBytes else { throw AssistantError.provider("The file grew beyond the 25 MB import limit.") }
-        let ext = url.pathExtension.lowercased()
+        return try extract(data, filename: url.lastPathComponent)
+    }
+    func extract(_ data: Data, filename: String) throws -> (WorkspaceFile, Data) {
+        try WorkspaceFile.validateFilename(filename)
+        guard data.count <= Self.maximumBytes else { throw AssistantError.provider("The file exceeds the 25 MB limit.") }
+        let ext = (filename as NSString).pathExtension.lowercased()
         let text: String, note: String
         switch ext {
         case "pdf":
@@ -46,7 +51,7 @@ actor DocumentImporter {
                 note = "Original file retained for preview and sharing. This format has no text reader in this build; the assistant cannot inspect its binary contents."
             }
         }
-        return (WorkspaceFile(filename: url.lastPathComponent, mediaType: UTType(filenameExtension: ext)?.preferredMIMEType ?? "application/octet-stream",
+        return (WorkspaceFile(filename: filename, mediaType: UTType(filenameExtension: ext)?.preferredMIMEType ?? "application/octet-stream",
             byteCount: data.count, text: text, extractionNote: note), data)
     }
     private func bounded(_ text: String) -> String {

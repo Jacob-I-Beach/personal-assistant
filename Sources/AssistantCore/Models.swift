@@ -131,15 +131,18 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var networkDisabled = false
     public var folderID: UUID?
     public var archivedAt: Date?
+    public var needsAutomaticTitle: Bool
+    public var workspaceIDs: Set<UUID> = []
 
     public init(id: UUID = UUID(), title: String = "New conversation") {
         self.id = id; self.title = title; self.createdAt = Date(); self.updatedAt = Date()
         self.messages = []; self.allowedNetworkDestinations = []
+        self.needsAutomaticTitle = title == "New conversation"
     }
     public var attachedCaptureIDs: Set<UUID> { Set(messages.flatMap(\.captureIDs)) }
     public var attachedFileIDs: Set<UUID> { Set(messages.flatMap(\.fileIDs)) }
     public var containsHealthData: Bool { messages.contains(where: \.containsHealthData) }
-    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, folderID, archivedAt }
+    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, folderID, archivedAt, needsAutomaticTitle, workspaceIDs }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion); id = try c.decode(UUID.self, forKey: .id)
@@ -150,6 +153,8 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
         networkDisabled = try c.decodeIfPresent(Bool.self, forKey: .networkDisabled) ?? false
         folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
         archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
+        needsAutomaticTitle = try c.decodeIfPresent(Bool.self, forKey: .needsAutomaticTitle) ?? false
+        workspaceIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .workspaceIDs) ?? []
     }
     public mutating func recoverInterruptedMessages() {
         for i in messages.indices where messages[i].state == .streaming { messages[i].state = .interrupted }

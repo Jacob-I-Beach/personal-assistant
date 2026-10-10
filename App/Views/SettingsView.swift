@@ -63,6 +63,10 @@ struct SettingsView: View {
                     Toggle("Read completed responses aloud", isOn: $draft.speakReplies)
                     Text("You can also play an individual answer from its speaker button. Voice input uses on-device transcription when available.").font(.footnote).foregroundStyle(.secondary)
                 }
+                Section("Conversations") {
+                    Toggle("Automatic chat titles", isOn: $draft.automaticChatTitles)
+                    Text("Uses the selected model to name new chats after the first answer. Names you enter yourself are kept.").font(.footnote).foregroundStyle(.secondary)
+                }
                 Section("About") {
                     Text("Personal Assistant").font(.headline)
                     Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")").font(.caption).foregroundStyle(.secondary)
