@@ -27,6 +27,9 @@ public enum ToolResultPresentation {
             let formatter = NumberFormatter()
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.numberStyle = (abs(number) > 0 && abs(number) < 0.000001) || abs(number) >= 1e12 ? .scientific : .decimal
+            formatter.usesGroupingSeparator = formatter.numberStyle == .decimal
+            formatter.groupingSize = 3; formatter.secondaryGroupingSize = 3
+            formatter.groupingSeparator = ","; formatter.decimalSeparator = "."
             formatter.usesSignificantDigits = true; formatter.maximumSignificantDigits = 10
             return formatter.string(from: NSNumber(value: number)) ?? String(number)
         case .bool(let flag): return flag ? "Yes" : "No"

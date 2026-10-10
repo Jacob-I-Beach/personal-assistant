@@ -25,6 +25,8 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Circumference Km"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["450,270.2391"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "tool_succeeded")).firstMatch.isHittable)
+        XCTAssertTrue(app.staticTexts["Technical details"].exists)
+        XCTAssertTrue(app.staticTexts["Code"].exists)
         saveScreenshot(app, name: "Response-calculation")
         if calculation.isHittable { calculation.tap() }
         for _ in 0..<3 { app.swipeUp() }

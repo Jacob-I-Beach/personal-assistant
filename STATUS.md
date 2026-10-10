@@ -4,7 +4,7 @@
 
 **Jacob reports that 0.3.0 build 3 opens on his iPhone and his previous chats are present. He also confirmed that GPT 6.1 Sol completed the Jupiter request very well, with web sources and JavaScript.** His five screenshots identify presentation defects addressed by the pending 0.3.1 build 4 batch: separate public updates, final-answer actions, persistent web receipts, readable calculation results and native math.
 
-The 0.3.1 shared logic passes 85 Windows tests including the localhost transport suite. Native compilation, math rendering and the new transcript interface test are pending. See [RELEASE_031.md](Documentation/RELEASE_031.md).
+The repaired 0.3.1 shared logic passes 85 Windows tests including the localhost transport suite. Native run 38019229700 compiled the app and passed all ten platform tests, including native math. It exposed an Apple number-grouping difference and theme precedence hiding the code-copy toolbar. Those source repairs are ready; a complete native rerun and device package are pending. [Preview screenshots](Documentation/Screenshots/0.3.1-preview/README.md) and [release details](Documentation/RELEASE_031.md) record the evidence and limits.
 
 Source 6b0ba6ba51b22df7c3821d6b53e4c4607a31da6c passed [native validation 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142): **75 macOS core tests, eight iOS platform tests, four interface tests, and the iPhone/Watch Release build**. Shared-core tests also pass on Windows. Fourteen native simulator screenshots are retained in [Screenshots/0.3.0](Documentation/Screenshots/0.3.0/README.md). The latest sidebar, Library, attached file and rendered PDF were visually inspected. The interface test creates a folder, archives/restores a chat, deletes a disposable chat, attaches a saved CSV, previews a generated PDF and returns to the file view. This is selected coverage, not a complete accessibility or hardware audit.
 
@@ -37,7 +37,7 @@ Use the same iLoader account and keep the existing app installed. See [DEVICE_VA
 
 Official iLoader 2.3.6 does not provision this app's Watch companion or request HealthKit. The iPhone-only deployment gates Health off before authorization/querying. Watch's compiled archive is retained for a compatible signing route. Direct PCC still requires this app's approved entitlement.
 
-Jacob explicitly raised the total hosted-Mac budget to **$10**. The 16 completed jobs total **139 rounded minutes**, an estimated **USD 8.618 if fully billable** at $0.062/minute. This includes failed and cancelled jobs. It is not an account invoice; included allowance, tax and separate artifact storage are not established. Evidence is in [BuildValidation.json](Documentation/BuildValidation.json).
+Jacob explicitly raised the total hosted-Mac budget to **$10**. The 17 completed jobs total **152 rounded minutes**, an estimated **USD 9.424 if fully billable** at $0.062/minute. The remaining $0.576 does not fit a complete native rerun. This includes failed and cancelled jobs. It is not an account invoice; included allowance, tax and separate artifact storage are not established. Evidence is in [BuildValidation.json](Documentation/BuildValidation.json).
 
 ## Historical 0.2 installation
 

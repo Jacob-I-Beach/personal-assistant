@@ -18,6 +18,8 @@ Jacob's live 0.3 GPT 6.1 Sol Jupiter test returned a good sourced answer and a s
 
 A dependency-resolution fixture confirms compatibility with the project's SwiftSyntax constraint. Swift syntax parsing passes. Neither substitutes for Xcode compilation.
 
-Native validation pending: two math parser tests, a synthetic iPhone UI walkthrough of progress/web/calculation/math/final actions, the existing four UI tests and eight platform tests, and physical iPhone/Watch Release builds. A native screenshot review and integrity-checked iPhone-only package are required before delivery.
+Native run 38019229700 compiled the app and passed all ten platform tests, including both native math tests. Three of five UI tests passed. One core assertion and the calculation UI assertion exposed Apple's different default number-grouping behavior; another UI test found the custom code-copy toolbar overridden by the bundled theme. The source repairs explicitly set grouping and place the custom code style inside the bundled theme. All 85 Windows tests pass after repair; native revalidation and the physical iPhone/Watch Release build remain pending.
 
-The current installed version remains 0.3.0 build 3. The image/depth request still needs a physical-device retest. The prior $10 total hosted-Mac ceiling applies; before this batch the ledger totals an estimated $8.618 if all recorded minutes are billable.
+The [native preview captures](Screenshots/0.3.1-preview/README.md) were visually inspected. They confirm separate progress updates, no intermediate assistant actions, working web expansion and typeset inline math. The calculation capture predates the grouping repair. These are intermediate evidence, not release approval.
+
+The current installed version remains 0.3.0 build 3. The image/depth request still needs a physical-device retest. The $10 total hosted-Mac ceiling applies; the ledger now totals an estimated $9.424 if all recorded minutes are billable. The remaining $0.576 is insufficient for a complete native rerun; source and local checks are ready for budget approval.

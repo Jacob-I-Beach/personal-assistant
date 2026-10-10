@@ -7,8 +7,8 @@ struct AssistantMarkdown: View {
     var body: some View {
         StructuredText(markdown: MathMarkdown.normalize(text), syntaxExtensions: [.math])
             .font(.body)
-            .textual.structuredTextStyle(.gitHub)
             .textual.codeBlockStyle(AssistantCodeBlockStyle())
+            .textual.structuredTextStyle(.gitHub)
             .textual.imageAttachmentLoader(ExplicitImageAttachmentLoader())
             .textual.emojiAttachmentLoader(ExplicitImageAttachmentLoader())
             .textual.textSelection(.enabled)
