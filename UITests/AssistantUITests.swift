@@ -98,8 +98,12 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Preview original"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "File-detail")
         app.buttons["Preview original"].tap()
-        XCTAssertTrue(app.buttons["Done"].firstMatch.waitForExistence(timeout: 5))
+        let closePreview = app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"]
+        XCTAssertTrue(closePreview.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["The verified example sum is 60.5."].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "PDF-preview")
+        closePreview.tap()
+        XCTAssertTrue(app.buttons["Preview original"].waitForExistence(timeout: 5))
     }
     func testDarkAndLargeTextControlsRemainUsable() {
         continueAfterFailure = false
