@@ -31,6 +31,8 @@ public struct ModelRequest: Sendable {
 }
 public enum ModelEvent: Sendable {
     case textDelta(String)
+    /// Ordered public text and hosted activity; replaces this provider response's visible content.
+    case responseContent([ResponsePart])
     case activity(String)
     case citations([WebCitation])
     case toolCall(ToolCall)

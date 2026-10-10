@@ -16,7 +16,7 @@ final class TransportTests: XCTestCase, @unchecked Sendable {
         let provider = try backend()
         var result = "", complete = false
         for try await event in provider.stream(request) {
-            if case .textDelta(let text) = event { result += text }
+            if case .responseContent(let parts) = event { result = ResponsePresentation.text(in: parts) }
             if case .completed = event { complete = true }
         }
         XCTAssertEqual(result, "Hello 🌎")

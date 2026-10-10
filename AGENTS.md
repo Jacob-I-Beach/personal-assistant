@@ -22,5 +22,5 @@
 - Keep styling restrained, native, and consistent. Show real work progress and failure states; do not display fabricated reasoning or claim tool success without receipts.
 - Catalog entries need verified runtime/format compatibility and honest memory estimates. Mark performance as unmeasured until tested on this phone; MoE active parameter count is not its total weight-memory requirement.
 
-- Current user-confirmed install: 0.3.0 build 3 opens and prior chats remain. The live GPT 6.1 Sol complex-response test is pending; do not infer it passed from CI.
+- Current user-confirmed install: 0.3.0 build 3 opens and prior chats remain. Jacob confirmed the GPT 6.1 Sol Jupiter response worked very well, including web sources and JavaScript. His five screenshots establish presentation defects: merged public updates, premature response actions, missing hosted web receipts, raw calculation JSON and raw math. Fix these together; image/depth retest remains pending.
 - Hosted-Mac validation ceiling is now $10 total, explicitly approved by Jacob. Read Documentation/BuildValidation.json before dispatching another run; the recorded estimate is $8.618 after final 0.3 validation. Preserve prior release archives.

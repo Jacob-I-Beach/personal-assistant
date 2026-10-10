@@ -141,8 +141,9 @@ struct ChatView: View {
                     if let folder = model.folders.first(where: { $0.id == model.conversation.folderID }) {
                         Label(folder.name, systemImage: "folder").font(.caption).foregroundStyle(.secondary)
                     }
-                    ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
-                        MessageRow(message: message).environmentObject(voice).id(message.id)
+                    let actionIDs = model.conversation.responseActionMessageIDs(isRunning: model.isRunning)
+                    ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || !$0.displayParts.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
+                        MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id)).environmentObject(voice).id(message.id)
                     }
                     ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id }.prefix(6)) { artifact in
                         NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
@@ -167,6 +168,9 @@ struct ChatView: View {
                 else if phase == .idle && nearBottom { followBottom = true }
             }
             .onChange(of: model.conversation.messages.last?.text) { _, _ in
+                if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
+            }
+            .onChange(of: model.conversation.messages.last?.responseParts.count) { _, _ in
                 if followBottom { proxy.scrollTo("conversation-bottom", anchor: .bottom) }
             }
             .onChange(of: model.conversation.messages.count) { _, _ in
@@ -314,57 +318,26 @@ struct ChatView: View {
     }
 }
 
-struct AssistantMarkdown: View {
-    let text: String
-    var body: some View {
-        Markdown(text)
-            .markdownBlockStyle(\.codeBlock) { configuration in
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Text(configuration.language ?? "Code").font(.caption).foregroundStyle(Color.secondary)
-                        Spacer()
-                        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = configuration.content }.font(.caption).accessibilityLabel("Copy code")
-                    }.padding(.horizontal, 12).padding(.top, 10)
-                    ScrollView(.horizontal) {
-                        configuration.label.markdownTextStyle { FontFamilyVariant(.monospaced); FontSize(.em(0.85)) }.padding(12)
-                    }
-                }.background(Color(uiColor: .secondarySystemBackground)).clipShape(RoundedRectangle(cornerRadius: 14)).markdownMargin(top: 4, bottom: 14)
-            }
-            .markdownTheme(.gitHub.text { FontSize(17); ForegroundColor(Color.primary); BackgroundColor(nil) })
-            .markdownImageProvider(ExplicitImagePlaceholder())
-            .markdownInlineImageProvider(NoRemoteInlineImage())
-            .textSelection(.enabled)
-            .environment(\.openURL, OpenURLAction { url in
-                guard ["https", "http"].contains(url.scheme?.lowercased() ?? "") else { return .discarded }
-                return .systemAction
-            })
-    }
-}
-private struct ExplicitImagePlaceholder: MarkdownUI.ImageProvider {
-    func makeImage(url: URL?) -> some View { Label("Linked image", systemImage: "photo").font(.caption).foregroundStyle(.secondary) }
-}
-private struct NoRemoteInlineImage: InlineImageProvider {
-    func image(with url: URL, label: String) async throws -> Image { Image(systemName: "photo") }
-}
 private struct MessageRow: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var voice: VoiceController
     let message: Message
+    let showsResponseActions: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if message.role == .tool {
                 WorkReceiptView(message: message)
             } else {
-                if !message.text.isEmpty { AssistantMarkdown(text: message.citationMarkdown) }
+                if !message.text.isEmpty || !message.displayParts.isEmpty { ResponseContentView(message: message) }
                 if message.state == .interrupted || message.state == .failed {
                     Label(message.state == .interrupted ? "Stopped · partial response saved" : "Incomplete response", systemImage: "pause.circle").font(.caption).foregroundStyle(.secondary)
                     if let reason = message.failureReason { Text(reason).font(.footnote).foregroundStyle(Color.secondary).textSelection(.enabled) }
                 }
                 if message.containsLocalOnlyContext { Label("On-device-only context", systemImage: "iphone").font(.caption2).foregroundStyle(Color.secondary) }
-                if !message.citations.isEmpty {
+                if !message.displayCitations.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Sources").font(.caption.weight(.semibold)).foregroundStyle(Color.secondary)
-                        ForEach(Array(message.citations.enumerated()), id: \.element.id) { index, citation in
+                        ForEach(Array(message.displayCitations.enumerated()), id: \.offset) { index, citation in
                             Link(destination: citation.url) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("[\(index + 1)] \(citation.title)").font(.footnote).multilineTextAlignment(.leading)
@@ -382,13 +355,14 @@ private struct MessageRow: View {
                         NavigationLink { WorkspaceFileView(id: id) } label: { Label(file.filename, systemImage: file.icon).font(.footnote).lineLimit(2).padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 10)) }
                     } else { Label("File removed from Library", systemImage: "doc").font(.caption).foregroundStyle(.secondary) }
                 }
-                if !message.text.isEmpty && message.state != .streaming {
+                if !message.text.isEmpty && (message.role == .user || showsResponseActions) {
                     HStack(spacing: 18) {
-                        Button { UIPasteboard.general.string = message.text } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy message")
-                        ShareLink(item: message.text) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share message")
-                        if message.role == .assistant { Button { voice.speak(MarkdownContent(message.text).renderPlainText()) } label: { Image(systemName: "speaker.wave.2") }.accessibilityLabel("Read response aloud") }
+                        Button { UIPasteboard.general.string = message.answerText } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy message")
+                        ShareLink(item: message.answerText) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share message")
+                        if message.role == .assistant { Button { voice.speak(MarkdownContent(message.answerText).renderPlainText()) } label: { Image(systemName: "speaker.wave.2") }.accessibilityLabel("Read response aloud") }
                         if message.role == .user { Button { model.draft = message.text } label: { Image(systemName: "pencil") }.accessibilityLabel("Use message as draft") }
                     }.font(.caption).foregroundStyle(.secondary).padding(.top, 3)
+                        .accessibilityIdentifier(message.role == .assistant ? "final-response-actions" : "user-message-actions")
                 }
             }
         }

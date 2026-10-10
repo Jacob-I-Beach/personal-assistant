@@ -81,6 +81,7 @@ enum PrivatePaths {
         if ProcessInfo.processInfo.arguments.contains("--ui-empty") { folder = "PersonalAssistant-UITests-Empty" }
         if ProcessInfo.processInfo.arguments.contains("--ui-demo") { folder = "PersonalAssistant-UITests-Demo" }
         if ProcessInfo.processInfo.arguments.contains("--ui-library") { folder = "PersonalAssistant-UITests-Demo" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { folder = "PersonalAssistant-UITests-Presentation" }
         #endif
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)

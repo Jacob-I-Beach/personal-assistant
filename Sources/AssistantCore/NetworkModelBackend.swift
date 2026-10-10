@@ -130,6 +130,7 @@ public struct NetworkModelBackend: ModelBackend {
         }
         if webSearchEnabled {
             body["tools"] = .array((body["tools"]?.arrayValue ?? []) + [.object(["type": .string("web_search")])])
+            body["include"] = .array([.string("reasoning.encrypted_content"), .string("web_search_call.action.sources")])
         }
         return .object(body)
     }
@@ -172,8 +173,8 @@ public struct ModelWireDecoder: Sendable {
     private struct PartialCall: Sendable { var id = ""; var name = ""; var arguments = "" }
     private var chatCalls: [Int: PartialCall] = [:]
     private var responseItems: [Int: JSONValue] = [:]
-    private var streamedText = ""
-    private var finishedTextParts: [Int: [Int: String]] = [:]
+    private var presentationItems: [Int: JSONValue] = [:]
+    private var streamedTextParts: [Int: [Int: String]] = [:]
     private var finishReason: String?
     public init(wireProtocol: NetworkProtocol) { self.wireProtocol = wireProtocol }
 
@@ -216,26 +217,48 @@ public struct ModelWireDecoder: Sendable {
 
     private mutating func consumeResponses(_ payload: JSONValue) throws -> [ModelEvent] {
         switch payload["type"]?.stringValue {
-        case "response.web_search_call.in_progress", "response.web_search_call.searching":
-            return [.activity("Searching the web")]
-        case "response.web_search_call.completed":
-            return [.activity("Preparing the sourced response")]
+        case "response.web_search_call.in_progress", "response.web_search_call.searching", "response.web_search_call.completed":
+            let finished = payload["type"]?.stringValue == "response.web_search_call.completed"
+            var events: [ModelEvent] = [.activity(finished ? "Preparing the sourced response" : "Searching the web")]
+            if payload["output_index"] != nil {
+                let index = try responseIndex(payload["output_index"])
+                var item = presentationItems[index]?.objectValue ?? [:]
+                item["type"] = .string("web_search_call")
+                item["id"] = item["id"] ?? payload["item_id"]
+                item["status"] = .string(finished ? "completed" : "searching")
+                presentationItems[index] = .object(item)
+                events.append(.responseContent(ResponsePresentation.parts(from: presentationItems)))
+            }
+            return events
         case "response.output_item.added":
             if payload["item"]?["type"]?.stringValue == "reasoning" { return [.activity("Thinking through the request")] }
-            return []
+            guard let item = payload["item"] else { return [] }
+            let index = try responseIndex(payload["output_index"])
+            presentationItems[index] = item
+            return publicPresentationEvent(for: item)
         case "response.output_text.delta", "response.refusal.delta":
             guard let delta = payload["delta"]?.stringValue else { return [] }
-            streamedText += delta
-            return [.textDelta(delta)]
+            let output = try responseIndex(payload["output_index"]), content = try responseIndex(payload["content_index"])
+            let text = (streamedTextParts[output]?[content] ?? "") + delta
+            streamedTextParts[output, default: [:]][content] = text
+            setText(text, output: output, content: content, refusal: payload["type"]?.stringValue == "response.refusal.delta")
+            return [.responseContent(ResponsePresentation.parts(from: presentationItems))]
         case "response.output_text.done", "response.refusal.done":
             if let text = payload["text"]?.stringValue ?? payload["refusal"]?.stringValue {
                 let output = try responseIndex(payload["output_index"]), content = try responseIndex(payload["content_index"])
-                finishedTextParts[output, default: [:]][content] = text
+                try validateText(text, output: output, content: content)
+                streamedTextParts[output, default: [:]][content] = text
+                setText(text, output: output, content: content, refusal: payload["type"]?.stringValue == "response.refusal.done")
+                return [.responseContent(ResponsePresentation.parts(from: presentationItems))]
             }
             return []
         case "response.output_item.done":
             if let index = payload["output_index"]?.numberValue, index >= 0, index < 128,
-               index.rounded() == index, let item = payload["item"] { responseItems[Int(index)] = item }
+               index.rounded() == index, let item = payload["item"] {
+                try acceptItem(item, at: Int(index))
+                responseItems[Int(index)] = item
+                return publicPresentationEvent(for: item)
+            }
             return []
         case "response.completed":
             if let status = payload["response"]?["status"]?.stringValue, status != "completed" { throw AssistantError.incompleteResponse }
@@ -244,6 +267,7 @@ public struct ModelWireDecoder: Sendable {
             }
             let terminalOutput = payload["response"]?["output"]?.arrayValue ?? []
             let output = terminalOutput.isEmpty ? responseItems.sorted { $0.key < $1.key }.map(\.value) : terminalOutput
+            for (index, item) in terminalOutput.enumerated() { try acceptItem(item, at: index) }
             var events: [ModelEvent] = []
             for item in output where item["type"]?.stringValue == "function_call" {
                 if let status = item["status"]?.stringValue, status != "completed" { throw AssistantError.incompleteResponse }
@@ -253,42 +277,11 @@ public struct ModelWireDecoder: Sendable {
                 }
                 events.append(.toolCall(ToolCall(id: id, name: name, arguments: try JSONValue.parse(arguments))))
             }
-            var finalText = output.filter { $0["type"]?.stringValue == "message" }.flatMap { $0["content"]?.arrayValue ?? [] }
-                .compactMap { part -> String? in
-                    switch part["type"]?.stringValue {
-                    case "output_text": part["text"]?.stringValue
-                    case "refusal": part["refusal"]?.stringValue
-                    default: nil
-                    }
-                }.joined()
-            if finalText.isEmpty {
-                finalText = finishedTextParts.sorted { $0.key < $1.key }.flatMap { $0.value.sorted { $0.key < $1.key }.map(\.value) }.joined()
-            }
-            if !finalText.isEmpty {
-                guard finalText.utf8.starts(with: streamedText.utf8) else { throw AssistantError.malformedStream("The completed response changed text already received.") }
-                let missing = String(decoding: finalText.utf8.dropFirst(streamedText.utf8.count), as: UTF8.self)
-                if !missing.isEmpty { events.insert(.textDelta(missing), at: 0); streamedText += missing }
-            }
-            guard !streamedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !events.isEmpty else {
+            let parts = ResponsePresentation.parts(from: presentationItems)
+            guard !ResponsePresentation.text(in: parts).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !events.isEmpty else {
                 throw AssistantError.provider("The model completed without an answer or a tool request. Your message and any attached images are saved. Try a new request or another model.")
             }
-            var seen = Set<String>(), citations: [WebCitation] = []
-            var annotationOffset = 0
-            for part in output.filter({ $0["type"]?.stringValue == "message" }).flatMap({ $0["content"]?.arrayValue ?? [] }) {
-                let partText = part["text"]?.stringValue ?? ""
-                func position(_ key: String, in annotation: JSONValue) -> Int? {
-                    guard let n = annotation[key]?.numberValue, n >= 0, n <= Double(partText.unicodeScalars.count), n.rounded() == n else { return nil }
-                    return annotationOffset + Int(n)
-                }
-                for annotation in part["annotations"]?.arrayValue ?? [] where annotation["type"]?.stringValue == "url_citation" {
-                    if let url = annotation["url"]?.stringValue,
-                       let citation = WebCitation(title: annotation["title"]?.stringValue ?? "", url: url,
-                                                  startIndex: position("start_index", in: annotation), endIndex: position("end_index", in: annotation)),
-                       seen.insert(citation.id).inserted, citations.count < 32 { citations.append(citation) }
-                }
-                annotationOffset += partText.unicodeScalars.count
-            }
-            if !citations.isEmpty { events.append(.citations(citations)) }
+            if !parts.isEmpty { events.insert(.responseContent(parts), at: 0) }
             completed = true
             return events + [.continuation(output), .completed]
         case "response.failed", "error":
@@ -296,6 +289,44 @@ public struct ModelWireDecoder: Sendable {
         case "response.incomplete": throw AssistantError.incompleteResponse
         default: return []
         }
+    }
+
+    private func publicPresentationEvent(for item: JSONValue) -> [ModelEvent] {
+        guard ["message", "web_search_call"].contains(item["type"]?.stringValue ?? "") else { return [] }
+        return [.responseContent(ResponsePresentation.parts(from: presentationItems))]
+    }
+    private mutating func setText(_ text: String, output: Int, content: Int, refusal: Bool) {
+        var item = presentationItems[output]?.objectValue ?? ["type": .string("message")]
+        var parts = item["content"]?.arrayValue ?? []
+        while parts.count <= content { parts.append(.null) }
+        var part = parts[content].objectValue ?? [:]
+        part["type"] = .string(refusal ? "refusal" : "output_text")
+        part[refusal ? "refusal" : "text"] = .string(text)
+        parts[content] = .object(part); item["content"] = .array(parts)
+        presentationItems[output] = .object(item)
+    }
+    private func validateText(_ text: String, output: Int, content: Int) throws {
+        if let streamed = streamedTextParts[output]?[content], !text.utf8.starts(with: streamed.utf8) {
+            throw AssistantError.malformedStream("The completed response changed text already received.")
+        }
+    }
+    private mutating func acceptItem(_ item: JSONValue, at index: Int) throws {
+        let contents = item["content"]?.arrayValue ?? []
+        for (content, text) in streamedTextParts[index] ?? [:] where !text.isEmpty {
+            guard item["type"]?.stringValue == "message", content < contents.count,
+                  let final = contents[content]["text"]?.stringValue ?? contents[content]["refusal"]?.stringValue else {
+                throw AssistantError.malformedStream("The completed response omitted text already received.")
+            }
+            try validateText(final, output: index, content: content)
+        }
+        if item["type"]?.stringValue == "message" {
+            for (content, part) in (item["content"]?.arrayValue ?? []).enumerated() {
+                if let text = part["text"]?.stringValue ?? part["refusal"]?.stringValue {
+                    try validateText(text, output: index, content: content)
+                }
+            }
+        }
+        presentationItems[index] = item
     }
     private func responseIndex(_ value: JSONValue?) throws -> Int {
         guard let value else { return 0 }

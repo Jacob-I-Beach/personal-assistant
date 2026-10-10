@@ -94,8 +94,8 @@ struct SettingsView: View {
 private struct AcknowledgmentsView: View {
     var body: some View {
         List {
-            Text("Built with Apple's platform frameworks, MLX Swift LM, Hugging Face, SQLite, QuickJS-NG, JOSESwift, MarkdownUI, and ZIPFoundation.")
-            ForEach(["QuickJS-License", "JOSESwift-License", "MarkdownUI-License", "ZIPFoundation-License"], id: \.self) { name in
+            Text("Built with Apple's platform frameworks, MLX Swift LM, Hugging Face, SQLite, QuickJS-NG, JOSESwift, Textual, SwiftUIMath, MarkdownUI, and ZIPFoundation.")
+            ForEach(["QuickJS-License", "JOSESwift-License", "MarkdownUI-License", "ZIPFoundation-License", "Textual-License", "SwiftUIMath-License", "ConcurrencyExtras-License", "Prism-License"], id: \.self) { name in
                 if let url = Bundle.main.url(forResource: name, withExtension: "txt"), let text = try? String(contentsOf: url, encoding: .utf8) {
                     NavigationLink(name.replacingOccurrences(of: "-License", with: "")) { ScrollView { Text(text).font(.caption).textSelection(.enabled).padding() }.navigationTitle("License") }
                 }

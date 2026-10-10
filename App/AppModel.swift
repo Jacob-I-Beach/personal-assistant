@@ -110,6 +110,7 @@ final class AppModel: ObservableObject {
                 try? await store.recoverWatchRequests()
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--ui-demo") { await installDemoFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { await installPresentationFixture() }
                 #endif
                 await refresh()
                 // A cold launch opens a fresh canvas. Saved chats/drafts are resumed only by selection.
@@ -726,6 +727,44 @@ final class AppModel: ObservableObject {
         Task { await publishWatch(reply) }
     }
     #if DEBUG
+    private func installPresentationFixture() async {
+        guard let store else { return }
+        do {
+            // Synthetic provider records exercise restoration of a 0.3 transcript without any network request.
+            let items = try JSONValue.parse(#"""
+            [
+              {"type":"message","id":"plan","phase":"commentary","content":[{"type":"output_text","text":"I’ll check the reference values, then calculate the circumference."}]},
+              {"type":"web_search_call","id":"search","status":"completed","action":{"type":"search","query":"planet reference dimensions","sources":[{"type":"url","title":"Example reference","url":"https://example.com/reference"}]}},
+              {"type":"message","id":"assumptions","phase":"commentary","content":[{"type":"output_text","text":"No observations were supplied, so I’ll use an illustrative example."}]}
+            ]
+            """#).arrayValue!
+            let call = ToolCall(id: "synthetic-calculation", name: "run_javascript", arguments: .object(["code": .string("return { result: { diameterKm: 143325.46854641213, circumferenceKm: 450270.2390577233 } };")]))
+            let parts = ResponsePresentation.parts(from: items)
+            let legacy = Message(role: .assistant, text: parts.map(\.text).joined(), toolCalls: [call],
+                                 continuation: .init(providerID: "synthetic-ui-fixture", items: items))
+            let result = Message(role: .tool, text: #"{"tool_succeeded":true,"execution_location":"on-device","elapsed_ms":2,"result":{"circumferenceKm":450270.2390577233,"diameterKm":143325.46854641213},"artifacts":[]}"#, toolCallID: call.id)
+            let answer = #"""
+            ## Approximately 450,000 km
+
+            This is an illustrative estimate, using a rounded angular size and distance.
+
+            With angular diameter \(\theta\) and distance \(d\):
+
+            \[D \approx d\theta \qquad C \approx \pi d\theta.\]
+
+            | Quantity | Value |
+            | --- | ---: |
+            | Diameter | 143,325 km |
+            | Circumference | 450,270 km |
+
+            The useful rounded result is **about 450,000 km**. The precision depends on the assumed observations.
+            """#
+            var sample = Conversation(id: UUID(uuidString: "00000000-0000-4000-8000-000000000031")!, title: "Response presentation")
+            sample.messages = [Message(role: .user, text: "Estimate a planet’s circumference from limited observations."), legacy, result,
+                               Message(role: .assistant, text: answer, responseParts: [.init(id: "answer", text: answer, phase: "final_answer")])]
+            try await store.save(sample); conversation = try await store.loadConversation(sample.id)
+        } catch { errorMessage = error.localizedDescription }
+    }
     private func installDemoFixture() async {
         guard let store else { return }
         var sample = Conversation(id: UUID(uuidString: "00000000-0000-4000-8000-000000000003")!, title: "Burgundy study project")

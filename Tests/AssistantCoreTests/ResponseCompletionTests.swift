@@ -5,7 +5,7 @@ import XCTest
 final class ResponseCompletionTests: XCTestCase, @unchecked Sendable {
     private func event(_ text: String) -> ServerSentEvent { ServerSentEvent(event: nil, data: text) }
     private func text(_ events: [ModelEvent]) -> String {
-        events.compactMap { if case .textDelta(let value) = $0 { value } else { nil } }.joined()
+        events.compactMap { if case .responseContent(let parts) = $0 { ResponsePresentation.text(in: parts) } else { nil } }.last ?? ""
     }
     func testFinalOnlyImageAnswerIsDisplayed() throws {
         var decoder = ModelWireDecoder(wireProtocol: .responses)
@@ -68,7 +68,7 @@ final class ResponseCompletionTests: XCTestCase, @unchecked Sendable {
         let activity = try decoder.consume(event(#"{"type":"response.web_search_call.searching"}"#))
         guard case .activity("Searching the web") = activity.first else { return XCTFail("Missing search activity") }
         let events = try decoder.consume(event(#"{"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"A sourced fact.","annotations":[{"type":"url_citation","title":"Fixture source","url":"https://example.test/fact"},{"type":"url_citation","title":"Repeated","url":"https://example.test/fact"},{"type":"url_citation","title":"Unsafe","url":"javascript:alert(1)"}]}]}]}}"#))
-        let sources = events.flatMap { if case .citations(let values) = $0 { values } else { [] as [WebCitation] } }
+        let sources = events.flatMap { if case .responseContent(let parts) = $0 { parts.flatMap(\.citations) } else { [] as [WebCitation] } }
         XCTAssertEqual(sources.count, 1)
         var message = Message(role: .assistant, text: "A sourced fact.")
         message.citations = sources

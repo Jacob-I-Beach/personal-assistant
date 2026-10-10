@@ -2,6 +2,37 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testOrderedProgressWebAndReadableCalculation() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-presentation", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        // A restored chat may initially scroll to the last answer.
+        for _ in 0..<4 { app.swipeDown() }
+        XCTAssertTrue(app.staticTexts["Searched the web"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["I’ll check the reference values, then calculate the circumference."].exists)
+        XCTAssertTrue(app.staticTexts["No observations were supplied, so I’ll use an illustrative example."].exists)
+        XCTAssertFalse(app.buttons["Read response aloud"].isHittable)
+        saveScreenshot(app, name: "Response-progress-and-web")
+        app.staticTexts["Searched the web"].tap()
+        XCTAssertTrue(app.staticTexts["Example reference"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Response-web-sources")
+        app.staticTexts["Searched the web"].tap()
+        let calculation = app.staticTexts["Calculated with JavaScript"]
+        if !calculation.isHittable { app.swipeUp() }
+        XCTAssertTrue(calculation.waitForExistence(timeout: 5)); calculation.tap()
+        XCTAssertTrue(app.staticTexts["Circumference Km"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["450,270.2391"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "tool_succeeded")).firstMatch.isHittable)
+        saveScreenshot(app, name: "Response-calculation")
+        if calculation.isHittable { calculation.tap() }
+        for _ in 0..<3 { app.swipeUp() }
+        XCTAssertTrue(app.buttons["Read response aloud"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "Read response aloud").count, 1)
+        saveScreenshot(app, name: "Response-math-and-answer")
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
     func testWelcomeCatalogAndSettings() {
         continueAfterFailure = false
         let app = XCUIApplication()

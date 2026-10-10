@@ -7,10 +7,15 @@ struct WorkReceiptView: View {
     private var call: ToolCall? { model.conversation.messages.flatMap(\.toolCalls).first { $0.id == message.toolCallID } }
     private var toolName: String { call?.name == "use_tool" ? call?.arguments["name"]?.stringValue ?? "use_tool" : call?.name ?? "tool" }
     private var output: JSONValue? { try? JSONValue.parse(message.text) }
+    private var arguments: JSONValue? { ToolResultPresentation.arguments(of: call) }
+    private var resultFields: [ToolResultPresentation.Field] {
+        guard let value = output?["result"] else { return [] }
+        return ToolResultPresentation.fields(value)
+    }
     private var title: String {
         if message.toolFailureDescription != nil { return "Action needs attention" }
         switch toolName {
-        case "run_javascript": return "Ran JavaScript on this iPhone"
+        case "run_javascript": return "Calculated with JavaScript"
         case "create_artifact": return "Created a file"
         case "create_pdf": return "Created a PDF"
         case "search_history": return "Searched this conversation"
@@ -41,24 +46,66 @@ struct WorkReceiptView: View {
             }.padding(.vertical, 6)
         } else {
             DisclosureGroup {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let call {
-                        Text("Request").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                        Text(call.arguments["code"]?.stringValue ?? call.arguments["arguments_json"]?.stringValue ?? (try? call.arguments.jsonString()) ?? "")
-                            .font(.caption.monospaced()).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 14) {
+                    if toolName == "run_javascript", message.toolFailureDescription == nil {
+                        ForEach(resultFields) { field in
+                            ViewThatFits(in: .horizontal) {
+                                HStack(alignment: .firstTextBaseline, spacing: 20) {
+                                    Text(field.label).foregroundStyle(.secondary)
+                                    Spacer(minLength: 0)
+                                    Text(field.value).multilineTextAlignment(.trailing).monospacedDigit()
+                                }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(field.label).foregroundStyle(.secondary)
+                                    Text(field.value).monospacedDigit()
+                                }
+                            }.font(.subheadline).textSelection(.enabled)
+                        }
+                        ForEach(Array((output?["artifacts"]?.arrayValue ?? []).enumerated()), id: \.offset) { _, artifact in
+                            if let filename = artifact["filename"]?.stringValue {
+                                Label(filename, systemImage: "doc").font(.subheadline)
+                            }
+                        }
+                        Text("Values are rounded for display. Exact values are available in Technical details.")
+                            .font(.caption2).foregroundStyle(.secondary)
                     }
-                    Text("Result").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                    Text(message.text).font(.caption.monospaced()).textSelection(.enabled)
-                }.padding(.top, 6)
+                    if let code = arguments?["code"]?.stringValue {
+                        DisclosureGroup("Code") {
+                            ScrollView(.horizontal) { Text(code).font(.caption.monospaced()).textSelection(.enabled).padding(.vertical, 8) }
+                            Button("Copy code", systemImage: "doc.on.doc") { UIPasteboard.general.string = code }.font(.caption)
+                        }.font(.footnote)
+                    }
+                    DisclosureGroup("Technical details") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let call {
+                                Text("Request").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                                Text((try? call.arguments.jsonString()) ?? "").font(.caption.monospaced()).textSelection(.enabled)
+                            }
+                            Text("Exact result").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                            Text(message.text).font(.caption.monospaced()).textSelection(.enabled)
+                        }.padding(.top, 8)
+                    }.font(.footnote)
+                }.padding(.top, 12)
             } label: {
                 VStack(alignment: .leading, spacing: 5) {
                     Label(title, systemImage: message.toolFailureDescription == nil ? "checkmark.circle" : "exclamationmark.circle")
                         .font(.footnote.weight(.medium)).foregroundStyle(message.toolFailureDescription == nil ? Color.secondary : Color.red)
                     if let failure = message.toolFailureDescription { Text(failure).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
                     else if let filename = output?["filename"]?.stringValue { Text(filename).font(.caption).foregroundStyle(.secondary) }
-                    else if toolName == "run_javascript", let value = output?["result"], let text = try? value.jsonString() { Text(String(text.prefix(160))).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(3) }
+                    else if toolName == "run_javascript" {
+                        Text(resultFields.count == 1 ? (resultFields.first?.value ?? "Completed") : "\(resultFields.count) calculated values")
+                            .font(.subheadline).foregroundStyle(.primary).lineLimit(2)
+                        Text("On this iPhone").font(.caption).foregroundStyle(.secondary)
+                    } else if let matches = output?["matches"]?.arrayValue {
+                        Text("\(matches.count) matches").font(.caption).foregroundStyle(.secondary)
+                    } else if toolName == "find_tools", let tools = output?["tools"]?.arrayValue {
+                        Text("\(tools.count) available tools").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
+            .tint(.secondary)
+            .padding(14).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityIdentifier("tool-receipt")
         }
     }
 }

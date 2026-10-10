@@ -59,11 +59,12 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var containsLocalOnlyContext: Bool
     public var failureReason: String?
     public var citations: [WebCitation]
+    public var responseParts: [ResponsePart]
 
     public init(id: UUID = UUID(), role: MessageRole, text: String, state: MessageState = .complete,
                 captureIDs: [UUID] = [], fileIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
                 providerID: String? = nil, continuation: ProviderContinuation? = nil, containsHealthData: Bool = false,
-                containsLocalOnlyContext: Bool = false, failureReason: String? = nil, citations: [WebCitation] = []) {
+                containsLocalOnlyContext: Bool = false, failureReason: String? = nil, citations: [WebCitation] = [], responseParts: [ResponsePart] = []) {
         self.id = id; self.role = role; self.text = text; self.createdAt = Date(); self.state = state
         self.captureIDs = captureIDs; self.fileIDs = fileIDs; self.toolCalls = toolCalls; self.toolCallID = toolCallID
         self.providerID = providerID; self.continuation = continuation
@@ -71,8 +72,9 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         self.containsLocalOnlyContext = containsLocalOnlyContext
         self.failureReason = failureReason
         self.citations = citations
+        self.responseParts = responseParts
     }
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
@@ -86,6 +88,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         containsLocalOnlyContext = try c.decodeIfPresent(Bool.self, forKey: .containsLocalOnlyContext) ?? false
         failureReason = try c.decodeIfPresent(String.self, forKey: .failureReason)
         citations = try c.decodeIfPresent([WebCitation].self, forKey: .citations) ?? []
+        responseParts = try c.decodeIfPresent([ResponsePart].self, forKey: .responseParts) ?? []
     }
     public var toolFailureDescription: String? {
         guard role == .tool else { return nil }
@@ -96,6 +99,9 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     }
     /// The app makes source annotations clickable without modifying the provider transcript kept on disk.
     public var citationMarkdown: String {
+        Self.citationMarkdown(text: text, citations: citations)
+    }
+    public static func citationMarkdown(text: String, citations: [WebCitation], startingAt: Int = 0) -> String {
         var result = text
         let characters = Array(text.unicodeScalars)
         var precedingBoundary = characters.count
@@ -103,7 +109,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
             guard let start = citation.startIndex, let end = citation.endIndex, end <= precedingBoundary, start <= end else { continue }
             let original = String(String.UnicodeScalarView(characters[start..<end]))
             let url = citation.url.absoluteString.replacingOccurrences(of: "<", with: "%3C").replacingOccurrences(of: ">", with: "%3E")
-            let link = "[\(number + 1)](<\(url)>)"
+            let link = "[\(startingAt + number + 1)](<\(url)>)"
             let lower = result.unicodeScalars.index(result.unicodeScalars.startIndex, offsetBy: original.contains("\u{E200}") ? start : end)
             let upper = result.unicodeScalars.index(result.unicodeScalars.startIndex, offsetBy: end)
             result.replaceSubrange(lower..<upper, with: " " + link)

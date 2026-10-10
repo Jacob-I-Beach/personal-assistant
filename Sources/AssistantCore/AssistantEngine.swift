@@ -106,6 +106,9 @@ public actor AssistantEngine {
                     try Task.checkCancellation()
                     switch event {
                     case .textDelta(let text): assistant.text += text
+                    case .responseContent(let parts):
+                        assistant.responseParts = parts
+                        assistant.text = ResponsePresentation.text(in: parts)
                     case .activity(let status): output.yield(.activity(status))
                     case .citations(let citations): assistant.citations = citations
                     case .toolCall(let call): assistant.toolCalls.append(call)

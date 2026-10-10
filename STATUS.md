@@ -2,7 +2,9 @@
 
 ## Current 0.3 release
 
-**Jacob reports that 0.3.0 build 3 opens on his iPhone and his previous chats are present.** The in-place iLoader update is confirmed by that report. Live-model regression checks are now underway.
+**Jacob reports that 0.3.0 build 3 opens on his iPhone and his previous chats are present. He also confirmed that GPT 6.1 Sol completed the Jupiter request very well, with web sources and JavaScript.** His five screenshots identify presentation defects addressed by the pending 0.3.1 build 4 batch: separate public updates, final-answer actions, persistent web receipts, readable calculation results and native math.
+
+The 0.3.1 shared logic passes 85 Windows tests including the localhost transport suite. Native compilation, math rendering and the new transcript interface test are pending. See [RELEASE_031.md](Documentation/RELEASE_031.md).
 
 Source 6b0ba6ba51b22df7c3821d6b53e4c4607a31da6c passed [native validation 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142): **75 macOS core tests, eight iOS platform tests, four interface tests, and the iPhone/Watch Release build**. Shared-core tests also pass on Windows. Fourteen native simulator screenshots are retained in [Screenshots/0.3.0](Documentation/Screenshots/0.3.0/README.md). The latest sidebar, Library, attached file and rendered PDF were visually inspected. The interface test creates a folder, archives/restores a chat, deletes a disposable chat, attaches a saved CSV, previews a generated PDF and returns to the file view. This is selected coverage, not a complete accessibility or hardware audit.
 
@@ -25,9 +27,9 @@ Details are in [RELEASE_03.md](Documentation/RELEASE_03.md) and [OPERATING_BEHAV
 
 Jacob confirmed 0.2 installation and launch, ChatGPT authorization, account-model loading and a simple live reply. His Apple-model screenshot showed correct addition code rejected for returning an array, followed by an invented 61.55 total saved as JSON under a CSV filename. Tests now reproduce that code yielding **60.5**, allow its return shape, and guard failure-to-file recovery.
 
-GPT 6.1 Sol also stopped without an answer on image/depth and text-only Jupiter requests. The source had a confirmed defect discarding completed tool calls when the terminal response contained an empty output list. That defect is corrected and tested, and genuinely blank completion becomes a persisted visible failure. A live 0.3 Jupiter retest is pending after the confirmed update.
+GPT 6.1 Sol previously stopped without an answer on image/depth and text-only Jupiter requests. The source had a confirmed defect discarding completed tool calls when the terminal response contained an empty output list. That defect is corrected and tested, and genuinely blank completion becomes a persisted visible failure. The live 0.3 Jupiter retest passed according to Jacob and his screenshots. An image/depth retest remains pending.
 
-Native actions, camera/depth, dictation, web-search account policy and local model loading/speed/heat still need physical-device checks. CI uses synthetic fixtures and no paid external model inference. AppIntents SSU archive diagnostics remain nonfatal; actual Siri/Shortcuts discovery is not established by the build. Existing voice-session deprecation/main-thread warnings remain recorded for follow-up.
+Native actions, camera/depth, dictation and local model loading/speed/heat still need physical-device checks. Web search is confirmed for Jacob's tested account/model request; other account policies are not inferred. CI uses synthetic fixtures and no paid external model inference. AppIntents SSU archive diagnostics remain nonfatal; actual Siri/Shortcuts discovery is not established by the build. Existing voice-session deprecation/main-thread warnings remain recorded for follow-up.
 
 ## Installation and spending
 
