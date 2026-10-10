@@ -65,9 +65,17 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Native-export-completed")
         app.buttons["Export another copy"].tap()
         XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 8))
-        // iOS 27's destination sheet has Save/Back here; dragging its header dismisses it.
-        let header = app.buttons["Save"].coordinate(withNormalizedOffset: CGVector(dx: -1.8, dy: 0.5))
+        // Drag the blank sheet margin above the navigation controls. The title itself opens a path menu.
+        let header = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: app.frame.midX, dy: app.buttons["Save"].frame.minY - 16))
         header.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)))
+        if !app.staticTexts["Export cancelled."].waitForExistence(timeout: 2) {
+            // Some provider locations expose Cancel only after returning to their root.
+            for _ in 0..<3 {
+                if app.buttons["Cancel"].firstMatch.isHittable { app.buttons["Cancel"].firstMatch.tap(); break }
+                let back = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].buttons["BackButton"]
+                if back.isHittable { back.tap() } else { break }
+            }
+        }
         XCTAssertTrue(app.staticTexts["Export cancelled."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }

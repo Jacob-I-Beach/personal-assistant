@@ -10,13 +10,18 @@ on:
         description: Also produce an unsigned physical-iPhone package for local signing
         type: boolean
         default: false
+      validation_scope:
+        description: Full suite, or export repair plus all platform tests when other UI checks already passed on identical app source
+        type: choice
+        options: [full, export-repair]
+        default: full
 permissions:
   contents: read
 jobs:
   ios:
     # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
     runs-on: xcode-27
-    timeout-minutes: 20
+    timeout-minutes: ${{ inputs.validation_scope == 'export-repair' && 15 || 20 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -75,7 +80,11 @@ jobs:
           trap 'xcrun simctl shutdown "$simulator_id" || true' EXIT
           xcrun simctl bootstatus "$simulator_id" -b
           set -o pipefail
-          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
+          test_options=()
+          if [ "${{ inputs.validation_scope }}" = "export-repair" ]; then
+            test_options+=("-only-testing:PersonalAssistantPlatformTests" "-only-testing:PersonalAssistantUITests/AssistantUITests/testConnectedFolderAndFilesOutputs")
+          fi
+          xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 "${test_options[@]}" CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots
         if: always()
         run: |
