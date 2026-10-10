@@ -49,7 +49,8 @@ final class TransportTests: XCTestCase, @unchecked Sendable {
         catch AssistantError.provider(let message) { XCTAssertTrue(message.contains("401")) }
     }
     func testFullHTTPToolLoopUsesTheSavedCapture() async throws {
-        let provider = try backend(path: "/tool/v1")
+        for path in ["/tool/v1", "/tool-empty/v1"] {
+        let provider = try backend(path: path)
         let store = try makeTestStore(), capture = testCapture()
         try await store.saveCapture(capture, jpeg: Data([1, 2, 3]))
         var conversation = Conversation()
@@ -58,5 +59,17 @@ final class TransportTests: XCTestCase, @unchecked Sendable {
         let result = try await store.loadConversation(conversation.id)
         XCTAssertEqual(result.messages.map(\.role), [.user, .assistant, .tool, .assistant])
         XCTAssertEqual(result.messages.last?.text, "Verified saved capture.")
+        }
+    }
+    func testEmptyHTTPCompletionPersistsAVisibleFailureReason() async throws {
+        let provider = try backend(path: "/empty/v1"), store = try makeTestStore()
+        var conversation = Conversation(); conversation.allowedNetworkDestinations.insert(provider.networkDestination!)
+        do {
+            for try await _ in AssistantEngine(store: store).respond(conversation: conversation, text: "Inspect", captureIDs: [], backend: provider) { }
+            XCTFail("Empty response was presented as success")
+        } catch { XCTAssertTrue(error.localizedDescription.contains("without an answer")) }
+        let saved = try await store.loadConversation(conversation.id)
+        XCTAssertEqual(saved.messages.last?.state, .failed)
+        XCTAssertTrue(saved.messages.last?.failureReason?.contains("without an answer") == true)
     }
 }

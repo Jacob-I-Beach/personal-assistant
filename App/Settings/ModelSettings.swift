@@ -16,7 +16,7 @@ enum ModelChoice: String, CaseIterable, Codable, Identifiable {
 }
 
 struct ModelSettings: Codable, Equatable {
-    var choice: ModelChoice = .localMLX
+    var choice: ModelChoice = .chatGPT
     var localRepository = "mlx-community/Qwen3.5-4B-4bit"
     var localRevision = "0e7ffd5c629ef7719d4cbc04069232580bfa9d9c"
     var localResponseTokens = 2048
@@ -29,10 +29,14 @@ struct ModelSettings: Codable, Equatable {
     var includeInDeviceBackup = false
     var localOnly = false
     var healthToolsEnabled = false
+    var chatGPTWebSearch = true
+    var workspaceSearchEnabled = false
+    var speakReplies = false
 
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
-        case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled
+        case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled, chatGPTWebSearch
+        case workspaceSearchEnabled, speakReplies
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -50,6 +54,9 @@ struct ModelSettings: Codable, Equatable {
         includeInDeviceBackup = try values.decodeIfPresent(Bool.self, forKey: .includeInDeviceBackup) ?? false
         localOnly = try values.decodeIfPresent(Bool.self, forKey: .localOnly) ?? false
         healthToolsEnabled = try values.decodeIfPresent(Bool.self, forKey: .healthToolsEnabled) ?? false
+        chatGPTWebSearch = try values.decodeIfPresent(Bool.self, forKey: .chatGPTWebSearch) ?? true
+        workspaceSearchEnabled = try values.decodeIfPresent(Bool.self, forKey: .workspaceSearchEnabled) ?? false
+        speakReplies = try values.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? false
     }
 
     var endpoint: URL? {
@@ -73,6 +80,7 @@ enum PrivatePaths {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-empty") { folder = "PersonalAssistant-UITests-Empty" }
         if ProcessInfo.processInfo.arguments.contains("--ui-demo") { folder = "PersonalAssistant-UITests-Demo" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-library") { folder = "PersonalAssistant-UITests-Demo" }
         #endif
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)

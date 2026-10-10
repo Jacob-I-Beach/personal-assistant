@@ -15,7 +15,7 @@ public enum ScriptError: Error, LocalizedError, Equatable, Sendable {
         case .stopped: "Script execution stopped because it was cancelled or reached its time limit."
         case .memoryLimit: "The script exceeded the available execution memory."
         case .outputLimit: "The script produced too much output."
-        case .invalidOutput: "Return an object with a JSON-compatible result and an optional files object containing text files."
+        case .invalidOutput: "Return a JSON-compatible value, or {result: value, files: {'name.csv': 'text'}} to save text files. Files need valid filenames and string contents."
         case .script(let message): "Script error: \(message)"
         }
     }
@@ -67,12 +67,14 @@ public actor JavaScriptSandbox {
         case 4: throw ScriptError.memoryLimit
         default: throw ScriptError.script(String(decoding: data, as: UTF8.self))
         }
-        guard let object = try JSONDecoder().decode(JSONValue.self, from: data).objectValue,
-              Set(object.keys).isSubset(of: ["result", "files"]), let result = object["result"] else {
-            throw ScriptError.invalidOutput
-        }
+        let returned = try JSONDecoder().decode(JSONValue.self, from: data)
+        // Ordinary JavaScript return values are useful results. Only the explicit
+        // result/files envelope opts into the file-output protocol.
+        let object = returned.objectValue
+        let isEnvelope = object?["result"] != nil && Set(object!.keys).isSubset(of: ["result", "files"])
+        let result = isEnvelope ? object!["result"]! : returned
         var files: [String: String] = [:]
-        if let outputFiles = object["files"] {
+        if isEnvelope, let outputFiles = object?["files"] {
             guard let values = outputFiles.objectValue, values.count <= 12 else { throw ScriptError.invalidOutput }
             for (name, value) in values {
                 guard validFilename(name), let content = value.stringValue else { throw ScriptError.invalidOutput }

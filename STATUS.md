@@ -1,3 +1,7 @@
+# 0.3 implementation checkpoint
+
+The installed app remains **0.2.0 build 2**. The 0.3 source batch now includes the sidebar/folders, files/PDFs, device actions, expanded model catalog and response fixes described in [RELEASE_03.md](Documentation/RELEASE_03.md). **75 Windows tests pass**; native validation is pending under the newly approved $10 total budget. Do not install or describe 0.3 as validated yet.
+
 # Implementation status
 
 This file records implemented features, validation evidence, and user-reported device checks.
@@ -12,11 +16,17 @@ All nine Mac jobs used 80 rounded runner minutes, an estimated $4.96 at $0.062/m
 
 Implemented source includes SQLite migration and search, bounded working context, actual offline JavaScript execution, durable editable artifacts, explicit saved memory and local-only classification, ChatGPT account authorization/model selection, Apple model adapters, a verified downloadable/importable MLX catalog, native voice input/read-aloud, Health overview logic, Watch request delivery/recovery, and rebuilt native screens. Details and remaining product scope are in [README.md](README.md) and [Documentation/IMPLEMENTATION.md](Documentation/IMPLEMENTATION.md).
 
-Jacob has now reported that the updated 0.2.0 app is installed and opens on his iPhone. This is the latest physical installation/launch checkpoint. Live ChatGPT grant, real on-device inference/tool use, prior-chat preservation, physical Health reads, Watch exchange, and hardware benchmarks are not established by launch alone. The simulator uses synthetic conversation fixtures and does not establish model output quality.
+Jacob has now reported that the updated 0.2.0 app is installed and opens on his iPhone. He subsequently confirmed that ChatGPT authorization completes, account models load, and a live reply arrives. This establishes user-reported physical launch and the basic ChatGPT account path. Prior-chat preservation, physical Health reads, Watch exchange, and hardware benchmarks remain unverified. The simulator uses synthetic conversation fixtures and does not establish model output quality.
 
 Jacob confirmed the USB phone is visible in iLoader. His first 0.2 import stopped before installation: `Failed to list developer devices` -> `Failed to get anisette headers` -> HTTP 502 from `https://ani.sidestore.io/v3/get_headers`. The agent reviewed the exact official iLoader server/login code and provided manual steps to select its built-in SideStore (.app) preset, sign out and back into the same account inside iLoader, then retry the same verified IPA. The selected server is bound when the session is constructed at login. Public `/v3/client_info` requests returned HTTP 200 for the .io, .app, and .zip presets; that check alone did not verify signing. Jacob then confirmed, "Installed, and Version 0.2.0 opens." No desktop GUI actions have been taken since his request to handle GUI interactions himself.
 
-The next requested physical test uses an available Apple on-device model to run JavaScript on `[18.5, 27.25, 14.75]`, return 60.5, and save/open `totals.csv`. Its result is awaiting Jacob's report.
+In the first live Apple-model test (AFM 3 Core Advanced), Jacob reported a CSV with total 61.55 instead of 60.5. His screenshot establishes the cause: the generated JavaScript correctly adds `[18.5, 27.25, 14.75]` and returns an array, which our 0.2 envelope-only adapter rejects. The model then ignores that error and calls create_artifact with a fabricated JSON-style list ending in 61.55, named totals.csv. The final answer incorrectly claims the calculation succeeded. This is an observed failure of the tool contract and failure-handling path, not evidence of incorrect JavaScript arithmetic.
+
+### Corrective source: 0.3.0 build 3
+
+The prepared correction accepts ordinary JSON-compatible JavaScript returns, marks tool success explicitly in provider output, retains failed tool states and displays "Tool failed" (including legacy error receipts), prevents follow-up artifact creation while a script is unfinished or failed, and rejects JSON arrays/objects merely renamed to .csv. Computed-file instructions direct models to generate the file from the same variables in the script's files output. This does not guarantee arbitrary model-generated calculations are correct.
+
+All 56 shared-core tests pass on Windows, including the exact screenshot code returning 60.5, ordinary JSON returns, blocked fabricated follow-up artifacts, recovery producing a persisted correct CSV, legacy failure visibility, concurrent failure ordering, and both provider/native execution receipt paths. Native source passes syntax parsing only at this stage. A new hosted Mac validation/device build requires an increase to the previously authorized $5 compute ceiling; current known usage is approximately $4.96 if billable. No further Mac run has been dispatched for this correction.
 
 ### Installation boundary
 

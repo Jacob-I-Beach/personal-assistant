@@ -11,7 +11,17 @@ struct LocalModelCatalogEntry: Codable, Identifiable, Equatable, Sendable {
     var supportsVision: Bool
     var validation: String
     var files: [File]
+    var architecture: String?
+    var weightBytes: Int64?
+    var estimatedMemoryLowBytes: Int64?
+    var estimatedMemoryHighBytes: Int64?
+    var mixtureOfExperts: String?
+    var sourceURL: URL?
     var downloadSize: String { ByteCountFormatter.string(fromByteCount: downloadBytes, countStyle: .file) }
+    var memoryEstimate: String {
+        guard let low = estimatedMemoryLowBytes, let high = estimatedMemoryHighBytes else { return "Not estimated" }
+        return ByteCountFormatter.string(fromByteCount: low, countStyle: .memory) + "–" + ByteCountFormatter.string(fromByteCount: high, countStyle: .memory)
+    }
     static func bundled() throws -> [Self] {
         guard let url = Bundle.main.url(forResource: "ModelCatalog", withExtension: "json") else { return [] }
         let entries = try JSONDecoder().decode([Self].self, from: Data(contentsOf: url))

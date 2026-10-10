@@ -64,7 +64,12 @@
         "bytes": 6722759,
         "sha256": null
       }
-    ]
+    ],
+    "weightBytes": 1722271785,
+    "estimatedMemoryLowBytes": 2678544738,
+    "estimatedMemoryHighBytes": 4548569458,
+    "architecture": "qwen3_5",
+    "sourceURL": "https://huggingface.co/mlx-community/Qwen3.5-2B-4bit/tree/674aaa7240b91e8012fcad5d791b7dfe5ba90207"
   },
   {
     "id": "mlx-community/Qwen3.5-4B-4bit",
@@ -126,7 +131,12 @@
         "bytes": 6722759,
         "sha256": null
       }
-    ]
+    ],
+    "weightBytes": 3034300695,
+    "estimatedMemoryLowBytes": 4187377984,
+    "estimatedMemoryHighBytes": 6582214269,
+    "architecture": "qwen3_5",
+    "sourceURL": "https://huggingface.co/mlx-community/Qwen3.5-4B-4bit/tree/0e7ffd5c629ef7719d4cbc04069232580bfa9d9c"
   },
   {
     "id": "mlx-community/Qwen3.5-9B-4bit",
@@ -198,6 +208,467 @@
         "bytes": 6722759,
         "sha256": null
       }
-    ]
+    ],
+    "weightBytes": 5950221072,
+    "estimatedMemoryLowBytes": 7540686418,
+    "estimatedMemoryHighBytes": 11101890853,
+    "architecture": "qwen3_5",
+    "sourceURL": "https://huggingface.co/mlx-community/Qwen3.5-9B-4bit/tree/8b2b98c00a6b4d291155e4890773ca8f769aee53"
+  },
+  {
+    "id": "mlx-community/granite-3.3-2b-instruct-4bit",
+    "name": "IBM Granite 3.3 2B",
+    "summary": "IBM’s compact text assistant for grounded document work and structured responses.",
+    "revision": "58246c5498495c14599525c852cfadb66c9f3084",
+    "downloadBytes": 1430231606,
+    "format": "MLX · 4-bit",
+    "supportsVision": false,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 956,
+        "sha256": null
+      },
+      {
+        "name": "added_tokens.json",
+        "bytes": 207,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 1001,
+        "sha256": null
+      },
+      {
+        "name": "merges.txt",
+        "bytes": 441810,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 1425458043,
+        "sha256": "f37ff14b14f2db07b4fc476e57e619b038b264fcc9f0681bc13274772698ac93"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 65280,
+        "sha256": null
+      },
+      {
+        "name": "special_tokens_map.json",
+        "bytes": 801,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 3476578,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 9935,
+        "sha256": null
+      },
+      {
+        "name": "vocab.json",
+        "bytes": 776995,
+        "sha256": null
+      }
+    ],
+    "architecture": "granite",
+    "weightBytes": 1425458043,
+    "estimatedMemoryLowBytes": 2337208935,
+    "estimatedMemoryHighBytes": 4088508158,
+    "mixtureOfExperts": null,
+    "sourceURL": "https://huggingface.co/mlx-community/granite-3.3-2b-instruct-4bit/tree/58246c5498495c14599525c852cfadb66c9f3084"
+  },
+  {
+    "id": "mlx-community/Granite-4.0-H-Tiny-4bit-DWQ",
+    "name": "IBM Granite 4.0 H Tiny",
+    "summary": "A hybrid mixture-of-experts text model. Experimental on this phone; all expert weights count toward memory.",
+    "revision": "a892ded1552d6d4089fa644bbff6ccbc54dddc67",
+    "downloadBytes": 3916357612,
+    "format": "MLX · 4-bit",
+    "supportsVision": false,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 922,
+        "sha256": null
+      },
+      {
+        "name": "chat_template.jinja",
+        "bytes": 6099,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 11996,
+        "sha256": null
+      },
+      {
+        "name": "generation_config.json",
+        "bytes": 147,
+        "sha256": null
+      },
+      {
+        "name": "merges.txt",
+        "bytes": 916646,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 3906536773,
+        "sha256": "4ec9ee5411ed34493e3f28dbf11ed545b0bb34a0e5c02806a7dcfeacb35c579d"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 100666,
+        "sha256": null
+      },
+      {
+        "name": "special_tokens_map.json",
+        "bytes": 579,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 7153421,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 17659,
+        "sha256": null
+      },
+      {
+        "name": "vocab.json",
+        "bytes": 1612704,
+        "sha256": null
+      }
+    ],
+    "architecture": "granitemoehybrid",
+    "weightBytes": 3906536773,
+    "estimatedMemoryLowBytes": 5190449474,
+    "estimatedMemoryHighBytes": 7934180190,
+    "mixtureOfExperts": "Hybrid MoE",
+    "sourceURL": "https://huggingface.co/mlx-community/Granite-4.0-H-Tiny-4bit-DWQ/tree/a892ded1552d6d4089fa644bbff6ccbc54dddc67"
+  },
+  {
+    "id": "mlx-community/SmolLM3-3B-4bit",
+    "name": "SmolLM3 3B",
+    "summary": "A compact multilingual text model for everyday drafting and document questions.",
+    "revision": "d3a7e0594d6642dbcfb7d149bed8b0bdf49f95ce",
+    "downloadBytes": 1747379242,
+    "format": "MLX · 4-bit",
+    "supportsVision": false,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 879,
+        "sha256": null
+      },
+      {
+        "name": "chat_template.jinja",
+        "bytes": 5499,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 2394,
+        "sha256": null
+      },
+      {
+        "name": "generation_config.json",
+        "bytes": 182,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 1730051993,
+        "sha256": "d501e6193d7eb84e10d3c377007d1fc4b4b2fa08799dd10fa4f6a75033334a70"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 58800,
+        "sha256": null
+      },
+      {
+        "name": "special_tokens_map.json",
+        "bytes": 289,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 17208819,
+        "sha256": "7b6a500b662a34eb3f0374db856ba4ad7de4c81040571d78dc0d357238930005"
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 50387,
+        "sha256": null
+      }
+    ],
+    "architecture": "smollm3",
+    "weightBytes": 1730051993,
+    "estimatedMemoryLowBytes": 2687491977,
+    "estimatedMemoryHighBytes": 4560628781,
+    "mixtureOfExperts": null,
+    "sourceURL": "https://huggingface.co/mlx-community/SmolLM3-3B-4bit/tree/d3a7e0594d6642dbcfb7d149bed8b0bdf49f95ce"
+  },
+  {
+    "id": "mlx-community/LFM2-1.2B-4bit",
+    "name": "Liquid LFM2 1.2B",
+    "summary": "A lighter hybrid text model for short tasks and tool-oriented offline workflows.",
+    "revision": "3843e4ad0fcb8b7ed8a050908ac8f0bb5320d1bf",
+    "downloadBytes": 663390551,
+    "format": "MLX · 4-bit",
+    "supportsVision": false,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 918,
+        "sha256": null
+      },
+      {
+        "name": "chat_template.jinja",
+        "bytes": 209,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 1254,
+        "sha256": null
+      },
+      {
+        "name": "generation_config.json",
+        "bytes": 137,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 658540250,
+        "sha256": "575bdb17dcfcd09a84ba702983984683584ad612ba006d05679ef20460442269"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 23414,
+        "sha256": null
+      },
+      {
+        "name": "special_tokens_map.json",
+        "bytes": 434,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 4732426,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 91509,
+        "sha256": null
+      }
+    ],
+    "architecture": "lfm2",
+    "weightBytes": 658540250,
+    "estimatedMemoryLowBytes": 1455253473,
+    "estimatedMemoryHighBytes": 2899785579,
+    "mixtureOfExperts": null,
+    "sourceURL": "https://huggingface.co/mlx-community/LFM2-1.2B-4bit/tree/3843e4ad0fcb8b7ed8a050908ac8f0bb5320d1bf"
+  },
+  {
+    "id": "mlx-community/LFM2-8B-A1B-3bit-MLX",
+    "name": "Liquid LFM2 8B A1B",
+    "summary": "A larger hybrid MoE: 8.3B total parameters, about 1.5B active. Experimental 3-bit package; total weights remain resident.",
+    "revision": "0b05ca1d3fe12b7c9b9b57df674752eb63a46e5f",
+    "downloadBytes": 4176558356,
+    "format": "MLX · 3-bit",
+    "supportsVision": false,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 4353,
+        "sha256": null
+      },
+      {
+        "name": "chat_template.jinja",
+        "bytes": 1296,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 6419,
+        "sha256": null
+      },
+      {
+        "name": "generation_config.json",
+        "bytes": 137,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 4171677477,
+        "sha256": "aef1f8f4ada85e01e7ff07cb413d34c9e565d7becd537846b911cad15305a220"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 43344,
+        "sha256": null
+      },
+      {
+        "name": "special_tokens_map.json",
+        "bytes": 434,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 4733020,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 91876,
+        "sha256": null
+      }
+    ],
+    "architecture": "lfm2_moe",
+    "weightBytes": 4171677477,
+    "estimatedMemoryLowBytes": 5495361284,
+    "estimatedMemoryHighBytes": 8345148281,
+    "mixtureOfExperts": "8.3B total · 1.5B active",
+    "sourceURL": "https://huggingface.co/mlx-community/LFM2-8B-A1B-3bit-MLX/tree/0b05ca1d3fe12b7c9b9b57df674752eb63a46e5f"
+  },
+  {
+    "id": "mlx-community/gemma-4-e2b-it-4bit",
+    "name": "Google Gemma 4 E2B",
+    "summary": "A multimodal Gemma option for text and image tasks. Effective parameter size is not total weight memory.",
+    "revision": "238767527555cb75a05732a84dff5d6ba0dd6809",
+    "downloadBytes": 3583087091,
+    "format": "MLX · 4-bit",
+    "supportsVision": true,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 593,
+        "sha256": null
+      },
+      {
+        "name": "chat_template.jinja",
+        "bytes": 17336,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 6395,
+        "sha256": null
+      },
+      {
+        "name": "generation_config.json",
+        "bytes": 208,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 3550670554,
+        "sha256": "038e39a37a7667373d2c3991375446b10c96ae1d717a68674870343db376b76e"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 218323,
+        "sha256": null
+      },
+      {
+        "name": "processor_config.json",
+        "bytes": 1316,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 32169626,
+        "sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f"
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 2740,
+        "sha256": null
+      }
+    ],
+    "architecture": "gemma4",
+    "weightBytes": 3550670554,
+    "estimatedMemoryLowBytes": 4781203322,
+    "estimatedMemoryHighBytes": 7382587550,
+    "mixtureOfExperts": null,
+    "sourceURL": "https://huggingface.co/mlx-community/gemma-4-e2b-it-4bit/tree/238767527555cb75a05732a84dff5d6ba0dd6809"
+  },
+  {
+    "id": "mlx-community/gemma-4-e4b-it-4bit",
+    "name": "Google Gemma 4 E4B",
+    "summary": "A larger multimodal Gemma option. More memory headroom is needed for images and long context.",
+    "revision": "475b9088d29754a3379866cf5aeb6b41acd313c2",
+    "downloadBytes": 5179239942,
+    "format": "MLX · 4-bit",
+    "supportsVision": true,
+    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "files": [
+      {
+        "name": "README.md",
+        "bytes": 593,
+        "sha256": null
+      },
+      {
+        "name": "chat_template.jinja",
+        "bytes": 17336,
+        "sha256": null
+      },
+      {
+        "name": "config.json",
+        "bytes": 6628,
+        "sha256": null
+      },
+      {
+        "name": "generation_config.json",
+        "bytes": 208,
+        "sha256": null
+      },
+      {
+        "name": "model.safetensors",
+        "bytes": 5146800534,
+        "sha256": "932b8271fc3fe65adcc78b96c10c6268bbfb13e8f67d1358727c0d6ee97e1eff"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "bytes": 240961,
+        "sha256": null
+      },
+      {
+        "name": "processor_config.json",
+        "bytes": 1316,
+        "sha256": null
+      },
+      {
+        "name": "tokenizer.json",
+        "bytes": 32169626,
+        "sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f"
+      },
+      {
+        "name": "tokenizer_config.json",
+        "bytes": 2740,
+        "sha256": null
+      }
+    ],
+    "architecture": "gemma4",
+    "weightBytes": 5146800534,
+    "estimatedMemoryLowBytes": 6616752799,
+    "estimatedMemoryHighBytes": 9856589019,
+    "mixtureOfExperts": null,
+    "sourceURL": "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/tree/475b9088d29754a3379866cf5aeb6b41acd313c2"
   }
 ]

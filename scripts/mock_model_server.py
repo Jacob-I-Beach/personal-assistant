@@ -36,12 +36,14 @@ class Handler(BaseHTTPRequestHandler):
                 {"choices": [{"delta": {}, "finish_reason": "stop"}]},
                 "[DONE]",
             ]
-        elif self.path.startswith("/tool/") and not any(item.get("type") == "function_call_output" for item in body.get("input", [])):
+        elif self.path.startswith("/empty/"):
+            events = [{"type": "response.completed", "response": {"status": "completed", "output": []}}]
+        elif self.path.startswith(("/tool/", "/tool-empty/")) and not any(item.get("type") == "function_call_output" for item in body.get("input", [])):
             capture_id = body["input"][-1]["content"][0]["text"].split("[Attached capture ", 1)[1].split(",", 1)[0]
             call = {"type": "function_call", "id": "fc_fixture", "call_id": "call_fixture", "name": "read_capture", "arguments": json.dumps({"capture_id": capture_id})}
-            events = [{"type": "response.output_item.done", "output_index": 0, "item": call}, {"type": "response.completed", "response": {"output": [call]}}]
+            events = [{"type": "response.output_item.done", "output_index": 0, "item": call}, {"type": "response.completed", "response": {"output": [] if self.path.startswith("/tool-empty/") else [call]}}]
         else:
-            text = "Verified saved capture." if self.path.startswith("/tool/") else "Hello 🌎"
+            text = "Verified saved capture." if self.path.startswith(("/tool/", "/tool-empty/")) else "Hello 🌎"
             events = [{"type": "response.output_text.delta", "delta": text}]
             if self.path.startswith("/failed/"):
                 events.append({"type": "response.failed", "response": {"error": {"message": "Synthetic failure after a partial answer"}}})

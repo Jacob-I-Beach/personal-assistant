@@ -80,4 +80,71 @@ final class StorageAndContextTests: XCTestCase, @unchecked Sendable {
         ])))
         XCTAssertFalse(denied.succeeded)
     }
+
+    func testFailedScriptCannotBeReplacedWithAnInventedArtifactAndCanRecover() async throws {
+        let store = try makeTestStore(), conversation = Conversation()
+        try await store.save(conversation)
+        let tools = AssistantTools(store: store, conversationID: conversation.id, captureIDs: [], sandbox: JavaScriptSandbox())
+        let failed = try await tools.execute(ToolCall(id: "failed-script", name: "run_javascript", arguments: .object([
+            "code": .string("throw new Error('fixture failure');"), "input_json": .string("null")
+        ])))
+        XCTAssertFalse(failed.succeeded)
+        XCTAssertEqual(try JSONValue.parse(failed.modelText())["tool_succeeded"], .bool(false))
+        let invented = try await tools.execute(ToolCall(id: "invented-file", name: "create_artifact", arguments: .object([
+            "filename": .string("totals.csv"), "content": .string("value\n18.5\n27.25\n14.75\n61.55")
+        ])))
+        XCTAssertFalse(invented.succeeded)
+        let beforeRecovery = try await store.artifacts(conversationID: conversation.id)
+        XCTAssertTrue(beforeRecovery.isEmpty)
+        let recovered = try await tools.execute(ToolCall(id: "recovered-script", name: "run_javascript", arguments: .object([
+            "code": .string("""
+            const values = input.values;
+            const total = values.reduce((sum, value) => sum + value, 0);
+            const csv = 'value\\n' + [...values, total].join('\\n') + '\\n';
+            return {result: total, files: {'totals.csv': csv}};
+            """), "input_json": .string("{\"values\":[18.5,27.25,14.75]}")
+        ])))
+        XCTAssertTrue(recovered.succeeded); XCTAssertEqual(recovered.output["result"], .number(60.5))
+        let reopened = try LocalStore(root: store.root)
+        let artifacts = try await reopened.artifacts(conversationID: conversation.id)
+        XCTAssertEqual(artifacts.map(\.content), ["value\n18.5\n27.25\n14.75\n60.5\n"])
+        XCTAssertEqual(artifacts.first?.sourceCallID, "recovered-script")
+        let note = try await tools.execute(ToolCall(id: "after-recovery", name: "create_artifact", arguments: .object([
+            "filename": .string("notes.md"), "content": .string("A successful calculation is available.")
+        ])))
+        XCTAssertTrue(note.succeeded)
+    }
+
+    func testJSONRenamedToCSVIsRejectedAndToolFailuresRemainVisible() async throws {
+        let store = try makeTestStore(), conversation = Conversation()
+        try await store.save(conversation)
+        let tools = AssistantTools(store: store, conversationID: conversation.id, captureIDs: [], sandbox: JavaScriptSandbox())
+        let result = try await tools.execute(ToolCall(id: "mislabelled", name: "create_artifact", arguments: .object([
+            "filename": .string("totals.csv"), "content": .string("[18.5,27.25,14.75,61.55]")
+        ])))
+        XCTAssertFalse(result.succeeded)
+        let legacy = Message(role: .tool, text: "{\"error\":\"fixture failure\"}")
+        XCTAssertEqual(legacy.toolFailureDescription, "fixture failure")
+        let saved = Message(role: .tool, text: try result.modelText(), state: .failed)
+        XCTAssertNotNil(saved.toolFailureDescription)
+        let roundTrip = try JSONDecoder().decode(Message.self, from: JSONEncoder().encode(saved))
+        XCTAssertEqual(roundTrip.toolFailureDescription, saved.toolFailureDescription)
+        let success = Message(role: .tool, text: "{\"result\":{\"error\":\"ordinary data\"},\"tool_succeeded\":true}")
+        XCTAssertNil(success.toolFailureDescription)
+    }
+
+    func testOlderConcurrentScriptSuccessDoesNotClearANewerFailure() async {
+        let status = ToolExecutionStatus()
+        let first = await status.beginScript(), second = await status.beginScript()
+        let whileRunning = await status.canAuthorArtifact
+        XCTAssertFalse(whileRunning)
+        await status.finishScript(second, succeeded: false)
+        await status.finishScript(first, succeeded: true)
+        let afterFailure = await status.canAuthorArtifact
+        XCTAssertFalse(afterFailure)
+        let retry = await status.beginScript()
+        await status.finishScript(retry, succeeded: true)
+        let recovered = await status.canAuthorArtifact
+        XCTAssertTrue(recovered)
+    }
 }

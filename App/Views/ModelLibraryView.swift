@@ -1,11 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import os
 
 struct ModelLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var importEntry: LocalModelCatalogEntry?
     @State private var showImport = false
+    @State private var availableMemory: UInt64 = 0
     var body: some View {
         NavigationStack {
             List {
@@ -52,6 +54,11 @@ struct ModelLibraryView: View {
                     appleRow(model.appleCloud, location: .privateCloud)
                 }
                 Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("This iPhone").font(.headline)
+                        Text("\(ByteCountFormatter.string(fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory), countStyle: .memory)) physical memory · \(ByteCountFormatter.string(fromByteCount: Int64(availableMemory), countStyle: .memory)) currently available to this app").font(.caption).foregroundStyle(.secondary)
+                        Text("Memory availability changes as iOS manages other work. Estimates below include working overhead, but context and images can increase it.").font(.caption2).foregroundStyle(.secondary)
+                    }.padding(.vertical, 5)
                     ForEach(model.catalog) { entry in
                         VStack(alignment: .leading, spacing: 11) {
                             HStack(alignment: .firstTextBaseline) {
@@ -65,6 +72,12 @@ struct ModelLibraryView: View {
                                 if entry.supportsVision { Label("Images", systemImage: "photo") }
                                 Text(entry.format)
                             }.font(.caption).foregroundStyle(.secondary)
+                            Label("Estimated working memory: \(entry.memoryEstimate)", systemImage: "memorychip").font(.caption).foregroundStyle(.secondary)
+                            if let low = entry.estimatedMemoryLowBytes, availableMemory > 0 {
+                                Text(UInt64(low) > availableMemory ? "Above current memory headroom · experimental fit" : "Within the estimate at this moment · speed unmeasured").font(.caption2).foregroundStyle(.secondary)
+                            }
+                            if let moe = entry.mixtureOfExperts { Text("MoE · \(moe). All expert weights count toward memory.").font(.caption2).foregroundStyle(.secondary) }
+                            if let source = entry.sourceURL { Link("Model card & pinned package", destination: source).font(.caption) }
                             if model.downloadingModelID == entry.id {
                                 ProgressView(value: model.downloadProgress)
                                 HStack { Text(model.modelStatus).font(.caption); Spacer(); Button("Stop", role: .cancel) { model.stopDownload() }.font(.subheadline) }
@@ -85,7 +98,7 @@ struct ModelLibraryView: View {
             }
             .navigationTitle("Models")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .task { await model.refreshDownloads() }
+            .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads() }
             .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in
                 guard let entry = importEntry else { return }
                 switch result {

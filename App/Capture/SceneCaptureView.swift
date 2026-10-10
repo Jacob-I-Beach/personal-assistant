@@ -127,6 +127,7 @@ struct SceneCaptureSheet: View {
                 } label: {
                     Label(controller.isCapturing ? "Reading capture…" : "Capture and attach", systemImage: "camera.shutter.button")
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(Color(uiColor: .systemBackground))
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!controller.authorized || controller.isCapturing)

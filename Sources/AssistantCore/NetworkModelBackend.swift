@@ -12,14 +12,17 @@ public struct NetworkModelBackend: ModelBackend {
     private let credential: String
     private let transport: any HTTPStreamingTransport
     private let chatGPTAccountID: String?
-    public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") }
+    private let webSearchEnabled: Bool
+    public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") + (webSearchEnabled ? ":web-search" : "") }
     public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
+    public var supportsFileInputs: Bool { wireProtocol == .responses && baseURL.absoluteString == "https://api.openai.com/v1" }
     public var contextLimits: ContextLimits {
         ContextLimits(maximumTextBytes: chatGPTAccountID == nil ? 32_768 : 128_000, maximumImages: 4)
     }
 
     public init(baseURL: URL, model: String, wireProtocol: NetworkProtocol,
-                credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil) throws {
+                credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil,
+                webSearchEnabled: Bool = false) throws {
         try EndpointPolicy.validate(baseURL)
         guard !credential.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             throw AssistantError.invalidEndpoint("The credential contains a line break or control character. Paste only the credential value.")
@@ -35,6 +38,10 @@ public struct NetworkModelBackend: ModelBackend {
         self.baseURL = baseURL; self.model = model; self.wireProtocol = wireProtocol
         self.credential = credential; self.transport = transport
         self.chatGPTAccountID = chatGPTAccountID
+        guard !webSearchEnabled || chatGPTAccountID != nil else {
+            throw AssistantError.invalidEndpoint("This web-search setting is available for ChatGPT account connections only.")
+        }
+        self.webSearchEnabled = webSearchEnabled
     }
 
     public func makeRequest(_ input: ModelRequest) throws -> URLRequest {
@@ -88,10 +95,14 @@ public struct NetworkModelBackend: ModelBackend {
                 // Retain provider-specific reasoning/output items only for the exact original model.
                 items.append(contentsOf: state.items)
             } else {
-                if !m.text.isEmpty || !entry.images.isEmpty {
+                if !m.text.isEmpty || !entry.images.isEmpty || !entry.files.isEmpty {
                     let type = m.role == .user ? "input_text" : "output_text"
                     var content: [JSONValue] = [.object(["type": .string(type), "text": .string(m.text)])]
                     if m.role == .user { content += entry.images.map { imagePart($0, responses: true) } }
+                    if m.role == .user && supportsFileInputs {
+                        content += entry.files.map { .object(["type": .string("input_file"), "filename": .string($0.filename),
+                            "file_data": .string("data:\($0.mediaType);base64," + $0.data.base64EncodedString())]) }
+                    }
                     items.append(.object(["role": .string(m.role.rawValue), "content": .array(content)]))
                 }
                 for call in m.toolCalls {
@@ -104,7 +115,7 @@ public struct NetworkModelBackend: ModelBackend {
         }
         var body: [String: JSONValue] = [
             "model": .string(model), "stream": .bool(true), "store": .bool(false),
-            "instructions": .string(input.instructions), "input": .array(items),
+            "instructions": .string(input.instructions + (webSearchEnabled ? "\nWeb search is enabled subject to the selected model and account policy. Use it for current or sourced facts. Cite returned sources with visible Markdown links; do not invent citations." : "")), "input": .array(items),
             "include": .array([.string("reasoning.encrypted_content")]),
         ]
         if !input.tools.isEmpty {
@@ -116,6 +127,9 @@ public struct NetworkModelBackend: ModelBackend {
                 .object(["type": .string("namespace"), "name": .string("assistant"),
                          "description": .string("Tools executed by the user's assistant app."), "tools": .array(functions)])
             ])
+        }
+        if webSearchEnabled {
+            body["tools"] = .array((body["tools"]?.arrayValue ?? []) + [.object(["type": .string("web_search")])])
         }
         return .object(body)
     }
@@ -158,6 +172,8 @@ public struct ModelWireDecoder: Sendable {
     private struct PartialCall: Sendable { var id = ""; var name = ""; var arguments = "" }
     private var chatCalls: [Int: PartialCall] = [:]
     private var responseItems: [Int: JSONValue] = [:]
+    private var streamedText = ""
+    private var finishedTextParts: [Int: [Int: String]] = [:]
     private var finishReason: String?
     public init(wireProtocol: NetworkProtocol) { self.wireProtocol = wireProtocol }
 
@@ -173,7 +189,7 @@ public struct ModelWireDecoder: Sendable {
             return calls + [.completed]
         }
         let payload = try JSONValue.parse(event.data)
-        if let error = payload["error"] { throw AssistantError.provider(error["message"]?.stringValue ?? "Model server reported an error.") }
+        if let error = payload["error"], error != .null { throw AssistantError.provider(error["message"]?.stringValue ?? "Model server reported an error.") }
         return try wireProtocol == .responses ? consumeResponses(payload) : consumeChat(payload)
     }
 
@@ -200,22 +216,79 @@ public struct ModelWireDecoder: Sendable {
 
     private mutating func consumeResponses(_ payload: JSONValue) throws -> [ModelEvent] {
         switch payload["type"]?.stringValue {
-        case "response.output_text.delta":
-            return payload["delta"]?.stringValue.map { [.textDelta($0)] } ?? []
+        case "response.web_search_call.in_progress", "response.web_search_call.searching":
+            return [.activity("Searching the web")]
+        case "response.web_search_call.completed":
+            return [.activity("Preparing the sourced response")]
+        case "response.output_item.added":
+            if payload["item"]?["type"]?.stringValue == "reasoning" { return [.activity("Thinking through the request")] }
+            return []
+        case "response.output_text.delta", "response.refusal.delta":
+            guard let delta = payload["delta"]?.stringValue else { return [] }
+            streamedText += delta
+            return [.textDelta(delta)]
+        case "response.output_text.done", "response.refusal.done":
+            if let text = payload["text"]?.stringValue ?? payload["refusal"]?.stringValue {
+                let output = try responseIndex(payload["output_index"]), content = try responseIndex(payload["content_index"])
+                finishedTextParts[output, default: [:]][content] = text
+            }
+            return []
         case "response.output_item.done":
             if let index = payload["output_index"]?.numberValue, index >= 0, index < 128,
                index.rounded() == index, let item = payload["item"] { responseItems[Int(index)] = item }
             return []
         case "response.completed":
-            let output = payload["response"]?["output"]?.arrayValue ?? responseItems.sorted { $0.key < $1.key }.map(\.value)
+            if let status = payload["response"]?["status"]?.stringValue, status != "completed" { throw AssistantError.incompleteResponse }
+            if let error = payload["response"]?["error"], error != .null {
+                throw AssistantError.provider(error["message"]?.stringValue ?? "The model request failed.")
+            }
+            let terminalOutput = payload["response"]?["output"]?.arrayValue ?? []
+            let output = terminalOutput.isEmpty ? responseItems.sorted { $0.key < $1.key }.map(\.value) : terminalOutput
             var events: [ModelEvent] = []
             for item in output where item["type"]?.stringValue == "function_call" {
+                if let status = item["status"]?.stringValue, status != "completed" { throw AssistantError.incompleteResponse }
                 guard let id = item["call_id"]?.stringValue, !id.isEmpty, let name = item["name"]?.stringValue, !name.isEmpty,
                       let arguments = item["arguments"]?.stringValue, arguments.utf8.count <= 32768 else {
                     throw AssistantError.malformedStream("Incomplete function call in completed response.")
                 }
                 events.append(.toolCall(ToolCall(id: id, name: name, arguments: try JSONValue.parse(arguments))))
             }
+            var finalText = output.filter { $0["type"]?.stringValue == "message" }.flatMap { $0["content"]?.arrayValue ?? [] }
+                .compactMap { part -> String? in
+                    switch part["type"]?.stringValue {
+                    case "output_text": part["text"]?.stringValue
+                    case "refusal": part["refusal"]?.stringValue
+                    default: nil
+                    }
+                }.joined()
+            if finalText.isEmpty {
+                finalText = finishedTextParts.sorted { $0.key < $1.key }.flatMap { $0.value.sorted { $0.key < $1.key }.map(\.value) }.joined()
+            }
+            if !finalText.isEmpty {
+                guard finalText.utf8.starts(with: streamedText.utf8) else { throw AssistantError.malformedStream("The completed response changed text already received.") }
+                let missing = String(decoding: finalText.utf8.dropFirst(streamedText.utf8.count), as: UTF8.self)
+                if !missing.isEmpty { events.insert(.textDelta(missing), at: 0); streamedText += missing }
+            }
+            guard !streamedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !events.isEmpty else {
+                throw AssistantError.provider("The model completed without an answer or a tool request. Your message and any attached images are saved. Try a new request or another model.")
+            }
+            var seen = Set<String>(), citations: [WebCitation] = []
+            var annotationOffset = 0
+            for part in output.filter({ $0["type"]?.stringValue == "message" }).flatMap({ $0["content"]?.arrayValue ?? [] }) {
+                let partText = part["text"]?.stringValue ?? ""
+                func position(_ key: String, in annotation: JSONValue) -> Int? {
+                    guard let n = annotation[key]?.numberValue, n >= 0, n <= Double(partText.unicodeScalars.count), n.rounded() == n else { return nil }
+                    return annotationOffset + Int(n)
+                }
+                for annotation in part["annotations"]?.arrayValue ?? [] where annotation["type"]?.stringValue == "url_citation" {
+                    if let url = annotation["url"]?.stringValue,
+                       let citation = WebCitation(title: annotation["title"]?.stringValue ?? "", url: url,
+                                                  startIndex: position("start_index", in: annotation), endIndex: position("end_index", in: annotation)),
+                       seen.insert(citation.id).inserted, citations.count < 32 { citations.append(citation) }
+                }
+                annotationOffset += partText.unicodeScalars.count
+            }
+            if !citations.isEmpty { events.append(.citations(citations)) }
             completed = true
             return events + [.continuation(output), .completed]
         case "response.failed", "error":
@@ -223,5 +296,12 @@ public struct ModelWireDecoder: Sendable {
         case "response.incomplete": throw AssistantError.incompleteResponse
         default: return []
         }
+    }
+    private func responseIndex(_ value: JSONValue?) throws -> Int {
+        guard let value else { return 0 }
+        guard let number = value.numberValue, number >= 0, number < 128, number.rounded() == number else {
+            throw AssistantError.malformedStream("Invalid response content index.")
+        }
+        return Int(number)
     }
 }

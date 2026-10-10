@@ -2,6 +2,32 @@ import XCTest
 @testable import AssistantCore
 
 final class SandboxTests: XCTestCase, @unchecked Sendable {
+    func testDeviceReportedArrayReturnRetainsTheComputedTotal() async throws {
+        // Exact source shown in Jacob's failed 0.2 Apple-model tool request.
+        let result = try await JavaScriptSandbox().run(code: """
+        function add_array(values) {
+          let total = values[0] + values[1] + values[2];
+          return [values[0], values[1], values[2], total];
+        }
+        const result = add_array([18.5, 27.25, 14.75]);
+        return result;
+        """)
+        XCTAssertEqual(result.result, .array([.number(18.5), .number(27.25), .number(14.75), .number(60.5)]))
+        XCTAssertTrue(result.files.isEmpty)
+    }
+
+    func testOrdinaryJSONReturnsDoNotRequireAProtocolEnvelope() async throws {
+        let sandbox = JavaScriptSandbox()
+        for (code, expected) in [
+            ("return 3 + 4;", JSONValue.number(7)),
+            ("return null;", .null),
+            ("return 'done';", .string("done")),
+            ("return {sum: 7, rows: [3,4]};", .object(["sum": .number(7), "rows": .array([.number(3), .number(4)])]))
+        ] {
+            let result = try await sandbox.run(code: code)
+            XCTAssertEqual(result.result, expected); XCTAssertTrue(result.files.isEmpty)
+        }
+    }
     func testTransformsSelectedInputAndProducesAnArtifact() async throws {
         let result = try await JavaScriptSandbox().run(code: """
         const rows = input.values.map(x => x * 2);

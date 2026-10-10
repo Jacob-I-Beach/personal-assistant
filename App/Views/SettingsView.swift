@@ -9,6 +9,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section { NavigationLink { DeviceAccessView() } label: { Label("Tools & device", systemImage: "iphone") } }
                 Section("ChatGPT") {
                     ForEach(model.accounts) { account in
                         VStack(alignment: .leading, spacing: 8) {
@@ -20,6 +21,8 @@ struct SettingsView: View {
                     }
                     Button("Continue with ChatGPT") { model.connectChatGPT() }.disabled(model.isConnecting || model.isRunning)
                     Link("Manage ChatGPT usage", destination: URL(string: "https://chatgpt.com/settings/usage")!)
+                    Toggle("Allow web search with ChatGPT", isOn: $draft.chatGPTWebSearch)
+                    Text("Lets supported account models search the web and return source links. Availability follows the selected model and your account's policy. This does not grant browser control or network access to code.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("On-device models") {
                     Toggle("Allow cellular downloads", isOn: $draft.allowCellularDownloads)
@@ -28,6 +31,8 @@ struct SettingsView: View {
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
+                    Toggle("Allow workspace search", isOn: $draft.workspaceSearchEnabled)
+                    Text("Lets the selected model search other chats in this app and files you marked for workspace access. Connected models cannot search archived, on-device-only, or Health chats. This does not import your history from the ChatGPT app.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow assistant Health reads", isOn: $draft.healthToolsEnabled).disabled(!HealthOverviewService.isEnabledInThisBuild)
                     Text(HealthOverviewService.isEnabledInThisBuild ? "Controls new Health overview queries. Review the shared data types in Health overview. Existing conversation records are kept until you remove them." : HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary)
                     Toggle("Work only on this device", isOn: $draft.localOnly)
@@ -53,6 +58,10 @@ struct SettingsView: View {
                             SecureField("Server token, if needed", text: $credential)
                         }
                     }
+                }
+                Section("Voice") {
+                    Toggle("Read completed responses aloud", isOn: $draft.speakReplies)
+                    Text("You can also play an individual answer from its speaker button. Voice input uses on-device transcription when available.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("About") {
                     Text("Personal Assistant").font(.headline)
@@ -85,8 +94,8 @@ struct SettingsView: View {
 private struct AcknowledgmentsView: View {
     var body: some View {
         List {
-            Text("Built with Apple's platform frameworks, MLX Swift LM, Hugging Face, SQLite, QuickJS-NG, JOSESwift, and MarkdownUI.")
-            ForEach(["QuickJS-License", "JOSESwift-License", "MarkdownUI-License"], id: \.self) { name in
+            Text("Built with Apple's platform frameworks, MLX Swift LM, Hugging Face, SQLite, QuickJS-NG, JOSESwift, MarkdownUI, and ZIPFoundation.")
+            ForEach(["QuickJS-License", "JOSESwift-License", "MarkdownUI-License", "ZIPFoundation-License"], id: \.self) { name in
                 if let url = Bundle.main.url(forResource: name, withExtension: "txt"), let text = try? String(contentsOf: url, encoding: .utf8) {
                     NavigationLink(name.replacingOccurrences(of: "-License", with: "")) { ScrollView { Text(text).font(.caption).textSelection(.enabled).padding() }.navigationTitle("License") }
                 }

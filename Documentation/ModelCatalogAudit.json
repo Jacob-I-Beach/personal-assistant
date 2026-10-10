@@ -1,0 +1,71 @@
+{
+  "verifiedAt": "2026-10-09",
+  "runtime": "mlx-swift-lm 3.32.3",
+  "method": "HF revision, config and blob metadata; no weight downloads. Existing Qwen revisions preserved.",
+  "memoryEstimate": "Heuristic only: lower weights*1.15+0.65GiB; upper weights*1.55+1.75GiB. Context, vision, KV caches and OS pressure can exceed it. Not device benchmarks.",
+  "newEntries": [
+    {
+      "id": "mlx-community/granite-3.3-2b-instruct-4bit",
+      "revision": "58246c5498495c14599525c852cfadb66c9f3084",
+      "architecture": "granite",
+      "quantization": 4,
+      "weightBytes": 1425458043,
+      "downloadBytes": 1430231606,
+      "files": 10
+    },
+    {
+      "id": "mlx-community/Granite-4.0-H-Tiny-4bit-DWQ",
+      "revision": "a892ded1552d6d4089fa644bbff6ccbc54dddc67",
+      "architecture": "granitemoehybrid",
+      "quantization": 4,
+      "weightBytes": 3906536773,
+      "downloadBytes": 3916357612,
+      "files": 11
+    },
+    {
+      "id": "mlx-community/SmolLM3-3B-4bit",
+      "revision": "d3a7e0594d6642dbcfb7d149bed8b0bdf49f95ce",
+      "architecture": "smollm3",
+      "quantization": 4,
+      "weightBytes": 1730051993,
+      "downloadBytes": 1747379242,
+      "files": 9
+    },
+    {
+      "id": "mlx-community/LFM2-1.2B-4bit",
+      "revision": "3843e4ad0fcb8b7ed8a050908ac8f0bb5320d1bf",
+      "architecture": "lfm2",
+      "quantization": 4,
+      "weightBytes": 658540250,
+      "downloadBytes": 663390551,
+      "files": 9
+    },
+    {
+      "id": "mlx-community/LFM2-8B-A1B-3bit-MLX",
+      "revision": "0b05ca1d3fe12b7c9b9b57df674752eb63a46e5f",
+      "architecture": "lfm2_moe",
+      "quantization": 3,
+      "weightBytes": 4171677477,
+      "downloadBytes": 4176558356,
+      "files": 9
+    },
+    {
+      "id": "mlx-community/gemma-4-e2b-it-4bit",
+      "revision": "238767527555cb75a05732a84dff5d6ba0dd6809",
+      "architecture": "gemma4",
+      "quantization": 4,
+      "weightBytes": 3550670554,
+      "downloadBytes": 3583087091,
+      "files": 9
+    },
+    {
+      "id": "mlx-community/gemma-4-e4b-it-4bit",
+      "revision": "475b9088d29754a3379866cf5aeb6b41acd313c2",
+      "architecture": "gemma4",
+      "quantization": 4,
+      "weightBytes": 5146800534,
+      "downloadBytes": 5179239942,
+      "files": 9
+    }
+  ]
+}

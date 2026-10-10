@@ -38,12 +38,36 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.textViews["Edit artifact"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["History"].tap()
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Personal Assistant"].waitForExistence(timeout: 5))
         let search = app.searchFields.firstMatch
         search.tap(); search.typeText("Recall")
         XCTAssertTrue(app.staticTexts["Burgundy study project"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "History-search")
         XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+    func testFreshLaunchSidebarFoldersAndAttachmentActions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-demo"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["study-plan.md"].waitForExistence(timeout: 15))
+        app.terminate()
+        app.launchArguments = ["--ui-library"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["What are we working on?"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["study-plan.md"].exists)
+        app.buttons["Add to message"].tap()
+        XCTAssertTrue(app.buttons["Choose files"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["From Library"].exists)
+        XCTAssertFalse(app.buttons["Read responses aloud"].exists)
+        app.tap()
+        app.buttons["History"].tap()
+        XCTAssertTrue(app.buttons["New folder"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Sidebar-folders")
+        app.buttons["New folder"].tap()
+        XCTAssertTrue(app.textFields["Folder name"].waitForExistence(timeout: 5))
+        app.textFields["Folder name"].tap(); app.textFields["Folder name"].typeText("UI topic \(UUID().uuidString.prefix(6))")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.navigationBars["Personal Assistant"].waitForExistence(timeout: 5))
     }
     func testDarkAndLargeTextControlsRemainUsable() {
         continueAfterFailure = false

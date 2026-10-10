@@ -9,6 +9,7 @@ import MLXLLM
 import MLXLMCommon
 import MLXVLM
 import Tokenizers
+import os
 
 /// The model is downloaded only by an explicit user action. Chat loads exclusively from the saved directory.
 actor MLXLocalBackend: ModelBackend {
@@ -18,13 +19,17 @@ actor MLXLocalBackend: ModelBackend {
     private let revision: String
     private let root: URL
     private let responseTokens: Int
+    nonisolated let supportsVision: Bool
+    private let weightBytes: Int64
+    nonisolated var contextLimits: ContextLimits { ContextLimits(maximumTextBytes: 24_000, maximumImages: supportsVision ? 1 : 0) }
     private var container: ModelContainer?
     private var busy = false
     private var downloadBusy = false
 
-    init(repository: String, revision: String, root: URL, responseTokens: Int) {
+    init(repository: String, revision: String, root: URL, responseTokens: Int, supportsVision: Bool = true, weightBytes: Int64 = 0) {
         self.repository = repository; self.revision = revision; self.root = root
         self.responseTokens = responseTokens; self.id = "mlx:\(repository)@\(revision)"
+        self.supportsVision = supportsVision; self.weightBytes = weightBytes
     }
 
     private struct DownloadRecord: Codable {
@@ -120,8 +125,22 @@ actor MLXLocalBackend: ModelBackend {
     private func loadFromDisk() async throws {
         if container != nil { return }
         let directory = try savedDirectory()
+        guard ProcessInfo.processInfo.thermalState != .critical else { throw AssistantError.provider("The iPhone is too warm to load a model. Let it cool, or use ChatGPT for now.") }
+        let available = Int64(os_proc_available_memory())
+        guard weightBytes == 0 || available >= weightBytes else { throw AssistantError.provider("The selected model's weights exceed the memory currently available to this app. Release another loaded model or try again with more memory available. Your download is kept.") }
         MLX.Memory.cacheLimit = 32 * 1024 * 1024
-        container = try await VLMModelFactory.shared.loadContainer(from: directory, using: #huggingFaceTokenizerLoader())
+        // Preserve upstream EOS tokens, tool format and reasoning parser when resolving a local package.
+        if supportsVision {
+            let factory = VLMModelFactory.shared
+            var configuration = factory.configuration(id: repository)
+            configuration.id = .directory(directory); configuration.tokenizerSource = .directory(directory)
+            container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
+        } else {
+            let factory = LLMModelFactory.shared
+            var configuration = factory.configuration(id: repository)
+            configuration.id = .directory(directory); configuration.tokenizerSource = .directory(directory)
+            container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
+        }
     }
 
     private func savedDirectory() throws -> URL {
@@ -225,6 +244,13 @@ actor MLXLocalBackend: ModelBackend {
         guard stoppedNormally else { throw AssistantError.incompleteResponse }
         for call in calls { output.yield(.toolCall(call)) }
         output.yield(.completed)
+    }
+}
+
+private struct DiskOnlyDownloader: Downloader {
+    func download(id: String, revision: String?, matching patterns: [String], useLatest: Bool,
+                  progressHandler: @Sendable @escaping (Progress) -> Void) async throws -> URL {
+        throw AssistantError.provider("An unexpected remote model component was requested. Import the complete verified model package before using it offline.")
     }
 }
 

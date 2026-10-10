@@ -1,9 +1,12 @@
 import AssistantCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var showImport = false
     private var latestArtifacts: [ArtifactRecord] {
         let oldVersions = Set(model.artifacts.compactMap(\.previousRevisionID))
         return model.artifacts.filter { !oldVersions.contains($0.id) }
@@ -16,20 +19,33 @@ struct LibraryView: View {
                     NavigationLink { MemoryView() } label: { Label("Saved memory", systemImage: "brain.head.profile") }
                 }
                 Section("Your files") {
-                    if latestArtifacts.isEmpty {
+                    ForEach(model.files.filter { query.isEmpty || ($0.filename + " " + $0.text).localizedCaseInsensitiveContains(query) }) { file in
+                        NavigationLink { WorkspaceFileView(id: file.id) } label: { WorkspaceFileRow(file: file) }
+                    }
+                    if latestArtifacts.isEmpty && model.files.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Useful work, kept here").font(.headline)
                             Text("Documents, tables, scripts, and other files created in a conversation will appear here. You can edit, share, and revisit them.").foregroundStyle(.secondary)
                         }.padding(.vertical, 10)
                     }
-                    ForEach(latestArtifacts) { artifact in
+                    ForEach(latestArtifacts.filter { query.isEmpty || ($0.filename + " " + $0.content).localizedCaseInsensitiveContains(query) }) { artifact in
                         NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }
                     }
                 }
             }
             .navigationTitle("Library")
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .searchable(text: $query, prompt: "Search files and contents")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Import files", systemImage: "doc.badge.plus") { showImport = true }.disabled(model.isImportingFiles) }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
             .refreshable { await model.refresh() }
+            .fileImporter(isPresented: $showImport, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls): model.importFiles(urls, attach: false)
+                case .failure(let error): model.errorMessage = error.localizedDescription
+                }
+            }
         }
     }
 }

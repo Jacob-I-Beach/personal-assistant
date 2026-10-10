@@ -21,7 +21,11 @@ public struct ToolResult: Codable, Equatable, Sendable {
     public init(callID: String, name: String, succeeded: Bool, output: JSONValue) {
         self.callID = callID; self.name = name; self.succeeded = succeeded; self.output = output; self.completedAt = Date()
     }
-    public func modelText() throws -> String { try output.jsonString() }
+    public func modelText() throws -> String {
+        var value = output.objectValue ?? ["result": output]
+        value["tool_succeeded"] = .bool(succeeded)
+        return try JSONValue.object(value).jsonString()
+    }
 }
 
 public struct CaptureToolBroker: Sendable {

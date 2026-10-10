@@ -18,6 +18,31 @@ public struct ProviderContinuation: Codable, Equatable, Sendable {
     public init(providerID: String, items: [JSONValue]) { self.providerID = providerID; self.items = items }
 }
 
+public struct WebCitation: Codable, Equatable, Sendable, Identifiable {
+    public let title: String
+    public let url: URL
+    public let startIndex: Int?
+    public let endIndex: Int?
+    public var id: String { url.absoluteString + (startIndex.map { ":\($0)" } ?? "") }
+    public init?(title: String, url: String, startIndex: Int? = nil, endIndex: Int? = nil) {
+        guard url.utf8.count <= 4096, let parsed = URL(string: url), ["http", "https"].contains(parsed.scheme?.lowercased() ?? ""),
+              parsed.host?.isEmpty == false, parsed.user == nil, parsed.password == nil else { return nil }
+        self.title = title.isEmpty ? parsed.host! : String(title.prefix(300)); self.url = parsed
+        if let startIndex, let endIndex, startIndex >= 0, endIndex >= startIndex, endIndex <= 2_000_000 {
+            self.startIndex = startIndex; self.endIndex = endIndex
+        } else { self.startIndex = nil; self.endIndex = nil }
+    }
+    enum CodingKeys: String, CodingKey { case title, url, startIndex, endIndex }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard let value = try WebCitation(title: values.decode(String.self, forKey: .title), url: values.decode(String.self, forKey: .url),
+                                         startIndex: values.decodeIfPresent(Int.self, forKey: .startIndex), endIndex: values.decodeIfPresent(Int.self, forKey: .endIndex)) else {
+            throw DecodingError.dataCorruptedError(forKey: .url, in: values, debugDescription: "Invalid web citation URL.")
+        }
+        self = value
+    }
+}
+
 public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var id: UUID
     public var role: MessageRole
@@ -25,34 +50,66 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var createdAt: Date
     public var state: MessageState
     public var captureIDs: [UUID]
+    public var fileIDs: [UUID]
     public var toolCalls: [ToolCall]
     public var toolCallID: String?
     public var providerID: String?
     public var continuation: ProviderContinuation?
     public var containsHealthData: Bool
     public var containsLocalOnlyContext: Bool
+    public var failureReason: String?
+    public var citations: [WebCitation]
 
     public init(id: UUID = UUID(), role: MessageRole, text: String, state: MessageState = .complete,
-                captureIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
+                captureIDs: [UUID] = [], fileIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
                 providerID: String? = nil, continuation: ProviderContinuation? = nil, containsHealthData: Bool = false,
-                containsLocalOnlyContext: Bool = false) {
+                containsLocalOnlyContext: Bool = false, failureReason: String? = nil, citations: [WebCitation] = []) {
         self.id = id; self.role = role; self.text = text; self.createdAt = Date(); self.state = state
-        self.captureIDs = captureIDs; self.toolCalls = toolCalls; self.toolCallID = toolCallID
+        self.captureIDs = captureIDs; self.fileIDs = fileIDs; self.toolCalls = toolCalls; self.toolCallID = toolCallID
         self.providerID = providerID; self.continuation = continuation
         self.containsHealthData = containsHealthData
         self.containsLocalOnlyContext = containsLocalOnlyContext
+        self.failureReason = failureReason
+        self.citations = citations
     }
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
         text = try c.decode(String.self, forKey: .text); createdAt = try c.decode(Date.self, forKey: .createdAt)
         state = try c.decode(MessageState.self, forKey: .state); captureIDs = try c.decodeIfPresent([UUID].self, forKey: .captureIDs) ?? []
+        fileIDs = try c.decodeIfPresent([UUID].self, forKey: .fileIDs) ?? []
         toolCalls = try c.decodeIfPresent([ToolCall].self, forKey: .toolCalls) ?? []
         toolCallID = try c.decodeIfPresent(String.self, forKey: .toolCallID); providerID = try c.decodeIfPresent(String.self, forKey: .providerID)
         continuation = try c.decodeIfPresent(ProviderContinuation.self, forKey: .continuation)
         containsHealthData = try c.decodeIfPresent(Bool.self, forKey: .containsHealthData) ?? false
         containsLocalOnlyContext = try c.decodeIfPresent(Bool.self, forKey: .containsLocalOnlyContext) ?? false
+        failureReason = try c.decodeIfPresent(String.self, forKey: .failureReason)
+        citations = try c.decodeIfPresent([WebCitation].self, forKey: .citations) ?? []
+    }
+    public var toolFailureDescription: String? {
+        guard role == .tool else { return nil }
+        let value = (try? JSONValue.parse(text))?.objectValue
+        let legacyError = value.map { Set($0.keys) == ["error"] } ?? false
+        guard state == .failed || value?["tool_succeeded"] == .bool(false) || legacyError else { return nil }
+        return value?["error"]?.stringValue ?? "The tool did not complete successfully."
+    }
+    /// The app makes source annotations clickable without modifying the provider transcript kept on disk.
+    public var citationMarkdown: String {
+        var result = text
+        let characters = Array(text.unicodeScalars)
+        var precedingBoundary = characters.count
+        for (number, citation) in citations.enumerated().sorted(by: { ($0.element.endIndex ?? -1) > ($1.element.endIndex ?? -1) }) {
+            guard let start = citation.startIndex, let end = citation.endIndex, end <= precedingBoundary, start <= end else { continue }
+            let original = String(String.UnicodeScalarView(characters[start..<end]))
+            let url = citation.url.absoluteString.replacingOccurrences(of: "<", with: "%3C").replacingOccurrences(of: ">", with: "%3E")
+            let link = "[\(number + 1)](<\(url)>)"
+            let lower = result.unicodeScalars.index(result.unicodeScalars.startIndex, offsetBy: original.contains("\u{E200}") ? start : end)
+            let upper = result.unicodeScalars.index(result.unicodeScalars.startIndex, offsetBy: end)
+            result.replaceSubrange(lower..<upper, with: " " + link)
+            precedingBoundary = original.contains("\u{E200}") ? start : end
+        }
+        return result
     }
 }
 
@@ -66,14 +123,17 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var allowedNetworkDestinations: Set<String>
     public var allowedHealthDestinations: Set<String> = []
     public var networkDisabled = false
+    public var folderID: UUID?
+    public var archivedAt: Date?
 
     public init(id: UUID = UUID(), title: String = "New conversation") {
         self.id = id; self.title = title; self.createdAt = Date(); self.updatedAt = Date()
         self.messages = []; self.allowedNetworkDestinations = []
     }
     public var attachedCaptureIDs: Set<UUID> { Set(messages.flatMap(\.captureIDs)) }
+    public var attachedFileIDs: Set<UUID> { Set(messages.flatMap(\.fileIDs)) }
     public var containsHealthData: Bool { messages.contains(where: \.containsHealthData) }
-    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled }
+    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, folderID, archivedAt }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion); id = try c.decode(UUID.self, forKey: .id)
@@ -82,6 +142,8 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
         allowedNetworkDestinations = try c.decodeIfPresent(Set<String>.self, forKey: .allowedNetworkDestinations) ?? []
         allowedHealthDestinations = try c.decodeIfPresent(Set<String>.self, forKey: .allowedHealthDestinations) ?? []
         networkDisabled = try c.decodeIfPresent(Bool.self, forKey: .networkDisabled) ?? false
+        folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
+        archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
     }
     public mutating func recoverInterruptedMessages() {
         for i in messages.indices where messages[i].state == .streaming { messages[i].state = .interrupted }

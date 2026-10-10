@@ -24,9 +24,10 @@ final class AuthorizationPlatformTests: XCTestCase {
     func testBundledModelCatalogHasRealSizesAndWeightDigests() throws {
         XCTAssertNotNil(UIImage(named: "AssistantMark"))
         let entries = try LocalModelCatalogEntry.bundled()
-        XCTAssertEqual(entries.count, 3)
+        XCTAssertEqual(entries.count, 10)
         for entry in entries {
-            XCTAssertGreaterThan(entry.downloadBytes, 1_000_000_000)
+            XCTAssertGreaterThan(entry.downloadBytes, 100_000_000)
+            XCTAssertGreaterThan(entry.estimatedMemoryLowBytes ?? 0, entry.weightBytes ?? 0)
             XCTAssertEqual(entry.downloadBytes, entry.files.reduce(0) { $0 + $1.bytes })
             let weights = entry.files.filter { $0.name.hasSuffix(".safetensors") }
             XCTAssertFalse(weights.isEmpty)

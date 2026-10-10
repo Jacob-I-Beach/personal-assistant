@@ -28,6 +28,30 @@ struct ScriptedBackend: ModelBackend {
 }
 
 final class EngineTests: XCTestCase, @unchecked Sendable {
+    func testFailedCalculationReceiptsRemainFailedAndBlockFollowupFilesForBothBackendPaths() async throws {
+        let failed = ToolCall(id: "failed-calculation", name: "run_javascript", arguments: .object([
+            "code": .string("throw new Error('fixture calculation failure');"), "input_json": .string("null")
+        ]))
+        let invented = ToolCall(id: "invented-result", name: "create_artifact", arguments: .object([
+            "filename": .string("totals.csv"), "content": .string("value\n18.5\n27.25\n14.75\n61.55")
+        ]))
+        let scripted = ScriptedBackend(script: ScriptedTurns([
+            [.toolCall(failed), .completed], [.toolCall(invented), .completed],
+            [.textDelta("The calculation failed; no result file was saved."), .completed]
+        ]))
+        let native = NativeToolFixture(calls: [failed, invented])
+        for backend in [scripted as any ModelBackend, native as any ModelBackend] {
+            let store = try makeTestStore(), conversation = Conversation()
+            for try await _ in AssistantEngine(store: store).respond(conversation: conversation, text: "Calculate and save", captureIDs: [], backend: backend) { }
+            let saved = try await store.loadConversation(conversation.id)
+            let receipts = saved.messages.filter { $0.role == .tool }
+            XCTAssertEqual(receipts.count, 2)
+            XCTAssertTrue(receipts.allSatisfy { $0.state == .failed && $0.toolFailureDescription != nil })
+            for receipt in receipts { XCTAssertEqual(try JSONValue.parse(receipt.text)["tool_succeeded"], .bool(false)) }
+            let artifacts = try await store.artifacts(conversationID: conversation.id)
+            XCTAssertTrue(artifacts.isEmpty)
+        }
+    }
     func testCancellationPreservesPartialResponseBeforeEngineBecomesIdle() async throws {
         let store = try makeTestStore()
         let engine = AssistantEngine(store: store)
@@ -108,6 +132,28 @@ final class EngineTests: XCTestCase, @unchecked Sendable {
         let sent = await script.requests
         XCTAssertTrue(sent[0].messages[1].message.toolCalls.isEmpty)
         XCTAssertTrue(sent[0].messages[1].message.text.contains("interrupted"))
+    }
+}
+
+private struct NativeToolFixture: ModelBackend {
+    let id = "native-tool-fixture"
+    let networkDestination: String? = nil
+    let calls: [ToolCall]
+    func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
+        AsyncThrowingStream { output in
+            let task = Task {
+                do {
+                    guard let execute = request.toolExecutor else { throw AssistantError.invalidTool("Missing test executor") }
+                    for call in calls {
+                        let result = try await execute(call)
+                        output.yield(.executedTool(call, result))
+                    }
+                    output.yield(.textDelta("The calculation failed; no result file was saved."))
+                    output.yield(.completed); output.finish()
+                } catch { output.finish(throwing: error) }
+            }
+            output.onTermination = { @Sendable _ in task.cancel() }
+        }
     }
 }
 

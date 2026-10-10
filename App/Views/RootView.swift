@@ -2,6 +2,7 @@ import AssistantCore
 import MarkdownUI
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
@@ -19,7 +20,7 @@ struct RootView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("History", systemImage: "sidebar.left") { voice.stopAll(); showHistory = true }.disabled(model.isRunning)
+                        Button("History", systemImage: "sidebar.left") { voice.stopAll(); withAnimation(.snappy(duration: 0.25)) { showHistory = true } }
                     }
                     ToolbarItem(placement: .principal) {
                         Button { voice.stopAll(); model.showModels = true } label: {
@@ -28,6 +29,9 @@ struct RootView: View {
                                 Text(model.modelLocation).font(.caption2).foregroundStyle(Color.secondary)
                             }.foregroundStyle(Color.primary)
                         }.accessibilityLabel("Choose model").disabled(model.isRunning)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("New chat", systemImage: "square.and.pencil") { model.newConversation() }.disabled(model.isRunning)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
@@ -42,13 +46,38 @@ struct RootView: View {
         }
         .disabled(!model.isInitialized)
         .overlay { if !model.isInitialized { ProgressView("Preparing your workspace").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14)) } }
+        .overlay(alignment: .leading) {
+            if showHistory {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Button { withAnimation(.snappy(duration: 0.25)) { showHistory = false } } label: { Color.black.opacity(0.25).ignoresSafeArea() }
+                            .accessibilityLabel("Close sidebar")
+                        HistoryView(close: { withAnimation(.snappy(duration: 0.25)) { showHistory = false } }, open: { destination in
+                            switch destination {
+                            case "library": showLibrary = true
+                            case "models": model.showModels = true
+                            case "watch": showWatchRequests = true
+                            default: showSettings = true
+                            }
+                        })
+                        .frame(width: min(geometry.size.width * 0.9, 390), height: geometry.size.height)
+                        .background(Color(uiColor: .secondarySystemBackground))
+                        .transition(.move(edge: .leading))
+                        .accessibilityAddTraits(.isModal)
+                        .gesture(DragGesture(minimumDistance: 30).onEnded { gesture in
+                            if gesture.translation.width < -65 { withAnimation(.snappy(duration: 0.25)) { showHistory = false } }
+                        })
+                    }
+                }
+            }
+        }
         .tint(Color.primary)
         .sheet(isPresented: $model.showModels) { ModelLibraryView() }
-        .sheet(isPresented: $showHistory) { HistoryView() }
         .sheet(isPresented: $showLibrary) { LibraryView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showHealth) { HealthOverviewView() }
         .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
+        .sheet(item: $model.nativeAction) { NativeActionView(request: $0) }
         .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
@@ -56,7 +85,7 @@ struct RootView: View {
             Button("Allow for this conversation") { model.approveNetworkConversation() }
             Button("Keep on this device", role: .cancel) { model.declineNetworkConversation() }
         } message: {
-            Text((model.draftContainsHealthData || model.conversation.containsHealthData ? "This conversation includes a selected Health summary. Sharing it sends that Health-derived information to the selected service for this wellness discussion. " : "") + "Relevant conversation text, selected images, and requested tool results will be sent to \(model.modelLocation). You can revoke this permission in Settings.")
+            Text((model.draftContainsHealthData || model.conversation.containsHealthData ? "This conversation includes a selected Health summary. Sharing it sends that Health-derived information to the selected service for this wellness discussion. " : "") + "Relevant conversation text, selected images and files, and requested tool results will be sent to \(model.modelLocation). Workspace search, when enabled in Settings, can include permitted other chats and Library files. You can revoke this conversation's permission in Settings.")
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.becameActive() }
@@ -86,8 +115,9 @@ struct ChatView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var voice: VoiceController
     @State private var voicePrefix = ""
-    @State private var speakReplies = false
     @State private var showCapture = false
+    @State private var showFiles = false
+    @State private var showAttachmentLibrary = false
     @State private var photo: PhotosPickerItem?
     @State private var importing = false
     @State private var followBottom = true
@@ -102,11 +132,17 @@ struct ChatView: View {
                     if model.conversation.messages.count > visibleMessageCount {
                         Button("Show earlier messages") { visibleMessageCount += 100 }.font(.footnote).frame(maxWidth: .infinity)
                     }
-                    ForEach(model.conversation.messages.suffix(visibleMessageCount)) { message in
+                    if let folder = model.folders.first(where: { $0.id == model.conversation.folderID }) {
+                        Label(folder.name, systemImage: "folder").font(.caption).foregroundStyle(.secondary)
+                    }
+                    ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
                         MessageRow(message: message).environmentObject(voice).id(message.id)
                     }
                     ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id }.prefix(6)) { artifact in
                         NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
+                    }
+                    ForEach(model.files.filter { $0.conversationID == model.conversation.id }.prefix(6)) { file in
+                        NavigationLink { WorkspaceFileView(id: file.id) } label: { WorkspaceFileRow(file: file) }.buttonStyle(.plain)
                     }
                     if let activity = model.activity {
                         HStack(spacing: 8) { ProgressView().controlSize(.small); Text(activity).font(.footnote).foregroundStyle(.secondary) }
@@ -145,11 +181,18 @@ struct ChatView: View {
         }
         .background(Color(uiColor: .systemBackground))
         .sheet(isPresented: $showCapture) { SceneCaptureSheet().environmentObject(model) }
+        .sheet(isPresented: $showAttachmentLibrary) { FileAttachmentPicker() }
+        .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls): model.importFiles(urls)
+            case .failure(let error): model.errorMessage = error.localizedDescription
+            }
+        }
         .onChange(of: model.draft) { _, _ in model.draftChanged() }
         .onChange(of: voice.transcript) { _, text in if !text.isEmpty { model.draft = voicePrefix + text } }
         .onChange(of: voice.errorMessage) { _, value in if let value { model.noticeMessage = value } }
         .onChange(of: model.isRunning) { _, running in
-            if !running && speakReplies, let message = model.conversation.messages.last, message.role == .assistant, message.state == .complete { voice.speak(message.text) }
+            if !running && model.settings.speakReplies, let message = model.conversation.messages.last, message.role == .assistant, message.state == .complete { voice.speak(MarkdownContent(message.text).renderPlainText()) }
         }
         .onDisappear { voice.stopAll() }
         .onChange(of: photo) { _, selected in
@@ -166,26 +209,26 @@ struct ChatView: View {
         }
     }
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 25) {
-            Image("AssistantMark").resizable().frame(width: 45, height: 45).clipShape(RoundedRectangle(cornerRadius: 13)).accessibilityHidden(true)
-            Text("What would you like\nto work on?").font(.system(.largeTitle, design: .rounded, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-            Text("A place to think, explore, and make things—with the model you choose.").font(.body).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 24) {
+            Text("What are we working on?").font(.system(.title, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+            Text("Think it through. Make something useful.").font(.subheadline).foregroundStyle(.secondary)
             VStack(spacing: 10) {
                 if model.accounts.allSatisfy({ !$0.isConnected }) {
                     Button { model.connectChatGPT() } label: {
                         HStack { Text(model.isConnecting ? "Connecting…" : "Continue with ChatGPT").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }.padding(8).foregroundStyle(Color(uiColor: .systemBackground))
                     }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isConnecting)
                 }
-                Button { model.showModels = true } label: {
-                    HStack { Label("Explore on-device models", systemImage: "iphone"); Spacer(); Image(systemName: "chevron.right").font(.caption) }.padding(8)
-                }.buttonStyle(.bordered).tint(.primary)
+                if model.accounts.allSatisfy({ !$0.isConnected }) {
+                    Button("Choose an on-device model") { model.showModels = true }.font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 6)
+                }
             }
             VStack(alignment: .leading, spacing: 12) {
                 suggestion("Explore something in front of you", icon: "viewfinder") { showCapture = true }
                 suggestion("Turn an idea into a useful file", icon: "doc.badge.plus") { model.draft = "Help me create "; composerFocused = true }
                 suggestion("Work through a calculation", icon: "function") { model.draft = "Use code to help me calculate "; composerFocused = true }
+                suggestion("Read a document with me", icon: "doc.text") { showFiles = true }
             }.padding(.top, 4)
-        }.padding(.top, 26).padding(.bottom, 12)
+        }.padding(.top, 70).padding(.bottom, 32)
     }
     private func suggestion(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Label(title, systemImage: icon).font(.subheadline).foregroundStyle(Color.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6) }
@@ -209,6 +252,20 @@ struct ChatView: View {
             if model.isDownloading {
                 HStack { ProgressView(value: model.downloadProgress).frame(width: 50); Text(model.modelStatus).font(.caption).lineLimit(1); Spacer(); Button("View") { model.showModels = true }.font(.caption) }
             }
+            if model.isImportingFiles { HStack { ProgressView().controlSize(.small); Text("Adding files to your Library").font(.caption); Spacer() } }
+            if !model.attachedFileIDs.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack {
+                        ForEach(model.attachedFileIDs, id: \.self) { id in
+                            HStack(spacing: 8) {
+                                Image(systemName: model.files.first { $0.id == id }?.icon ?? "doc")
+                                Text(model.files.first { $0.id == id }?.filename ?? "File").font(.caption).lineLimit(1)
+                                Button { model.attachedFileIDs.removeAll { $0 == id }; model.flushDraft() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.accessibilityLabel("Remove attached file")
+                            }.padding(10).background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                }.scrollIndicators(.hidden)
+            }
             if !model.attachedCaptureIDs.isEmpty {
                 ScrollView(.horizontal) {
                     HStack {
@@ -226,9 +283,10 @@ struct ChatView: View {
                 Menu {
                     Button("Camera and depth", systemImage: "camera") { showCapture = true }
                     PhotosPicker(selection: $photo, matching: .images) { Label("Photo library", systemImage: "photo") }
-                    Toggle("Read responses aloud", isOn: $speakReplies)
+                    Button("Choose files", systemImage: "doc.badge.plus") { showFiles = true }
+                    Button("From Library", systemImage: "square.stack") { showAttachmentLibrary = true }
                 } label: { Image(systemName: "plus").font(.title3).frame(width: 32, height: 40) }
-                    .accessibilityLabel("Add to message").disabled(importing || model.isRunning)
+                    .accessibilityLabel("Add to message").disabled(importing || model.isImportingFiles || model.isRunning)
                 TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
                     .padding(.vertical, 10).focused($composerFocused).accessibilityIdentifier("message-composer").disabled(voice.isRecording)
                 Button {
@@ -243,7 +301,7 @@ struct ChatView: View {
                     Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 13, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }.accessibilityLabel("Stop response")
                 } else {
                     Button { voice.stopRecording(); followBottom = true; model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)) }
-                        .accessibilityLabel("Send message").disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || importing)
+                        .accessibilityLabel("Send message").disabled((model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty) || importing || model.isImportingFiles)
                 }
             }.padding(.horizontal, 12).padding(.vertical, 7).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 27))
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8).background(.bar)
@@ -289,33 +347,40 @@ private struct MessageRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if message.role == .tool {
-                DisclosureGroup {
-                    Text(message.text).font(.caption.monospaced()).textSelection(.enabled)
-                } label: { Label("Saved tool result", systemImage: "doc.text.magnifyingglass").font(.footnote).foregroundStyle(.secondary) }
+                WorkReceiptView(message: message)
             } else {
-                if message.role == .assistant && !message.text.isEmpty {
-                    Text("Assistant").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                }
-                if !message.text.isEmpty { AssistantMarkdown(text: message.text) }
+                if !message.text.isEmpty { AssistantMarkdown(text: message.citationMarkdown) }
                 if message.state == .interrupted || message.state == .failed {
                     Label(message.state == .interrupted ? "Stopped · partial response saved" : "Incomplete response", systemImage: "pause.circle").font(.caption).foregroundStyle(.secondary)
+                    if let reason = message.failureReason { Text(reason).font(.footnote).foregroundStyle(Color.secondary).textSelection(.enabled) }
                 }
                 if message.containsLocalOnlyContext { Label("On-device-only context", systemImage: "iphone").font(.caption2).foregroundStyle(Color.secondary) }
+                if !message.citations.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Sources").font(.caption.weight(.semibold)).foregroundStyle(Color.secondary)
+                        ForEach(Array(message.citations.enumerated()), id: \.element.id) { index, citation in
+                            Link(destination: citation.url) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("[\(index + 1)] \(citation.title)").font(.footnote).multilineTextAlignment(.leading)
+                                    Text(citation.url.host ?? "").font(.caption2).foregroundStyle(Color.secondary)
+                                }.padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }.padding(.vertical, 6)
+                }
                 if !message.captureIDs.isEmpty {
                     HStack { ForEach(message.captureIDs, id: \.self) { id in CaptureThumbnail(id: id).frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 12)) } }
                 }
-                ForEach(message.toolCalls) { call in
-                    DisclosureGroup {
-                        Text(call.arguments["code"]?.stringValue ?? (try? call.arguments.jsonString()) ?? "Arguments unavailable").font(.caption.monospaced()).textSelection(.enabled)
-                    } label: {
-                        Label(call.name == "run_javascript" ? "Inspect code request" : "Inspect tool request", systemImage: "wrench.and.screwdriver").font(.caption).foregroundStyle(.secondary)
-                    }
+                ForEach(message.fileIDs, id: \.self) { id in
+                    if let file = model.files.first(where: { $0.id == id }) {
+                        NavigationLink { WorkspaceFileView(id: id) } label: { Label(file.filename, systemImage: file.icon).font(.footnote).lineLimit(2).padding(10).background(.quaternary, in: RoundedRectangle(cornerRadius: 10)) }
+                    } else { Label("File removed from Library", systemImage: "doc").font(.caption).foregroundStyle(.secondary) }
                 }
                 if !message.text.isEmpty && message.state != .streaming {
                     HStack(spacing: 18) {
                         Button { UIPasteboard.general.string = message.text } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy message")
                         ShareLink(item: message.text) { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share message")
-                        if message.role == .assistant { Button { voice.speak(message.text) } label: { Image(systemName: "speaker.wave.2") }.accessibilityLabel("Read response aloud") }
+                        if message.role == .assistant { Button { voice.speak(MarkdownContent(message.text).renderPlainText()) } label: { Image(systemName: "speaker.wave.2") }.accessibilityLabel("Read response aloud") }
                         if message.role == .user { Button { model.draft = message.text } label: { Image(systemName: "pencil") }.accessibilityLabel("Use message as draft") }
                     }.font(.caption).foregroundStyle(.secondary).padding(.top, 3)
                 }

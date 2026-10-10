@@ -2,11 +2,16 @@ import AssistantCore
 import Combine
 import Foundation
 import UIKit
+import MessageUI
 
 @MainActor
 final class AppModel: ObservableObject {
     @Published var conversation = Conversation()
     @Published var histories: [ConversationSummary] = []
+    @Published var folders: [ChatFolder] = []
+    @Published var files: [WorkspaceFile] = []
+    @Published var attachedFileIDs: [UUID] = []
+    @Published var isImportingFiles = false
     @Published var captures: [CaptureObservation] = []
     @Published var artifacts: [ArtifactRecord] = []
     @Published var attachedCaptureIDs: [UUID] = []
@@ -34,6 +39,9 @@ final class AppModel: ObservableObject {
     @Published var appleCloud = AppleModelBackend.readiness(.privateCloud)
     @Published var showModels = false
     @Published var watchRequests: [WatchRequest] = []
+    @Published var nativeAction: NativeActionRequest?
+    private var nativeActionWaiter: CheckedContinuation<String, any Error>?
+    private let locationService = ForegroundLocation()
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
     private var localBackend: MLXLocalBackend?
@@ -87,7 +95,7 @@ final class AppModel: ObservableObject {
             modelRoot = root.appendingPathComponent("models")
             if let settingsURL, FileManager.default.fileExists(atPath: settingsURL.path) {
                 settings = try JSONDecoder().decode(ModelSettings.self, from: Data(contentsOf: settingsURL))
-            } else if appleDevice.isAvailable { settings.choice = .appleOnDevice }
+            }
             if let draftURL, let data = try? Data(contentsOf: draftURL) { drafts = (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:] }
             libraryContainsHealthData = store.initiallyContainsHealthData || drafts.contains(where: { $0.key.hasPrefix("health:") && $0.value == "true" })
             if libraryContainsHealthData { settings.includeInDeviceBackup = false }
@@ -104,9 +112,8 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-demo") { await installDemoFixture() }
                 #endif
                 await refresh()
-                if let raw = drafts["selected"], let id = UUID(uuidString: raw), let saved = try? await store.loadConversation(id) {
-                    conversation = saved; draft = drafts[id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + id.uuidString] == "true"
-                }
+                // A cold launch opens a fresh canvas. Saved chats/drafts are resumed only by selection.
+                // Scene activation after a picker or authentication does not replace the current chat.
                 await refreshDownloads()
                 if let last = conversation.messages.last { requiresManualResume = last.role != .assistant || last.state != .complete }
                 finishInitialization()
@@ -129,6 +136,8 @@ final class AppModel: ObservableObject {
         guard let store else { return }
         do {
             histories = try await store.conversationSummaries()
+            folders = try await store.folders()
+            files = try await store.workspaceFiles()
             captures = try await store.captures()
             artifacts = try await store.artifacts()
             watchRequests = try await store.pendingWatchRequests()
@@ -161,22 +170,113 @@ final class AppModel: ObservableObject {
     }
     func flushDraft() {
         drafts[conversation.id.uuidString] = draft; drafts["selected"] = conversation.id.uuidString
-        if draft.isEmpty { draftContainsHealthData = false }
+        if draft.isEmpty && attachedFileIDs.allSatisfy({ id in files.first { $0.id == id }?.containsHealthData != true }) { draftContainsHealthData = false }
         drafts["health:" + conversation.id.uuidString] = draftContainsHealthData ? "true" : "false"
+        drafts["files:" + conversation.id.uuidString] = attachedFileIDs.map(\.uuidString).joined(separator: ",")
+        drafts["captures:" + conversation.id.uuidString] = attachedCaptureIDs.map(\.uuidString).joined(separator: ",")
         guard let draftURL else { return }
         do { try JSONEncoder().encode(drafts).write(to: draftURL, options: .atomic) }
         catch { errorMessage = "Your draft could not be saved. Free some storage before closing the app." }
     }
-    func newConversation() {
-        guard !isRunning else { return }; detachWatchRequest(); flushDraft()
-        conversation = Conversation(); attachedCaptureIDs = []; draft = ""; draftContainsHealthData = false; errorMessage = nil
+    func newConversation(folderID: UUID? = nil) {
+        guard !isRunning else { return }; detachWatchRequest(); draftTask?.cancel(); flushDraft()
+        if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) {
+            let savedDraft = conversation
+            Task {
+                do { try await store?.save(savedDraft); await refresh() }
+                catch { errorMessage = error.localizedDescription }
+            }
+        }
+        conversation = Conversation(); conversation.folderID = folderID
+        attachedCaptureIDs = []; attachedFileIDs = []; draft = ""; draftContainsHealthData = false; errorMessage = nil; noticeMessage = nil
+        requiresManualResume = false
     }
     func selectConversation(_ summary: ConversationSummary) async {
-        guard !isRunning, let store else { return }; if summary.id != conversation.id { detachWatchRequest() }; flushDraft()
-        do { conversation = try await store.loadConversation(summary.id); attachedCaptureIDs = []; draft = drafts[summary.id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + summary.id.uuidString] == "true" }
+        guard !isRunning, let store else { return }; if summary.id != conversation.id { detachWatchRequest() }; draftTask?.cancel(); flushDraft()
+        do {
+            if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) { try await store.save(conversation) }
+            conversation = try await store.loadConversation(summary.id)
+            attachedFileIDs = (drafts["files:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }.filter { id in files.contains { $0.id == id } }
+            attachedCaptureIDs = (drafts["captures:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }
+            draft = drafts[summary.id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + summary.id.uuidString] == "true"
+            noticeMessage = nil; errorMessage = nil
+        }
         catch { errorMessage = error.localizedDescription }
     }
     func searchHistory(_ query: String) async -> [HistoryMatch] { (try? await store?.searchMessages(query)) ?? [] }
+    func saveFolder(_ folder: ChatFolder) async -> Bool {
+        guard !isRunning else { return false }
+        do { try await store?.saveFolder(folder); await refresh(); return true }
+        catch { errorMessage = error.localizedDescription; return false }
+    }
+    func removeFolder(_ id: UUID) async {
+        guard !isRunning else { return }
+        do {
+            try await store?.removeFolder(id)
+            if conversation.folderID == id { conversation.folderID = nil }
+            await refresh()
+        } catch { errorMessage = error.localizedDescription }
+    }
+    enum ChatChange { case rename(String), move(UUID?), archive(Bool), delete }
+    func changeChat(_ id: UUID, _ change: ChatChange) async {
+        guard !isRunning, let store else { return }
+        draftTask?.cancel()
+        do {
+            switch change {
+            case .rename(let title): try await store.renameConversation(id, title: title)
+            case .move(let folder): try await store.moveConversation(id, to: folder)
+            case .archive(let archived): try await store.setArchived(id, archived: archived)
+            case .delete:
+                try await store.removeConversation(id)
+                if conversation.id == id {
+                    detachWatchRequest(); conversation = Conversation(); draft = ""; attachedCaptureIDs = []; attachedFileIDs = []; draftContainsHealthData = false
+                }
+                for key in [id.uuidString, "files:" + id.uuidString, "captures:" + id.uuidString, "health:" + id.uuidString] { drafts.removeValue(forKey: key) }
+                flushDraft(); await refresh(); return
+            }
+            if id == conversation.id { conversation = try await store.loadConversation(id) }
+            await refresh()
+        } catch { errorMessage = error.localizedDescription }
+    }
+    func importFiles(_ urls: [URL], attach: Bool = true) {
+        guard !isImportingFiles, let store else { return }
+        isImportingFiles = true
+        let targetID = conversation.id
+        Task {
+            defer { isImportingFiles = false }
+            for url in urls.prefix(8) {
+                do {
+                    let (file, data) = try await DocumentImporter.shared.read(url)
+                    try await store.saveWorkspaceFile(file, data: data)
+                    if attach && conversation.id == targetID && !isRunning { attachFile(file.id) }
+                } catch { errorMessage = error.localizedDescription }
+            }
+            await refresh(); flushDraft()
+        }
+    }
+    func attachFile(_ id: UUID) {
+        guard !isRunning else { return }
+        if let file = files.first(where: { $0.id == id }), file.containsHealthData {
+            guard file.conversationID == conversation.id else { noticeMessage = "Open the original conversation to use this Health-derived file."; return }
+            draftContainsHealthData = true
+        }
+        if !attachedFileIDs.contains(id) { attachedFileIDs.append(id) }
+        flushDraft()
+    }
+    func fileURL(_ id: UUID) async -> URL? {
+        do { return try await store?.workspaceFileURL(id) }
+        catch { errorMessage = error.localizedDescription; return nil }
+    }
+    func removeFile(_ id: UUID) async {
+        guard !isRunning else { return }
+        do { try await store?.removeWorkspaceFile(id); attachedFileIDs.removeAll { $0 == id }; flushDraft(); await refresh() }
+        catch { errorMessage = error.localizedDescription }
+    }
+    func shareFile(_ id: UUID, workspace: Bool, connected: Bool) async {
+        guard !isRunning else { return }
+        do { try await store?.setFileSharing(id, workspace: workspace, connected: connected); await refresh() }
+        catch { errorMessage = error.localizedDescription }
+    }
     func attach(_ id: UUID) { if !attachedCaptureIDs.contains(id) { attachedCaptureIDs.append(id) } }
     func saveCapture(_ capture: CaptureObservation, jpeg: Data) async -> Bool {
         guard let store else { return false }
@@ -211,9 +311,14 @@ final class AppModel: ObservableObject {
     }
 
     func send(_ suppliedText: String? = nil) {
-        let text = suppliedText ?? draft
+        let enteredText = suppliedText ?? draft
+        let hasAttachments = !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty
+        let text = enteredText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasAttachments ? "Help me understand the attached material." : enteredText
         guard isInitialized, !isRunning, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if isManagingAccount && settings.choice == .chatGPT { noticeMessage = "The account change is finishing. Your draft is saved."; return }
+        if settings.choice == .chatGPT && (settings.chatGPTAccountID == nil || settings.chatGPTModel.isEmpty) {
+            showModels = true; noticeMessage = "Connect ChatGPT or choose an on-device model. Your draft is saved."; return
+        }
         conversation.networkDisabled = settings.localOnly
         if settings.localOnly && settings.networkDestination != nil {
             showModels = true; noticeMessage = "On-device-only mode is enabled. Choose a downloaded or Apple on-device model."; return
@@ -243,9 +348,10 @@ final class AppModel: ObservableObject {
     func stop() { responseTask?.cancel() }
     private func startResponse(_ text: String) {
         guard let engine else { return }
-        let current = conversation, attachments = attachedCaptureIDs, selection = settings, healthData = draftContainsHealthData
+        let current = conversation, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
         let previousIDs = Set(current.messages.map(\.id))
-        isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; flushDraft()
+        draftTask?.cancel()
+        isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
         requiresManualResume = false
         responseTask = Task {
             if let requestID = activeWatchRequestID {
@@ -257,10 +363,10 @@ final class AppModel: ObservableObject {
                 try await store?.save(current)
                 let selectedBackend = try await backend(for: selection)
                 try Task.checkCancellation()
-                let extras = selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : []
+                let extras = NativeTools.definitions + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
                 let destination = selection.networkDestination
                 for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
-                    containsHealthData: healthData, additionalTools: extras, additionalExecutor: { [weak self] call in
+                    containsHealthData: healthData, fileIDs: fileAttachments, workspaceEnabled: selection.workspaceSearchEnabled, additionalTools: extras, additionalExecutor: { [weak self] call in
                         guard let self else { throw CancellationError() }
                         return try await self.executeNativeTool(call, conversationID: current.id, destination: destination)
                     }) {
@@ -269,7 +375,8 @@ final class AppModel: ObservableObject {
                         conversation = updated
                         if updated.messages.contains(where: { $0.role == .user && $0.text == text && !previousIDs.contains($0.id) }) {
                             attachedCaptureIDs = []
-                            if draft == text { draft = ""; flushDraft() }
+                            attachedFileIDs = []
+                            if draft == text || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = ""; flushDraft() }
                         }
                     case .toolResult: await refresh(); activity = "Preparing the result"
                     case .activity(let value): activity = value
@@ -277,7 +384,10 @@ final class AppModel: ObservableObject {
                     }
                 }
             } catch {
-                if !Task.isCancelled && !(error is CancellationError) { errorMessage = error.localizedDescription }
+                if !Task.isCancelled && !(error is CancellationError) {
+                    errorMessage = error.localizedDescription
+                    noticeMessage = error.localizedDescription
+                }
             }
             await engine.waitUntilIdle()
             if let saved = try? await store?.loadConversation(current.id) { conversation = saved }
@@ -304,7 +414,7 @@ final class AppModel: ObservableObject {
             guard let account = selection.chatGPTAccountID, let accountService, !selection.chatGPTModel.isEmpty else { throw AccountConnectionError.signInRequired }
             let access = try await accountService.accessToken(for: account)
             return try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel,
-                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account)
+                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch)
         case .openAI, .compatibleServer:
             guard let url = selection.endpoint else { throw AssistantError.invalidEndpoint("Add a valid server address in Connections.") }
             let credential = try selection.credentialAccount.map { try CredentialStore.read(account: $0) } ?? ""
@@ -343,14 +453,14 @@ final class AppModel: ObservableObject {
     private func rebuildLocalBackend() {
         guard let modelRoot else { return }
         let previous = localBackend
-        localBackend = MLXLocalBackend(repository: settings.localRepository, revision: settings.localRevision, root: modelRoot, responseTokens: settings.localResponseTokens)
+        localBackend = MLXLocalBackend(repository: settings.localRepository, revision: settings.localRevision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: catalog.first { $0.id == settings.localRepository }?.supportsVision ?? true, weightBytes: catalog.first { $0.id == settings.localRepository }?.weightBytes ?? 0)
         if let previous { Task { try? await previous.unload() } }
     }
     func refreshDownloads() async {
         guard let modelRoot else { return }
         var ready = Set<String>()
         for entry in catalog {
-            let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens)
+            let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: entry.supportsVision, weightBytes: entry.weightBytes ?? 0)
             if await backend.isDownloaded() { ready.insert(entry.id) }
         }
         if let localBackend, await localBackend.isDownloaded() { ready.insert(settings.localRepository) }
@@ -359,7 +469,7 @@ final class AppModel: ObservableObject {
     func downloadModel(_ entry: LocalModelCatalogEntry) {
         guard !settings.localOnly else { noticeMessage = "Turn off on-device-only mode to download model files, then enable it again for offline use."; return }
         guard !isDownloading, !(isRunning && settings.choice == .localMLX), let modelRoot else { return }
-        let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens)
+        let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: entry.supportsVision, weightBytes: entry.weightBytes ?? 0)
         isDownloading = true; downloadingModelID = entry.id; downloadProgress = 0; modelStatus = "Downloading \(entry.name)"
         let allowCellular = settings.allowCellularDownloads
         downloadTask = Task {
@@ -379,7 +489,7 @@ final class AppModel: ObservableObject {
     func importModel(_ entry: LocalModelCatalogEntry, folder: URL) {
         guard !isDownloading, !(isRunning && settings.choice == .localMLX), let modelRoot else { return }
         let scoped = folder.startAccessingSecurityScopedResource()
-        let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens)
+        let backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: entry.supportsVision, weightBytes: entry.weightBytes ?? 0)
         isDownloading = true; downloadingModelID = entry.id; downloadProgress = 0; modelStatus = "Importing \(entry.name)"
         downloadTask = Task {
             defer { if scoped { folder.stopAccessingSecurityScopedResource() }; isDownloading = false; downloadingModelID = nil; downloadTask = nil }
@@ -439,6 +549,59 @@ final class AppModel: ObservableObject {
     }
     private func executeNativeTool(_ call: ToolCall, conversationID: UUID, destination: String?) async throws -> ToolResult {
         try Task.checkCancellation()
+        guard isRunning, conversation.id == conversationID else { throw CancellationError() }
+        func nativeResult(_ value: JSONValue) -> ToolResult { ToolResult(callID: call.id, name: call.name, succeeded: true, output: value) }
+        switch call.name {
+        case NativeTools.device.name: return nativeResult(DeviceContext.snapshot())
+        case NativeTools.pdf.name:
+            guard let filename = call.arguments["filename"]?.stringValue, filename.lowercased().hasSuffix(".pdf"), let store else { throw AssistantError.invalidTool("Choose a filename ending in .pdf.") }
+            try WorkspaceFile.validateFilename(filename)
+            let (data, text) = try PDFDocumentWriter.make(title: call.arguments["title"]?.stringValue ?? "", markdown: call.arguments["markdown"]?.stringValue ?? "")
+            let file = WorkspaceFile(filename: filename, mediaType: "application/pdf", byteCount: data.count, text: text,
+                extractionNote: "PDF generated on this iPhone. Text layout; original Markdown formatting and images are not embedded.",
+                conversationID: conversationID, containsHealthData: conversation.containsHealthData)
+            try await store.saveWorkspaceFile(file, data: data)
+            return nativeResult(.object(["file_id": .string(file.id.uuidString), "filename": .string(filename), "bytes": .number(Double(data.count)), "saved_to": .string("Library")]))
+        case NativeTools.location.name:
+            let purpose = String((call.arguments["reason"]?.stringValue ?? "").prefix(500))
+            let status = try await reviewNativeAction(NativeActionRequest(kind: .approval, title: "Use your current location?", detail: purpose + "\n\nThis one location fix will be available to \(modelTitle) \(modelLocation.lowercased()) in this conversation.", arguments: call.arguments))
+            guard status == "approved" else { throw AssistantError.invalidTool("The user declined location access. Continue without it.") }
+            return nativeResult(try await locationService.read())
+        case NativeTools.calendar.name:
+            let formatter = ISO8601DateFormatter()
+            guard let start = formatter.date(from: call.arguments["start"]?.stringValue ?? ""), let end = formatter.date(from: call.arguments["end"]?.stringValue ?? ""),
+                  end > start, end.timeIntervalSince(start) <= 366 * 86400, let title = call.arguments["title"]?.stringValue, !title.isEmpty, title.count <= 300,
+                  (call.arguments["notes"]?.stringValue?.count ?? 0) <= 8000, (call.arguments["location"]?.stringValue?.count ?? 0) <= 500 else { throw AssistantError.invalidTool("Use a short title, valid ISO8601 dates with time zones, and an end after the start.") }
+            let status = try await reviewNativeAction(NativeActionRequest(kind: .calendar, title: "Review event", detail: "", arguments: call.arguments))
+            guard status == "saved" else { throw AssistantError.invalidTool("The user cancelled the calendar event. No event was saved by this action.") }
+            return nativeResult(.object(["status": .string("saved_by_user"), "title": .string(title)]))
+        case NativeTools.message.name:
+            guard MFMessageComposeViewController.canSendText(), let body = call.arguments["body"]?.stringValue, body.count <= 8000,
+                  let recipients = call.arguments["recipients"]?.stringValue, recipients.count <= 300 else { throw AssistantError.invalidTool("Text messaging is unavailable or the proposed message is too long.") }
+            let status = try await reviewNativeAction(NativeActionRequest(kind: .message, title: "Review message", detail: "", arguments: call.arguments))
+            guard status == "sent" else { throw AssistantError.invalidTool(status == "cancelled" ? "The user cancelled the message. Do not retry automatically." : "The system reported that the message could not be sent.") }
+            return nativeResult(.object(["status": .string("system_reported_sent"), "delivery_confirmed": .bool(false)]))
+        case NativeTools.maps.name, NativeTools.phone.name:
+            let url: URL, title: String, detail: String
+            if call.name == NativeTools.maps.name {
+                let query = call.arguments["query"]?.stringValue ?? ""
+                guard !query.isEmpty, query.count <= 500 else { throw AssistantError.invalidTool("Provide a short place name or address.") }
+                var components = URLComponents(string: "https://maps.apple.com/")!; components.queryItems = [URLQueryItem(name: "q", value: query)]
+                url = components.url!; title = "Open in Maps?"; detail = query
+            } else {
+                let number = call.arguments["number"]?.stringValue ?? ""
+                guard (3...25).contains(number.count), number.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == "+") }), number.filter({ $0 == "+" }).count <= 1,
+                      !number.dropFirst().contains("+"), let phoneURL = URL(string: "tel:" + number) else { throw AssistantError.invalidTool("Use digits with an optional leading plus. Dialer control codes are not supported.") }
+                url = phoneURL; title = "Open this number in Phone?"; detail = number + "\n\n" + String((call.arguments["reason"]?.stringValue ?? "").prefix(500))
+            }
+            let status = try await reviewNativeAction(NativeActionRequest(kind: .approval, title: title, detail: detail, arguments: call.arguments))
+            guard status == "approved" else { throw AssistantError.invalidTool("The user declined this action. Do not retry automatically.") }
+            try Task.checkCancellation()
+            let opened = await UIApplication.shared.open(url)
+            guard opened else { throw AssistantError.invalidTool("iOS could not open the requested app action.") }
+            return nativeResult(.object(["status": .string("handed_to_system"), "completed_action_confirmed": .bool(false)]))
+        default: break
+        }
         guard isRunning, conversation.id == conversationID, settings.healthToolsEnabled,
               call.name == HealthOverviewService.tool.name, call.arguments["days"]?.stringValue == "7" else {
             throw AssistantError.invalidTool("The requested Health context is unavailable.")
@@ -457,6 +620,20 @@ final class AppModel: ObservableObject {
                              "read_at": .string(ISO8601DateFormatter().string(from: report.rangeEnd))]))
         result.containsHealthData = true; result.authorizedHealthDestination = destination
         return result
+    }
+    private func reviewNativeAction(_ request: NativeActionRequest) async throws -> String {
+        guard nativeActionWaiter == nil, UIApplication.shared.applicationState == .active else { throw AssistantError.invalidTool("Bring the app to the foreground and finish the current review before another action.") }
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in nativeActionWaiter = continuation; nativeAction = request; activity = "Waiting for your review" }
+        } onCancel: { Task { @MainActor [weak self] in
+            guard self?.nativeAction?.id == request.id else { return }
+            self?.resolveNativeAction("cancelled")
+        } }
+    }
+    func resolveNativeAction(_ status: String) {
+        let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeAction = nil
+        waiter?.resume(returning: status)
     }
     func refreshAccounts() async {
         guard let accountService else { return }

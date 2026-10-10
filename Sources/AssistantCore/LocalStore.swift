@@ -5,7 +5,7 @@ public actor LocalStore {
     public nonisolated let root: URL
     public nonisolated let initiallyContainsHealthData: Bool
     private let files = FileManager.default
-    private let database: SQLiteDatabase
+    let database: SQLiteDatabase
 
     public init(root: URL) throws {
         self.root = root
@@ -17,7 +17,8 @@ public actor LocalStore {
         self.database = database
         let healthMessages = try database.execute("SELECT 1 FROM messages WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
         let healthArtifacts = try database.execute("SELECT 1 FROM artifacts WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
-        self.initiallyContainsHealthData = !healthMessages.isEmpty || !healthArtifacts.isEmpty
+        let healthFiles = try database.execute("SELECT 1 FROM workspace_files WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
+        self.initiallyContainsHealthData = !healthMessages.isEmpty || !healthArtifacts.isEmpty || !healthFiles.isEmpty
     }
     public func save(_ conversation: Conversation) throws {
         var updated = conversation
@@ -42,16 +43,21 @@ public actor LocalStore {
             .map { row in
                 let conversation = try Self.decode(Conversation.self, row[0].data!)
                 return ConversationSummary(id: conversation.id, title: conversation.title, updatedAt: conversation.updatedAt,
-                                           messageCount: Int(row[1].number ?? 0))
+                                           messageCount: Int(row[1].number ?? 0), folderID: conversation.folderID, archivedAt: conversation.archivedAt)
             }
     }
-    public func searchMessages(_ query: String, conversationID: UUID? = nil, limit: Int = 12, excludingLocalOnly: Bool = false) throws -> [HistoryMatch] {
+    public func searchMessages(_ query: String, conversationID: UUID? = nil, limit: Int = 12, excludingLocalOnly: Bool = false,
+                               folderID: UUID? = nil, includeArchived: Bool = false, excludingProtectedConversations: Bool = false) throws -> [HistoryMatch] {
         let terms = query.split(whereSeparator: \.isWhitespace).prefix(16).map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
         guard !terms.isEmpty, query.utf8.count <= 1000 else { return [] }
         let scope = (conversationID == nil ? "" : " AND m.conversation_id = ?")
             + (excludingLocalOnly ? " AND COALESCE(json_extract(CAST(m.payload AS TEXT),'$.containsLocalOnlyContext'),0) = 0" : "")
+            + (folderID == nil ? "" : " AND json_extract(CAST(c.payload AS TEXT),'$.folderID') = ?")
+            + (includeArchived || conversationID != nil ? "" : " AND json_extract(CAST(c.payload AS TEXT),'$.archivedAt') IS NULL")
+            + (excludingProtectedConversations ? " AND COALESCE(json_extract(CAST(c.payload AS TEXT),'$.networkDisabled'),0) = 0 AND NOT EXISTS(SELECT 1 FROM messages p WHERE p.conversation_id=c.id AND (COALESCE(json_extract(CAST(p.payload AS TEXT),'$.containsLocalOnlyContext'),0)=1 OR COALESCE(json_extract(CAST(p.payload AS TEXT),'$.containsHealthData'),0)=1))" : "")
         var parameters: [SQLValue] = [.text(terms.joined(separator: " AND "))]
         if let conversationID { parameters.append(.text(conversationID.uuidString)) }
+        if let folderID { parameters.append(.text(folderID.uuidString)) }
         parameters.append(.integer(Int64(min(max(limit, 1), 30))))
         return try database.execute("""
             SELECT m.id, m.conversation_id, c.title, snippet(message_search, 0, '', '', ' … ', 36), m.payload
@@ -70,6 +76,71 @@ public actor LocalStore {
             throw AssistantError.invalidTool("That message is outside the current conversation or no longer exists.")
         }
         return try Self.decode(Message.self, payload)
+    }
+
+    public func folders() throws -> [ChatFolder] {
+        try database.execute("SELECT payload FROM folders ORDER BY name COLLATE NOCASE")
+            .map { try Self.decode(ChatFolder.self, $0[0].data!) }
+    }
+    public func saveFolder(_ folder: ChatFolder) throws {
+        var folder = folder; folder.name = folder.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !folder.name.isEmpty, folder.name.count <= 64, folder.instructions.utf8.count <= 4000 else {
+            throw AssistantError.provider("Use a folder name up to 64 characters and focused instructions up to 4 KB.")
+        }
+        guard try !folders().contains(where: { $0.id != folder.id && $0.name.caseInsensitiveCompare(folder.name) == .orderedSame }) else {
+            throw AssistantError.provider("A folder with that name already exists.")
+        }
+        try database.execute("INSERT INTO folders(id,name,payload) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,payload=excluded.payload",
+            [.text(folder.id.uuidString), .text(folder.name), .blob(try Self.encode(folder))])
+    }
+    public func renameConversation(_ id: UUID, title: String) throws {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, title.count <= 160 else { throw AssistantError.provider("Use a chat title between 1 and 160 characters.") }
+        var conversation = try loadConversation(id); conversation.title = title
+        try save(conversation)
+    }
+    public func moveConversation(_ id: UUID, to folderID: UUID?) throws {
+        if let folderID, try !folders().contains(where: { $0.id == folderID }) { throw AssistantError.provider("That folder no longer exists.") }
+        var conversation = try loadConversation(id); conversation.folderID = folderID
+        try save(conversation)
+    }
+    public func setArchived(_ id: UUID, archived: Bool) throws {
+        var conversation = try loadConversation(id); conversation.archivedAt = archived ? Date() : nil
+        try save(conversation)
+    }
+    public func removeFolder(_ id: UUID) throws {
+        let affected = try conversations().filter { $0.folderID == id }
+        try database.transaction {
+            for var conversation in affected { conversation.folderID = nil; try Self.persist(conversation, in: database) }
+            try database.execute("DELETE FROM folders WHERE id = ?", [.text(id.uuidString)])
+        }
+    }
+    public func removeConversation(_ id: UUID) throws {
+        let generated = try artifacts(conversationID: id)
+        for file in try workspaceFiles() where file.conversationID == id { try removeWorkspaceFile(file.id) }
+        // Exports are regenerable caches. Remove them before committing the data deletion.
+        let exportRoot = root.appendingPathComponent("exports").resolvingSymlinksInPath().path + "/"
+        for artifact in generated {
+            let directory = root.appendingPathComponent("exports").appendingPathComponent(artifact.id.uuidString)
+            guard directory.resolvingSymlinksInPath().path.hasPrefix(exportRoot) else { throw AssistantError.provider("An export is outside the app's cache directory.") }
+            if files.fileExists(atPath: directory.path) { try files.removeItem(at: directory) }
+        }
+        try database.transaction {
+            for artifact in generated { try database.execute("DELETE FROM metadata WHERE key = ?", [.text("artifact-draft:" + artifact.id.uuidString)]) }
+            try database.execute("DELETE FROM artifacts WHERE conversation_id = ?", [.text(id.uuidString)])
+            try database.execute("DELETE FROM memories WHERE json_extract(CAST(payload AS TEXT),'$.conversationID') = ?", [.text(id.uuidString)])
+            try database.execute("DELETE FROM conversations WHERE id = ?", [.text(id.uuidString)])
+        }
+    }
+    public func sharedHistoryMessage(_ id: UUID, conversationID: UUID, folderID: UUID?, remote: Bool) throws -> Message {
+        let conversation = try loadConversation(conversationID)
+        guard conversation.archivedAt == nil, folderID == nil || conversation.folderID == folderID else {
+            throw AssistantError.invalidTool("That chat is outside the current workspace search scope.")
+        }
+        if remote, conversation.networkDisabled || conversation.messages.contains(where: { $0.containsLocalOnlyContext || $0.containsHealthData }) {
+            throw AssistantError.invalidTool("That chat contains protected context and is not available to connected-model workspace search.")
+        }
+        return try message(id, in: conversationID)
     }
 
     public func saveArtifact(_ artifact: ArtifactRecord) throws {
@@ -158,7 +229,7 @@ public actor LocalStore {
 
     private static func prepare(_ database: SQLiteDatabase, root: URL) throws {
         let version = Int(try database.execute("PRAGMA user_version").first?[0].number ?? 0)
-        guard version <= 3 else { throw AssistantError.unsupportedSchema(version) }
+        guard version <= 5 else { throw AssistantError.unsupportedSchema(version) }
         if version == 0 {
             try database.transaction {
                 try database.execute("CREATE TABLE conversations(id TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at REAL NOT NULL, payload BLOB NOT NULL)")
@@ -185,6 +256,18 @@ public actor LocalStore {
                 try database.execute("PRAGMA user_version = 3")
             }
         }
+        if version < 4 {
+            try database.transaction {
+                try database.execute("CREATE TABLE folders(id TEXT PRIMARY KEY, name TEXT NOT NULL, payload BLOB NOT NULL)")
+                try database.execute("PRAGMA user_version = 4")
+            }
+        }
+        if version < 5 {
+            try database.transaction {
+                try database.execute("CREATE TABLE workspace_files(id TEXT PRIMARY KEY, created_at REAL NOT NULL, payload BLOB NOT NULL)")
+                try database.execute("PRAGMA user_version = 5")
+            }
+        }
         if try database.execute("SELECT value FROM metadata WHERE key = 'legacy-import'").isEmpty {
             let legacy = try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("conversations"), includingPropertiesForKeys: nil)
                 .filter { $0.pathExtension == "json" }
@@ -204,6 +287,9 @@ public actor LocalStore {
     }
     private static func persist(_ conversation: Conversation, in database: SQLiteDatabase) throws {
         guard conversation.schemaVersion == 1 else { throw AssistantError.unsupportedSchema(conversation.schemaVersion) }
+        if let folder = conversation.folderID, try database.execute("SELECT 1 FROM folders WHERE id = ?", [.text(folder.uuidString)]).isEmpty {
+            throw AssistantError.provider("The selected folder no longer exists. Choose another folder before saving.")
+        }
         guard Set(conversation.messages.map(\.id)).count == conversation.messages.count else {
             throw AssistantError.provider("The conversation contains duplicate message identities.")
         }
@@ -229,11 +315,11 @@ public actor LocalStore {
             if let id = row[0].text, !ids.contains(id) { try database.execute("DELETE FROM messages WHERE id = ?", [.text(id)]) }
         }
     }
-    private static func encode<T: Encodable>(_ value: T) throws -> Data {
+    static func encode<T: Encodable>(_ value: T) throws -> Data {
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(value)
     }
-    private static func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
+    static func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(type, from: data)
     }

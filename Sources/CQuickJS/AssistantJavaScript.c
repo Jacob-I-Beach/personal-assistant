@@ -93,7 +93,7 @@ int pa_js_run(PAJSControl *control, const char *source, size_t source_len,
     JS_FreeValue(context, replacer);
     JS_FreeValue(context, value);
     if (JS_IsException(json)) goto failure;
-    if (JS_IsUndefined(json)) { JS_FreeValue(context, json); JS_ThrowTypeError(context, "Return a JSON-compatible result object."); goto failure; }
+    if (JS_IsUndefined(json)) { JS_FreeValue(context, json); JS_ThrowTypeError(context, "Return a JSON-compatible value."); goto failure; }
     status = copy_string(context, json, output_limit, output, output_len);
     JS_FreeValue(context, json);
     goto cleanup;
