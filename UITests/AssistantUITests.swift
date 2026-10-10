@@ -81,9 +81,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
         XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 8))
         let scroll = app.scrollViews["conversation-scroll"]
-        func position() -> (String, Double, Double, String) {
+        func position() -> (String, Double, Double, String, Double) {
             let parts = (scroll.value as? String ?? "").split(separator: "|").map(String.init)
-            return (parts.first ?? "", parts.count > 1 ? Double(parts[1]) ?? -1 : -1, parts.count > 2 ? Double(parts[2]) ?? -1 : -1, parts.count > 3 ? parts[3] : "")
+            return (parts.first ?? "", parts.count > 1 ? Double(parts[1]) ?? -1 : -1, parts.count > 2 ? Double(parts[2]) ?? -1 : -1, parts.count > 3 ? parts[3] : "", parts.count > 4 ? Double(parts[4]) ?? -1 : -1)
         }
         let moving = NSPredicate { _, _ in let p = position(); return p.0 == "following" && p.1 > 0 }
         expectation(for: moving, evaluatedWith: scroll); waitForExpectations(timeout: 8)
@@ -97,11 +97,13 @@ final class AssistantUITests: XCTestCase {
         let detached = NSPredicate { _, _ in let p = position(); return p.0 == "reading" && p.3 == "idle" }
         expectation(for: detached, evaluatedWith: scroll); waitForExpectations(timeout: 8)
         Thread.sleep(forTimeInterval: 0.5)
-        let reading = position().1
+        let readingPosition = position(), reading = readingPosition.1
         Thread.sleep(forTimeInterval: 1)
-        let evidence = XCTAttachment(string: "Before: \(reading); after: \(position())\n" + app.debugDescription)
+        let afterReading = position()
+        let evidence = XCTAttachment(string: "Before: \(readingPosition); after: \(afterReading)\n" + app.debugDescription)
         evidence.name = "Streaming reading position"; evidence.lifetime = .keepAlways; add(evidence)
-        XCTAssertLessThan(abs(position().1 - reading), 8)
+        XCTAssertLessThan(abs(afterReading.1 - reading), 8)
+        XCTAssertLessThan(abs(afterReading.4 - readingPosition.4), 3, "Visible message anchor moved during reading")
         saveScreenshot(app, name: "Streaming-reader-detached")
         // Scroll to the actual bottom rather than using the jump button.
         for _ in 0..<8 { if position().0 == "following" { break }; scroll.swipeUp(velocity: .fast) }

@@ -11,9 +11,9 @@ on:
         type: boolean
         default: false
       validation_scope:
-        description: Full suite, or export repair plus all platform tests when other UI checks already passed on identical app source
+        description: Full suite, export repair, or interaction regressions after an inspected full-suite run
         type: choice
-        options: [full, export-repair]
+        options: [full, export-repair, interaction-repair]
         default: full
 permissions:
   contents: read
@@ -83,6 +83,11 @@ jobs:
           test_options=()
           if [ "${{ inputs.validation_scope }}" = "export-repair" ]; then
             test_options+=("-only-testing:PersonalAssistantPlatformTests" "-only-testing:PersonalAssistantUITests/AssistantUITests/testConnectedFolderAndFilesOutputs")
+          elif [ "${{ inputs.validation_scope }}" = "interaction-repair" ]; then
+            test_options+=("-only-testing:PersonalAssistantPlatformTests")
+            for scenario in testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testDarkAndLargeTextControlsRemainUsable testForegroundReturnContinuesWithoutAnotherUserMessage testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords testKeyboardAndDisclosurePreserveReadingPosition testRichConversationArtifactAndHistory testSavedRouteMemoryUndoAndResumeStayInTheApp testStreamingFollowsDetachesAndReturnsToFollowing; do
+              test_options+=("-only-testing:PersonalAssistantUITests/AssistantUITests/$scenario")
+            done
           fi
           xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 "${test_options[@]}" CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots

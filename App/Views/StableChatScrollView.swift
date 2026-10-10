@@ -33,6 +33,8 @@ struct StableChatScrollView<Content: View>: UIViewControllerRepresentable {
         // A new hosting root owns its own navigation/accessibility graph. Copy only public
         // presentation values; cloning the whole environment also clones another root's AX state.
         let root = content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .transaction { $0.animation = nil; $0.disablesAnimations = true }
             .environment(\.colorScheme, context.environment.colorScheme)
             .environment(\.dynamicTypeSize, context.environment.dynamicTypeSize)
             .environment(\.locale, context.environment.locale)
@@ -132,6 +134,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
                 return
             }
             else if follow.isFollowing { target = hasMessages ? maximumOffset : 0 }
+            else if streaming && !viewportChanged { target = lastOffset }
             else if let anchor, let marker = scroll.markers[anchor.id]?.value {
                 target = marker.convert(.zero, to: scroll).y - anchor.offset
             } else { target = lastOffset }
@@ -139,7 +142,9 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
             pendingJump = false
         }
         lastContentSize = scroll.contentSize; lastViewportSize = scroll.bounds.size
-        rememberPosition()
+        // Token-driven remeasurement is not a new reading position. In particular,
+        // do not sample a transient hosting/text-layout position back into the anchor.
+        if !streaming || follow.isFollowing || scroll.isDragging || scroll.isDecelerating { rememberPosition() }
         publishPosition()
     }
     private func startFollowingFrames() {
@@ -178,7 +183,8 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     }
     private func publishPosition() {
         #if DEBUG
-        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))|\(scroll.isDragging || scroll.isDecelerating ? "moving" : "idle")"
+        let screenY = anchor.flatMap { scroll.markers[$0.id]?.value }.map { $0.convert(.zero, to: scroll.window).y } ?? 0
+        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))|\(scroll.isDragging || scroll.isDecelerating ? "moving" : "idle")|\(Int(screenY.rounded()))"
         #endif
         let value = follow.isFollowing || nearBottom
         DispatchQueue.main.async { [weak self] in self?.viewport?.updateNearBottom(value) }
