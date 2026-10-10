@@ -14,6 +14,7 @@ final class ChatViewport: ObservableObject {
 struct StableChatScrollView<Content: View>: UIViewControllerRepresentable {
     let conversationID: UUID
     let isStreaming: Bool
+    let hasMessages: Bool
     let composerFocused: Bool
     let dismissKeyboard: () -> Void
     let viewport: ChatViewport
@@ -37,7 +38,7 @@ struct StableChatScrollView<Content: View>: UIViewControllerRepresentable {
             .environment(\.layoutDirection, context.environment.layoutDirection)
             .disabled(!context.environment.isEnabled)
             .tint(Color.primary)
-        controller.update(AnyView(root), conversationID: conversationID, streaming: isStreaming)
+        controller.update(AnyView(root), conversationID: conversationID, streaming: isStreaming, hasMessages: hasMessages)
         controller.composerFocused = composerFocused
         controller.dismissKeyboard = dismissKeyboard
     }
@@ -53,6 +54,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private weak var viewport: ChatViewport?
     private var conversationID: UUID?
     private var streaming = false
+    private var hasMessages = false
     private var following = true
     private var pendingJump = true
     private var reconciling = false
@@ -90,12 +92,13 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         let tap = UITapGestureRecognizer(target: self, action: #selector(readerTapped))
         tap.cancelsTouchesInView = false; tap.delegate = self; scroll.addGestureRecognizer(tap)
     }
-    func update(_ content: AnyView, conversationID: UUID, streaming: Bool) {
+    func update(_ content: AnyView, conversationID: UUID, streaming: Bool, hasMessages: Bool) {
         loadViewIfNeeded()
         if self.conversationID != conversationID {
             self.conversationID = conversationID; anchor = nil; lastOffset = 0; pendingJump = true; following = true
         }
         self.streaming = streaming
+        self.hasMessages = hasMessages
         host.rootView = content
         host.view.invalidateIntrinsicContentSize()
         scroll.setNeedsLayout()
@@ -117,7 +120,8 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         let changed = lastContentSize != scroll.contentSize || lastViewportSize != scroll.bounds.size
         if !scroll.isDragging && !scroll.isDecelerating && (changed || pendingJump) {
             let target: CGFloat
-            if pendingJump || (streaming && following) { target = maximumOffset }
+            // Empty chats show onboarding from its beginning, including at large text sizes.
+            if pendingJump || (streaming && following) { target = hasMessages ? maximumOffset : 0 }
             else if let anchor, let marker = scroll.markers[anchor.id]?.value {
                 target = marker.convert(.zero, to: scroll).y - anchor.offset
             } else { target = lastOffset }

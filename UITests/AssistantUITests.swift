@@ -301,6 +301,9 @@ final class AssistantUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Dictate message"].exists)
+        let heading = app.staticTexts["What are we working on?"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(heading.frame.minY, app.navigationBars.firstMatch.frame.maxY)
         saveScreenshot(app, name: "Welcome-dark-large-text")
         app.buttons["Choose model"].tap()
         XCTAssertTrue(app.navigationBars["Models"].waitForExistence(timeout: 5))

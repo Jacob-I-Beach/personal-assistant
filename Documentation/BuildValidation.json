@@ -259,11 +259,23 @@
       "started_at": "2026-10-10T14:36:55Z",
       "status": "completed",
       "rounded_minutes": 16
+    },
+    {
+      "run_id": 38061471487,
+      "attempt": 1,
+      "job_id": 114240441362,
+      "source_revision": "24f7d07f9b66932de647781e90460b1377de92b7",
+      "completed_at": "2026-10-10T15:11:50Z",
+      "conclusion": "success",
+      "name": "ios",
+      "started_at": "2026-10-10T14:54:33Z",
+      "status": "completed",
+      "rounded_minutes": 18
     }
   ],
-  "rounded_runner_minutes": 219,
+  "rounded_runner_minutes": 237,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 13.578,
+  "estimated_compute_usd_if_fully_billable": 14.694,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 16,
   "authorization_note": "Jacob explicitly raised the total hosted-Mac ceiling to USD 16 on 2026-10-10."

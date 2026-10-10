@@ -144,7 +144,7 @@ struct ChatView: View {
     @State private var visibleMessageCount = 100
     @FocusState private var composerFocused: Bool
     var body: some View {
-        StableChatScrollView(conversationID: model.conversation.id, isStreaming: model.isRunning, composerFocused: composerFocused, dismissKeyboard: { composerFocused = false }, viewport: viewport) {
+        StableChatScrollView(conversationID: model.conversation.id, isStreaming: model.isRunning, hasMessages: !model.conversation.messages.isEmpty, composerFocused: composerFocused, dismissKeyboard: { composerFocused = false }, viewport: viewport) {
                 VStack(alignment: .leading, spacing: 18) {
                     if model.conversation.messages.isEmpty { welcome }
                     if model.conversation.messages.count > visibleMessageCount {
