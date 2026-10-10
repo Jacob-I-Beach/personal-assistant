@@ -8,7 +8,7 @@ Jacob confirms that **0.5.0 build 5 opens on his iPhone and preserves his previo
 
 ## Current source: 0.6 candidate
 
-The installed baseline remains 0.5.0 build 5. The [0.6 source batch](Documentation/RELEASE_06.md) adds automatic memory/history/undo, recent-chat browsing, durable reply/action recovery, in-app route previews and a useful home canvas with optional persistent location/weather context. It also addresses the reported streaming jitter, keyboard toolbar and active-tool alignment. 138 Windows core tests pass; native validation and a new IPA remain pending a hosted-Mac budget increase.
+The installed baseline remains 0.5.0 build 5. The [0.6 source batch](Documentation/RELEASE_06.md) adds automatic memory/history/undo, recent-chat browsing, durable reply/action recovery, in-app route previews and a useful home canvas with optional persistent location/weather context. It also addresses the reported streaming jitter, keyboard toolbar and active-tool alignment. 138 Windows core tests pass; native validation and a new IPA are the next authorized steps under the USD 20 total hosted-Mac ceiling.
 
 - A portable Swift core with SQLite transactions, retained legacy JSON migration, full-text history search, bounded working context, and app-owned records.
 - Shared app-controlled tools for captures, history, saved memory, actual offline JavaScript execution, editable artifacts, and authorized native Health overviews. External streamed calls are held until terminal completion; native Foundation Models tools use complete validated arguments through the same executor.

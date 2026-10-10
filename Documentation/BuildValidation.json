@@ -289,6 +289,6 @@
   "standard_rate_usd_per_minute": 0.062,
   "estimated_compute_usd_if_fully_billable": 15.872,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
-  "authorized_compute_budget_usd": 16,
-  "authorization_note": "Jacob explicitly raised the total hosted-Mac ceiling to USD 16 on 2026-10-10."
+  "authorized_compute_budget_usd": 20,
+  "authorization_note": "Jacob explicitly raised the total hosted-Mac ceiling to USD 20 on 2026-10-10 and authorized continued validation and release work. Every job remains capped at 20 minutes."
 }

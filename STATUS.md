@@ -4,7 +4,7 @@
 
 ## Current evidence
 
-**Next source candidate: 0.6.0 build 6.** The [0.6 scope and evidence](Documentation/RELEASE_06.md) covers streaming follow, automatic memory/history/undo, useful home/context actions, permitted history browsing, durable turn recovery and in-app route preparation. 138 Windows tests pass and Swift syntax parsing passes. New native/platform scenarios are prepared but unrun. No 0.6 IPA exists yet; the USD 16 hosted-Mac ceiling currently has only USD 0.128 of estimated compute headroom.
+**Next source candidate: 0.6.0 build 6.** The [0.6 scope and evidence](Documentation/RELEASE_06.md) covers streaming follow, automatic memory/history/undo, useful home/context actions, permitted history browsing, durable turn recovery and in-app route preparation. 138 Windows tests pass and Swift syntax parsing passes. New native/platform scenarios are prepared but unrun. No 0.6 IPA exists yet; Jacob has raised the hosted-Mac ceiling to USD 20, authorizing native validation and packaging.
 
 Jacob's latest 0.5 phone report confirms tool disclosure position and swipe keyboard dismissal. Large scrolling jumps are gone, but live responses still jitter; the extra keyboard button and active-tool alignment need the 0.6 repairs. Maps opening succeeded, followed by an interrupted reply. [DeviceValidation05.json](Documentation/DeviceValidation05.json) records this separately from automated tests.
 
@@ -26,7 +26,7 @@ See [RELEASE_05.md](Documentation/RELEASE_05.md) and [DEVICE_VALIDATION.md](Docu
 
 Keep the existing app installed and use the same iLoader account. GUI and authentication remain user-operated. The iPhone-only route still excludes Watch deployment and gates unprovisioned HealthKit; direct PCC requires the app entitlement. Neither compilation nor private sideloading grants those capabilities.
 
-Recorded hosted-Mac usage totals 256 rounded minutes, estimated **USD 15.872 if fully billable**, within the authorized **USD 16 total** ceiling. Failed/cancelled execution is included; confirmed startup rejections with no runner consume zero runner minutes. This is not an account invoice. The October 10 billing snapshot showed USD 12.00 gross compute fully discounted and zero net billed compute, but reporting may lag later jobs. Preserve the conservative ceiling; taxes and future storage are separate. Full jobs remain capped at 20 minutes.
+Recorded hosted-Mac usage totals 256 rounded minutes, estimated **USD 15.872 if fully billable**, within the authorized **USD 20 total** ceiling. Failed/cancelled execution is included; confirmed startup rejections with no runner consume zero runner minutes. This is not an account invoice. The October 10 billing snapshot showed USD 12.00 gross compute fully discounted and zero net billed compute, but reporting may lag later jobs. Preserve the conservative ceiling; taxes and future storage are separate. Full jobs remain capped at 20 minutes.
 
 ## Historical 0.2 installation
 

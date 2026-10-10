@@ -1,6 +1,6 @@
 # 0.6 working scope — continuity, useful context and response interaction
 
-Status: 0.6.0 build 6 source candidate prepared for native validation. No 0.6 native build or installation exists. The installed 0.5.0 build 5 remains the known working baseline. The hosted-Mac estimate is USD 15.872 against the existing USD 16 ceiling. Source/local verification is ready for review; a native-validation budget increase is needed before a run can start. No paid validation run fits the remaining amount.
+Status: 0.6.0 build 6 source candidate prepared for native validation. No 0.6 native build or installation exists. The installed 0.5.0 build 5 remains the known working baseline. The hosted-Mac estimate is USD 15.872. Jacob raised the total ceiling to USD 20 on October 10 and authorized native validation and packaging; each job remains capped at 20 minutes. Simulator validation will run before the device archive.
 
 ## New device evidence
 
