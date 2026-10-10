@@ -63,7 +63,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(count.isHittable)
         count.adjust(toNormalizedSliderPosition: 1)
         // The scenario must recompute the displayed result from the changed input.
-        XCTAssertTrue(app.staticTexts["185"].waitForExistence(timeout: 5))
+        // LabeledContent exposes its label and value together in the native accessibility tree.
+        XCTAssertEqual(count.value as? String, "10")
+        XCTAssertTrue(app.staticTexts["Total, 185"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Interactive-scenario-result")
         let first = app.staticTexts["1+1"]
         for _ in 0..<12 { if first.isHittable { break }; app.swipeDown() }

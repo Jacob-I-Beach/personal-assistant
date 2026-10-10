@@ -247,11 +247,23 @@
       "rounded_minutes": 0,
       "runner_started": false,
       "note": "GitHub rejected this attempt before assigning a runner; no execution steps ran."
+    },
+    {
+      "run_id": 38060300668,
+      "attempt": 1,
+      "job_id": 114237039205,
+      "source_revision": "c58c193f1ec444954513126e744a7f5095c81fd0",
+      "completed_at": "2026-10-10T14:52:26Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-10T14:36:55Z",
+      "status": "completed",
+      "rounded_minutes": 16
     }
   ],
-  "rounded_runner_minutes": 203,
+  "rounded_runner_minutes": 219,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 12.586,
+  "estimated_compute_usd_if_fully_billable": 13.578,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 16,
   "authorization_note": "Jacob explicitly raised the total hosted-Mac ceiling to USD 16 on 2026-10-10."
