@@ -1,0 +1,28 @@
+{
+  "run": "38089667633",
+  "reviewed": true,
+  "review_method": "Opened the actual exported native XCUITest screenshots and inspected the recorded scroll measurements.",
+  "current_source_screens": [
+    "Compact-tools-swipe-keyboard-dismissed",
+    "Streaming-reader-detached",
+    "Streaming-follow-resumed"
+  ],
+  "context_source_run": "38088741064",
+  "context_screens_reviewed": [
+    "Welcome-dark-large-text",
+    "In-chat-route-and-saved-progress",
+    "Home-context-controls",
+    "Reply-recovered-on-foreground-return",
+    "Memory-history-and-undo"
+  ],
+  "observations": [
+    "Normal-contrast prose, compact tool rows, rendered mathematics/table and an unobstructed composer remain visible after swipe keyboard dismissal.",
+    "The detached reader stays on earlier text while generation continues; its jump-to-latest control remains available.",
+    "Manual swiping reached following mode while the response was still generating; the latest content remains above the composer.",
+    "The recorded reading offset stayed 3442 and the screen anchor stayed -3207 while content grew from 4707 to 4888 points.",
+    "The route card contains native map attribution, travel estimate, distance, details and a separate Maps action.",
+    "Memory history shows the undo entry and before/after values; foreground recovery retains one user request and continues the saved reply.",
+    "The large-type home layout retains its heading and uses a single-column action layout; content remains scrollable."
+  ],
+  "limits": "Synthetic simulator fixtures. These captures do not establish live provider behavior, physical location/LiDAR accuracy, a complete accessibility audit or physical installation."
+}

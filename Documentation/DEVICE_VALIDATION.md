@@ -1,6 +1,6 @@
-# Private 0.5 device validation
+# Private 0.6 device validation
 
-The 0.5.0 build 5 package passed [full native validation 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456) and archive inspection. On October 10, 2026, Jacob confirmed it is installed, opens as version 0.5.0 build 5, and retains previous chats. [DeviceValidation05.json](DeviceValidation05.json) records the user report and outstanding checks. Automated checks use synthetic data; the remaining phone checks establish real behavior.
+The 0.6.0 build 6 package passed [native validation and device build 38089667633](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38089667633) and archive inspection. [ReleaseValidation06.json](ReleaseValidation06.json) records the final and preceding test scopes. Its physical installation remains pending. The last confirmed installed baseline is 0.5.0 build 5, with previous chats present; [DeviceValidation05.json](DeviceValidation05.json) preserves that report and the later functional feedback. Automated checks use synthetic data; phone checks establish real behavior.
 
 ## Installation profile
 
@@ -20,9 +20,9 @@ Source evidence: [official iLoader 2.3.6](https://github.com/nab138/iloader/tree
 ## User-operated installation
 
 1. Leave the existing Personal Assistant installed. Connect and unlock the iPhone, then select it in iLoader with the same Apple account used for the working installation.
-2. Choose **Import IPA** and select the verified `0.5.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
+2. Choose **Import IPA** and select the verified `0.6.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
 3. Complete any Apple authentication prompt yourself. If iLoader proposes revoking a certificate, deleting another app, or changing accounts, stop and report the exact message so the existing installation can be preserved.
-4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.5.0 · Build 5** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
+4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.6.0 · Build 6** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
 
 The agent performs code/CLI/file validation; Jacob requested instructions for all GUI interactions rather than computer-use automation.
 
@@ -34,14 +34,16 @@ Sources: [official preset list](https://github.com/nab138/iloader/blob/v2.3.6/sr
 
 ## First functional pass
 
-1. **Update:** About shows Version 0.5.0, Build 5; prior chats remain. A cold launch starts a fresh conversation.
-2. **Position/keyboard:** open the earlier long research answer, scroll to the middle, expand/collapse a tool and type a draft. Swipe down to dismiss the keyboard, then try its dismiss button. The reading position should stay sensible without random jumps. Repeat while a long answer streams.
+1. **Update:** About shows Version 0.6.0, Build 6; prior chats remain. A cold launch starts a fresh conversation and offers saved unfinished replies.
+2. **Position/keyboard:** while a long answer streams, remain at the bottom, scroll up to read, then scroll fully down. Following should release and reattach accordingly; earlier text should stay still while reading. Expand/collapse a tool, type a draft and swipe down to dismiss the keyboard. There is no extra keyboard toolbar button.
 3. **Thinking/layout:** select GPT 6.1 Sol; use the circle beside the microphone to try Low through Max. Check normal contrast, compact tool rows, retained collapsible sources, tight user bubbles and external action rows.
 4. **Edit/regenerate:** in a disposable chat ask 1+1, edit it to 1+2 and send. The replacement answer should use 1+2 and the removed tail should disappear. Cancel a second edit and confirm the draft is restored. External files are not undone by editing.
 5. **Attachments:** send an ordinary photo without text. No inserted sentence or empty text bubble should appear. Tap the photo to zoom. Attach a small PDF with text and open it from its attachment row.
 6. **Depth:** open a non-sensitive saved camera/depth capture. Select one or two visible points, inspect the result/warnings and use selected points in chat. The draft text must remain unchanged. Ask about those points; the assistant should use saved sensor metadata with its limitations. Do not use this uncalibrated workflow for safety or guaranteed fit.
 7. **Working surfaces:** ask for a JavaScript calculation and a chart based on that exact result; then a small comparison/checklist or adjustable scenario. Change a selection/parameter, send a follow-up and confirm read_surface sees the new saved state. Checkmarks are not evidence of completed external actions.
-8. **Memory:** Library → Saved memory. Mark a disposable note tentative, expired or superseded; inspect its source/confirmation and connected-model scope. Expired/superseded notes should stop being injected as current memory. Prior transcript references remain historical data.
+8. **Memory:** share a harmless durable preference and inspect Library → Saved memory → History and undo. Verify its source and scope, edit or forget it and try undo. Tentative/expired/superseded states remain available; original chats remain historical data.
+9. **Home/context:** try camera, files, creation brief and voice. Home context remembers foreground location permission when enabled. Optional weather can follow an approximate area or a chosen city; iOS permission and service availability still apply.
+10. **Routes/recovery:** prepare a route to a public place, confirm the destination and inspect its in-chat preview before choosing Open in Maps. During another reply, briefly leave and return; verify continuation or an accurate saved-progress state. Pressing Stop must not auto-resume it.
 
 Existing Files/export/folder workflows should still work. Real document-provider persistence, account-specific model support, local-model performance and hardware behavior remain separate checks.
 

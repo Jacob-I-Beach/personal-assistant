@@ -1,0 +1,19 @@
+{
+  "version": "0.6.0",
+  "build": "6",
+  "expected_package_source": "e830dabf7d6e060e3787088b13a856f03fa66432",
+  "sha256": "9cb0e363f877ec2731bec8960c66cd10942eb9584451d8457bb6d9b22908fee1",
+  "installation": "pending_user_confirmation",
+  "previous_chats_present": "pending_user_confirmation",
+  "functional_checks": {
+    "stream_follow_detach_reattach": "pending",
+    "stationary_reading_during_generation": "pending",
+    "swipe_keyboard_dismissal": "pending",
+    "automatic_memory_and_undo": "pending",
+    "home_actions_and_context": "pending",
+    "live_route_preparation": "pending",
+    "foreground_reply_recovery": "pending",
+    "physical_depth_accuracy": "not_measured"
+  },
+  "note": "Native simulator and archive evidence is in ReleaseValidation06.json. It is separate from physical-phone installation and functional confirmation."
+}

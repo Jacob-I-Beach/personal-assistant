@@ -1,0 +1,65 @@
+{
+  "version": "0.6.0",
+  "build": "6",
+  "validation_run": "38089667633",
+  "build_run": "38089667633",
+  "validation_source": "e830dabf7d6e060e3787088b13a856f03fa66432",
+  "source": "e830dabf7d6e060e3787088b13a856f03fa66432",
+  "matching_source_scope": [
+    "App",
+    "Sources",
+    "Tests",
+    "PlatformTests",
+    "UITests",
+    "project.yml",
+    "Package.swift",
+    "Dependencies/Package.resolved"
+  ],
+  "core_tests": 138,
+  "platform_tests": 18,
+  "ui_tests": 2,
+  "ui_scenarios": [
+    "testKeyboardAndDisclosurePreserveReadingPosition",
+    "testStreamingFollowsDetachesAndReturnsToFollowing"
+  ],
+  "ui_scenarios_covered": 13,
+  "baseline_ui_evidence": [
+    {
+      "run": "38088741064",
+      "source": "aa30c5095bf087afec27f9c921fa83d5b517c49d",
+      "retained_passing_scenarios": [
+        "testAttachmentPreviewWorkingSurfacesAndActualMessageEdit",
+        "testDarkAndLargeTextControlsRemainUsable",
+        "testForegroundReturnContinuesWithoutAnotherUserMessage",
+        "testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords",
+        "testRichConversationArtifactAndHistory",
+        "testSavedRouteMemoryUndoAndResumeStayInTheApp"
+      ],
+      "source_changes_since_that_run": [
+        "App/Models/UIStreamingFixture.swift",
+        "UITests/AssistantUITests.swift"
+      ]
+    },
+    {
+      "run": "38087030482",
+      "source": "b3dbbc972e58a4875f1c964693fd10c85fa04c1c",
+      "retained_passing_scenarios": [
+        "testConnectedFolderAndFilesOutputs",
+        "testFreshLaunchSidebarFoldersAndAttachmentActions",
+        "testOrderedProgressWebAndReadableCalculation",
+        "testSourcesThinkingAndPhotoPicker",
+        "testWelcomeCatalogAndSettings"
+      ],
+      "source_changes_since_that_run": [
+        "App/Models/UIStreamingFixture.swift",
+        "App/Views/StableChatScrollView.swift",
+        "UITests/AssistantUITests.swift"
+      ]
+    }
+  ],
+  "sha256": "9cb0e363f877ec2731bec8960c66cd10942eb9584451d8457bb6d9b22908fee1",
+  "bytes": 20386691,
+  "debug_models_excluded": true,
+  "dependency_pins_verified": 20,
+  "physical_device_validation": "pending"
+}
