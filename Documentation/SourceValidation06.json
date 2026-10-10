@@ -1,9 +1,9 @@
 {
   "version": "0.6.0",
   "build": "6",
-  "recorded_at_utc": "2026-10-10T21:43:49+00:00",
+  "recorded_at_utc": "2026-10-10T21:58:41+00:00",
   "scope": "source candidate; Windows validation only",
-  "source_and_test_fingerprint_sha256": "2db0f726e3b0183b55d490f68d9c7a6b3898bbad010d52958509a843c3b839a6",
+  "source_and_test_fingerprint_sha256": "f29235e19daf667f8e8a986092f5dbd2773c2b118e4e39510502a3e0cf602528",
   "fingerprint_file_count": 131,
   "fingerprint_definition": "Sorted relative path, NUL, LF-normalized bytes, NUL for App/Sources/Tests/PlatformTests/UITests Swift files plus project.yml and Package.swift",
   "core": {
@@ -26,8 +26,8 @@
   "iphone_archive": "not_built",
   "device_validation": "pending",
   "hosted_mac": {
-    "completed_runs_since_05": 3,
-    "existing_estimate_usd": 18.228,
+    "completed_runs_since_05": 4,
+    "existing_estimate_usd": 18.91,
     "authorized_total_usd": 20
   },
   "public_module_construction_typecheck": "passed on Windows without @testable import",

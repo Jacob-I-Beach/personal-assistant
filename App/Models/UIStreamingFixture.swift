@@ -26,11 +26,13 @@ struct UIStreamingBackend: ModelBackend {
                     try await Task.sleep(for: .seconds(2))
                     let web = ResponsePart(id: "web", web: .init(status: "completed", queries: ["Synthetic reference"]))
                     var text = ""
-                    for index in 1...180 {
+                    // Keep real growth throughout the gesture checks without producing
+                    // pages faster than XCUITest's mandatory between-gesture idle waits.
+                    for index in 1...240 {
                         try Task.checkCancellation()
-                        text += "Paragraph \(index). Streaming stays with the newest text until you scroll up to read. Returning to the bottom follows the answer again.\n\n"
+                        text += "Line \(index). More of the example.\n\n"
                         output.yield(.responseContent([introduction, web, .init(id: "answer", text: text, phase: "final_answer")]))
-                        try await Task.sleep(for: .milliseconds(200))
+                        try await Task.sleep(for: .milliseconds(250))
                     }
                     output.yield(.completed); output.finish()
                 } catch { output.finish(throwing: error) }

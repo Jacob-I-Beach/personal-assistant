@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full suite, export repair, or interaction regressions after an inspected full-suite run
         type: choice
-        options: [full, export-repair, interaction-repair]
+        options: [full, export-repair, interaction-repair, scroll-repair]
         default: full
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
   ios:
     # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
     runs-on: xcode-27
-    timeout-minutes: ${{ inputs.validation_scope == 'export-repair' && 15 || 20 }}
+    timeout-minutes: ${{ inputs.validation_scope == 'export-repair' && 15 || inputs.validation_scope == 'scroll-repair' && 17 || 20 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -88,6 +88,8 @@ jobs:
             for scenario in testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testDarkAndLargeTextControlsRemainUsable testForegroundReturnContinuesWithoutAnotherUserMessage testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords testKeyboardAndDisclosurePreserveReadingPosition testRichConversationArtifactAndHistory testSavedRouteMemoryUndoAndResumeStayInTheApp testStreamingFollowsDetachesAndReturnsToFollowing; do
               test_options+=("-only-testing:PersonalAssistantUITests/AssistantUITests/$scenario")
             done
+          elif [ "${{ inputs.validation_scope }}" = "scroll-repair" ]; then
+            test_options+=("-only-testing:PersonalAssistantPlatformTests" "-only-testing:PersonalAssistantUITests/AssistantUITests/testKeyboardAndDisclosurePreserveReadingPosition" "-only-testing:PersonalAssistantUITests/AssistantUITests/testStreamingFollowsDetachesAndReturnsToFollowing")
           fi
           xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath DerivedData -resultBundlePath .build/UITests.xcresult -skipMacroValidation -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 "${test_options[@]}" CODE_SIGNING_ALLOWED=NO test 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots

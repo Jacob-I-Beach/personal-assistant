@@ -88,11 +88,13 @@ final class AssistantUITests: XCTestCase {
         let moving = NSPredicate { _, _ in let p = position(); return p.0 == "following" && p.1 > 0 }
         expectation(for: moving, evaluatedWith: scroll); waitForExpectations(timeout: 8)
         saveScreenshot(app, name: "Live-tool-and-streaming")
-        var prior = position().1
+        let initialFollow = position().1
+        var prior = initialFollow
         for _ in 0..<8 {
             Thread.sleep(forTimeInterval: 0.2)
             let next = position().1; XCTAssertGreaterThanOrEqual(next, prior - 2); prior = next
         }
+        XCTAssertGreaterThan(prior, initialFollow + 10, "Following must advance with new text")
         scroll.swipeDown()
         let detached = NSPredicate { _, _ in let p = position(); return p.0 == "reading" && p.3 == "idle" }
         expectation(for: detached, evaluatedWith: scroll); waitForExpectations(timeout: 8)
@@ -104,9 +106,12 @@ final class AssistantUITests: XCTestCase {
         evidence.name = "Streaming reading position"; evidence.lifetime = .keepAlways; add(evidence)
         XCTAssertLessThan(abs(afterReading.1 - reading), 8)
         XCTAssertLessThan(abs(afterReading.4 - readingPosition.4), 3, "Visible message anchor moved during reading")
+        XCTAssertGreaterThan(afterReading.2, readingPosition.2 + 20, "The response must still grow during the reading check")
         saveScreenshot(app, name: "Streaming-reader-detached")
         // Scroll to the actual bottom rather than using the jump button.
         for _ in 0..<8 { if position().0 == "following" { break }; scroll.swipeUp(velocity: .fast) }
+        let returnEvidence = XCTAttachment(string: "After manual swipes: \(position())")
+        returnEvidence.name = "Return to bottom position"; returnEvidence.lifetime = .keepAlways; add(returnEvidence)
         let reattached = NSPredicate { _, _ in position().0 == "following" }
         expectation(for: reattached, evaluatedWith: scroll); waitForExpectations(timeout: 5)
         XCTAssertTrue(app.buttons["Stop response"].exists)
