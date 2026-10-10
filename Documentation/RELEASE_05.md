@@ -1,6 +1,6 @@
 # 0.5 working scope — conversation reliability and interactive work
 
-Status: source implementation is ready for native validation as 0.5.0 build 5. Jacob's four screenshots and phone report identify the changes below. Personal screenshots are not repository fixtures. No new native build has been dispatched under the remaining USD 0.282 of the current USD 12 hosted-Mac ceiling. Native compilation, screenshot inspection and phone verification are still pending.
+Status: source implementation is ready for native validation as 0.5.0 build 5. Jacob's four screenshots and phone report identify the changes below. Personal screenshots are not repository fixtures. Jacob explicitly increased the total hosted-Mac ceiling to USD 16 on 2026-10-10. The estimate before 0.5 validation is USD 11.718 if fully billable; full jobs remain capped at 20 minutes. Native compilation, screenshot inspection and phone verification are still pending.
 
 ## Acceptance targets
 

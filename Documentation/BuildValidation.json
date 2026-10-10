@@ -202,5 +202,6 @@
   "standard_rate_usd_per_minute": 0.062,
   "estimated_compute_usd_if_fully_billable": 11.718,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
-  "authorized_compute_budget_usd": 12
+  "authorized_compute_budget_usd": 16,
+  "authorization_note": "Jacob explicitly raised the total hosted-Mac ceiling to USD 16 on 2026-10-10."
 }

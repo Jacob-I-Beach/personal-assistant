@@ -1,6 +1,6 @@
 # Implementation status
 
-**0.5.0 build 5 is the current development batch, pending native validation.** The source addresses the reported scroll/keyboard/disclosure problems, compact tools and thinking control, exact attachment-only messages, true edit/regenerate, image/depth inspection, reusable native working surfaces and memory lifecycle. See [RELEASE_05.md](Documentation/RELEASE_05.md). The latest verified package remains 0.4.0; the USD 12 Mac ceiling has USD 0.282 remaining, so another full native run needs an explicitly increased ceiling.
+**0.5.0 build 5 is the current development batch, pending native validation.** The source addresses the reported scroll/keyboard/disclosure problems, compact tools and thinking control, exact attachment-only messages, true edit/regenerate, image/depth inspection, reusable native working surfaces and memory lifecycle. See [RELEASE_05.md](Documentation/RELEASE_05.md). The latest verified package remains 0.4.0; Jacob has now authorized USD 16 total for hosted-Mac validation; the recorded estimate before the 0.5 run is USD 11.718. Full native validation is the next step.
 
 **0.4.0 build 4 is verified and ready for personal signing and installation.** Source `d8af8e22bc6317101d8186f3e367c0840014f195`. The latest user-confirmed installation is still 0.3.0 build 3, with prior chats intact. Jacob confirmed that its GPT 6.1 Sol Jupiter response worked well with web sources and JavaScript. The 0.4 batch addresses his presentation screenshots and the later workspace requests together.
 
