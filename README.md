@@ -6,11 +6,11 @@ Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com
 
 Jacob confirms that **0.3.0 build 3 opens on his iPhone and preserves his previous chats**. ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
-## Current source: 0.3
+## Current source: 0.4
 
 - A portable Swift core with SQLite transactions, retained legacy JSON migration, full-text history search, bounded working context, and app-owned records.
 - Shared app-controlled tools for captures, history, saved memory, actual offline JavaScript execution, editable artifacts, and authorized native Health overviews. External streamed calls are held until terminal completion; native Foundation Models tools use complete validated arguments through the same executor.
-- ChatGPT account registration, PKCE/nonce/state checks, JOSE signature verification, separate Keychain registrations, token rotation, account catalogs, and streamed Responses with namespaced tools. Jacob previously verified live account authorization, model loading and a simple response in 0.2; the 0.3 complex-request regression test is pending.
+- ChatGPT account registration, PKCE/nonce/state checks, JOSE signature verification, separate Keychain registrations, token rotation, account catalogs, and streamed Responses with namespaced tools. Jacob previously verified live account authorization, model loading and a simple response in 0.2; Jacob confirmed the 0.3 Jupiter request with web research and JavaScript completed successfully.
 - Ten downloaded MLX choices across Qwen, Granite, Liquid, SmolLM and Gemma, with pinned revisions/sizes/weight hashes, working-memory estimates, and matching-package import through Files. Downloads are separate from inference and do not select or load a model automatically.
 - Apple on-device Foundation Models and an entitlement-gated PCC adapter. This is not the complete Siri assistant; a native App Intent exposes the app's own request entry point to Siri/Shortcuts.
 - A native conversation interface, rich Markdown/code/tables, model sheet, searchable history, saved-memory editor, artifact previews/revisions, and draft recovery.
@@ -21,11 +21,9 @@ Jacob confirms that **0.3.0 build 3 opens on his iPhone and preserves his previo
 - A replay command that runs the same depth-summary code on a saved observation.
 - A manual, unsigned Mac CI compile workflow. It has no signing secrets and does not publish an app.
 
-**Current release:** 0.3.0 build 3, source 6b0ba6ba51b22df7c3821d6b53e4c4607a31da6c, passed [native validation 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142): **75 core tests, 8 platform tests, 4 interface tests, and the iPhone/Watch Release build**. The shared-core suite also passes on Windows. The verified iPhone-only IPA is in the sibling **PersonalAssistant-iPhone/0.3.0** folder. Jacob confirms that 0.3 opens and previous chats are present; live-model regression and hardware checks are underway.
+**Current verified package: 0.4.0 build 4**, source `d8af8e22bc6317101d8186f3e367c0840014f195`, ready for personal signing. Jacob has not yet reported installing this update. **97 shared-core tests, 14 native platform tests, seven interface scenarios across two runs, and the physical iPhone/Watch Release build.** [Final run 38028597942](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38028597942) reran all core/platform tests and the export interface scenario. The other six interface scenarios passed in [run 38027478506](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38027478506); Git object comparisons verify identical App, Sources, project, package manifest and dependency contents. That earlier run failed only its export-dismissal gesture. The final test successfully saved through the native picker and separately verified cancellation. The 97-test shared suite also passed on Windows. No paid model calls or personal captures were used.
 
-The 0.3 batch adds ChatGPT-primary onboarding, a sidebar with folders and chat management, file attachments and native previews, document reading and PDF writing, scoped workspace search, public work progress, web-search/source support, corrected empty-response and calculation failure handling, native device actions, and ten pinned local model choices. See [release scope](Documentation/RELEASE_03.md), [operating behavior](Documentation/OPERATING_BEHAVIOR.md), and [current status](STATUS.md).
-
-[Fourteen native screenshots](Documentation/Screenshots/0.3.0/README.md) use synthetic UI fixtures. The sidebar, Library, file attachment/detail and rendered PDF were visually inspected. The interface test exercises create/archive/restore/delete and a file-preview round trip. This is not a claim of live inference quality, full accessibility coverage or phone performance.
+The verified iPhone-only package is in the sibling **PersonalAssistant-iPhone/0.4.0** folder. This batch adds the five-level GPT thinking control, collapsed long source lists, automatic topic titles, repaired Photos presentation, coherent progress/tool/math rendering, verified Files outputs and native export, and persistent scoped folders with reviewed text edits. The compact system instructions and capability query describe implemented tools. See [release scope](Documentation/RELEASE_04.md), [current status](STATUS.md), and [native screenshots](Documentation/Screenshots/0.4.0/README.md).
 
 **Installation scope:** official iLoader 2.3.6 does not provision the Watch companion or request HealthKit for this app. Use **PersonalAssistant-iPhone-only.ipa**, keeping the existing app and the same account. The full compiled archive is retained for a compatible signing route. Health remains clearly unavailable in this profile. Follow the [manual installation and device checks](Documentation/DEVICE_VALIDATION.md).
 
@@ -45,7 +43,7 @@ The Swift 6.4 Windows build can emit a warning about its optional `.build/debug`
 
 Use an Apple silicon Mac with Xcode 27 and a compatible macOS version:
 
-The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 20-minute job timeout. A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
+The manual GitHub workflow selects the standard `xcode-27` preview runner, which includes the iOS 27 SDK. It runs only on explicit dispatch, with a 20-minute full-suite timeout (15 minutes for a focused repair backed by matching prior UI evidence). A push does not start a build. Private-repository Actions usage can incur charges beyond the account's included allowance.
 
 ```bash
 brew install xcodegen
@@ -82,7 +80,7 @@ The MLX provider uses the vision-model factory. Arbitrary repository compatibili
 - **Downloaded model:** weights and tokenizer are stored in the app's Application Support directory. Inference reloads from local files, not a network model service.
 - **OpenAI API:** supports an API key saved in device-only Keychain. This is separate from a ChatGPT subscription and can incur provider charges. No key is included in this repository.
 - **PC / compatible server:** provide an OpenAI-compatible `/v1` endpoint and model identifier. Use HTTPS except for explicitly configured private LAN/loopback addresses.
-- **Sign in with ChatGPT:** uses the documented local-app registration and inference route. The native flow is implemented; real account grant and inference testing are still required. It does not import ChatGPT's existing conversations, memory, hosted Code Interpreter, or Health permissions.
+- **Sign in with ChatGPT:** uses the documented local-app registration and inference route. Jacob has verified account authorization, model loading and live inference. Per-model feature availability remains account-dependent. It does not import ChatGPT's existing conversations, memory, hosted Code Interpreter, or Health permissions.
 - **Apple models:** on-device availability is queried through Foundation Models. Direct PCC requires the app's managed entitlement, not merely consumer Siri/iCloud access.
 
 Changing models preserves the app-owned conversation. Provider-specific opaque continuation items are reused only with the exact original provider/model; they are not handed to a different provider.
@@ -101,8 +99,8 @@ swift run capture-replay /path/to/observation.json
 
 ## Data boundaries
 
-- Data and model files are kept inside the application container and excluded from device backups by default.
-- The current app does not synchronize with iCloud or any developer server.
+- Private application data and model files remain in the application container and are excluded from device backups by default. Verified generated copies in Documents/Outputs are intentionally visible in Files; their backup/synchronization follows the chosen location/provider.
+- The app does not synchronize its private conversation database with a developer server. A user-selected external folder or export destination can be managed by iCloud or another Files provider; a local save receipt does not confirm that provider's cloud synchronization.
 - Network-model permission is scoped to a conversation and the configured destination.
 - Credentials are stored in Keychain, not conversations, settings JSON, or model prompts.
 - HTTP redirects are rejected for model requests.
@@ -113,6 +111,6 @@ swift run capture-replay /path/to/observation.json
 
 ## Remaining product work
 
-Document/PDF ingestion and document search, full web-research workflows, conversation branching, richer interactive artifact editing, general PC/cloud execution, reliable native background jobs, broader organizer integrations, advanced sensor workflows, Core AI comparisons, and measured local-model tuning remain in the product design. A no-charge cloud workspace is a candidate, not a provisioned service. The current Watch uses the phone for reasoning; it does not promise an always-awake phone GPU.
+Conversation branching, richer artifact formats/editing, general PC/cloud execution, reliable native background jobs, broader organizer integrations, advanced sensor workflows, Core AI comparisons, and measured local-model tuning remain in the product design. A no-charge cloud workspace is a candidate, not a provisioned service. The current Watch uses the phone for reasoning; it does not promise an always-awake phone GPU.
 
 No public-app marketplace, billing system, multiuser server, or Windows imitation UI is included.

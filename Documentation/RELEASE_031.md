@@ -1,5 +1,7 @@
 # 0.3.1 build 4 — response presentation
 
+Historical scope: this version was not delivered separately. Its presentation changes and repairs are included in the verified [0.4.0 build 4 release](RELEASE_04.md). The validation notes below record the earlier iteration.
+
 Jacob's live 0.3 GPT 6.1 Sol Jupiter test returned a good sourced answer and a successful JavaScript result. Five user-supplied screenshots establish the presentation problems below. Those personal screenshots are not checked into this repository.
 
 ## Changes

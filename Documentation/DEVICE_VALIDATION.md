@@ -1,6 +1,6 @@
-# Private 0.3 device validation
+# Private 0.4 device validation
 
-The 0.3.0 build 3 package passed native validation 38016040142 and archive inspection. Jacob reports that the in-place update opens and previous chats are present. Automated tests use synthetic data; live accounts and hardware need the checks below.
+The 0.4.0 build 4 package passed [final native validation 38028597942](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38028597942) and archive inspection. Six additional interface scenarios passed on identical app source in run 38027478506. Jacob's current confirmed installation is 0.3.0 build 3. Automated checks use synthetic data; live accounts and hardware need the checks below.
 
 ## Installation profile
 
@@ -20,9 +20,9 @@ Source evidence: [official iLoader 2.3.6](https://github.com/nab138/iloader/tree
 ## User-operated installation
 
 1. Leave the existing Personal Assistant installed. Connect and unlock the iPhone, then select it in iLoader with the same Apple account used for the working installation.
-2. Choose **Import IPA** and select the verified `0.3.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
+2. Choose **Import IPA** and select the verified `0.4.0/PersonalAssistant-iPhone-only.ipa` in the `PersonalAssistant-iPhone` output folder.
 3. Complete any Apple authentication prompt yourself. If iLoader proposes revoking a certificate, deleting another app, or changing accounts, stop and report the exact message so the existing installation can be preserved.
-4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.3.0 · Build 3** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
+4. After iLoader reports success, open Personal Assistant on the phone. Check About for **Version 0.4.0 · Build 4** and find prior conversations in the sidebar. Do not uninstall the old app to solve an update failure.
 
 The agent performs code/CLI/file validation; Jacob requested instructions for all GUI interactions rather than computer-use automation.
 
@@ -34,17 +34,17 @@ Sources: [official preset list](https://github.com/nab138/iloader/blob/v2.3.6/sr
 
 ## First functional pass
 
-Check About shows Version 0.3.0, Build 3. Reopen the app to a fresh conversation, then find the old 0.2 chats in the sidebar. Test folder/move/archive/restore with a disposable chat before deleting anything you need.
+Start with these short checks; use a disposable folder and non-sensitive image.
 
-Priority regression: choose GPT 6.1 Sol. Ask it to estimate Jupiter's circumference from explicitly limited observations, identify assumptions, research any missing factual inputs, and calculate with JavaScript. An answer, tool receipt or visible error must remain; silently disappearing generation fails the check. Repeat with a camera/depth image. Source links must open and correspond to claims.
+1. **Install/migration:** About shows Version 0.4.0, Build 4. A cold launch opens a fresh conversation; existing chats remain in the sidebar.
+2. **Thinking and titles:** choose GPT 6.1 Sol. Tap Thinking below the composer, choose High, send a short task, then check the title after its successful answer. Switch models and back to check the remembered selection. Manual renaming must remain authoritative.
+3. **Photos/vision:** plus → Photo library opens the native picker. Choose one picture and send it; a response or actionable error must remain. Repeat the earlier camera/depth request separately. The simulator verified picker opening/cancellation, not a real camera observation.
+4. **Response layout/sources:** repeat a sourced calculation. Public updates remain separate, web activity is visible, calculation results are readable and equations render. The completed turn has one action row; more than three unique source URLs appear in a collapsible panel.
+5. **Generated files:** ask the assistant to use JavaScript to add [18.5, 27.25, 14.75], then save the computed values/total as CSV and create a small PDF report. Confirm total 60.5, genuine CSV rows and a readable PDF. Check Files → On My iPhone → Personal Assistant → Outputs. A signed app/provider may display a localized app-folder name.
+6. **Export:** open an artifact and Save to Files. Cancel first and confirm the app reports cancellation. Repeat and save a deliberate copy; local completion must not claim cloud sync is finished.
+7. **Connected folder:** plus → Connected folders; choose a disposable folder with notes.md. Enable it for this chat, and allow connected-model access only if desired. Ask to list/read it, then authorize editing and request a small change. Inspect the native diff and original copy. Close/reopen the app and check access again. If a provider is unavailable or access is revoked, the app should offer reconnection, not invent a successful read/save.
 
-Calculation: Use JavaScript to add [18.5, 27.25, 14.75] and save the values and computed total as totals.csv. The total must be 60.5 and the file must contain CSV rows. Repeat with the Apple on-device model if available.
-
-Files: attach a non-sensitive PDF or DOCX using the plus menu. Ask for a cited summary and a small new PDF. Confirm originals and generated PDF appear in Library and can preview/share. Verify a new unrelated chat cannot find a private file until workspace/file access is enabled.
-
-Actions: ask for device memory/thermal state. Request location and first Cancel; no coordinates should appear. For Calendar and Messages, cancel the native composer first and verify the assistant does not claim success. Save/send only a deliberate test you actually want. Calling and Maps require their separate review.
-
-Local inference: select one already downloaded package or explicitly choose a download. Record first-load time, approximate response speed, device heat and any visible failure; do not infer performance from the catalog estimate. Vision behavior needs a vision model; text models can use saved OCR.
+Existing integration checks remain useful when testing those features: cancel location, Calendar or Messages review before deliberately approving an action; verify no success is claimed for cancellation. For local inference, use an already downloaded package or an explicitly chosen download and record latency/heat rather than trusting catalog estimates. Text-only models use saved OCR; direct image interpretation requires a vision-capable model.
 
 Watch, Health entitlement, PCC entitlement, continuous background work, Python and full browser control are not acceptance claims for this iPhone-only package.
 

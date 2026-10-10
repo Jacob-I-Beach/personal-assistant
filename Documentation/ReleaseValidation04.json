@@ -1,0 +1,27 @@
+{
+  "run": "38028597942",
+  "source": "d8af8e22bc6317101d8186f3e367c0840014f195",
+  "core_tests": 97,
+  "platform_tests": 14,
+  "ui_tests_in_final_run": 1,
+  "ui_scenarios_verified": [
+    "testConnectedFolderAndFilesOutputs",
+    "testDarkAndLargeTextControlsRemainUsable",
+    "testFreshLaunchSidebarFoldersAndAttachmentActions",
+    "testOrderedProgressWebAndReadableCalculation",
+    "testRichConversationArtifactAndHistory",
+    "testSourcesThinkingAndPhotoPicker",
+    "testWelcomeCatalogAndSettings"
+  ],
+  "ui_evidence_runs": [
+    "38027478506",
+    "38028597942"
+  ],
+  "version": "0.4.0",
+  "bytes": 19708149,
+  "sha256": "a8cc8e34131cfdd067096430b62071d5314ceeb9834184574c932b689b0c5217",
+  "files_sharing_enabled": true,
+  "opens_documents_in_place": true,
+  "dependency_pins_verified": 20,
+  "math_fonts_and_licenses_verified": true
+}

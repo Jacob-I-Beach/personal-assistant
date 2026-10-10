@@ -1,45 +1,39 @@
 # Implementation status
 
-**0.4.0 build 4 is the current source batch, not an installable release yet.** It combines the pending response-presentation repairs with source collapse, semantic chat names, photo-picker repair, GPT effort controls, capability-grounded instructions and the Files/folder workspace workflow. Shared logic passes 97 Windows tests; native tests and phone checks remain pending. See [RELEASE_04.md](Documentation/RELEASE_04.md). The current ledger is 153 rounded minutes, estimated USD 9.486 if fully billable, within the approved USD 12 ceiling.
+**0.4.0 build 4 is verified and ready for personal signing and installation.** Source `d8af8e22bc6317101d8186f3e367c0840014f195`. The latest user-confirmed installation is still 0.3.0 build 3, with prior chats intact. Jacob confirmed that its GPT 6.1 Sol Jupiter response worked well with web sources and JavaScript. The 0.4 batch addresses his presentation screenshots and the later workspace requests together.
 
-## Current 0.3 release
+## Current release evidence
 
-**Jacob reports that 0.3.0 build 3 opens on his iPhone and his previous chats are present. He also confirmed that GPT 6.1 Sol completed the Jupiter request very well, with web sources and JavaScript.** His five screenshots identify presentation defects addressed by the pending 0.3.1 build 4 batch: separate public updates, final-answer actions, persistent web receipts, readable calculation results and native math.
+**97 shared-core tests, 14 native platform tests, seven interface scenarios across two runs, and the physical iPhone/Watch Release build.** [Final run 38028597942](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38028597942) reran all core/platform tests and the export interface scenario. The other six interface scenarios passed in [run 38027478506](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38027478506); Git object comparisons verify identical App, Sources, project, package manifest and dependency contents. That earlier run failed only its export-dismissal gesture. The final test successfully saved through the native picker and separately verified cancellation. The 97-test shared suite also passed on Windows. No paid model calls or personal captures were used.
 
-The repaired 0.3.1 shared logic passes 85 Windows tests including the localhost transport suite. Native run 38019229700 compiled the app and passed all ten platform tests, including native math. It exposed an Apple number-grouping difference and theme precedence hiding the code-copy toolbar. Those source repairs are ready; a complete native rerun and device package are pending. [Preview screenshots](Documentation/Screenshots/0.3.1-preview/README.md) and [release details](Documentation/RELEASE_031.md) record the evidence and limits.
-
-Source 6b0ba6ba51b22df7c3821d6b53e4c4607a31da6c passed [native validation 38016040142](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38016040142): **75 macOS core tests, eight iOS platform tests, four interface tests, and the iPhone/Watch Release build**. Shared-core tests also pass on Windows. Fourteen native simulator screenshots are retained in [Screenshots/0.3.0](Documentation/Screenshots/0.3.0/README.md). The latest sidebar, Library, attached file and rendered PDF were visually inspected. The interface test creates a folder, archives/restores a chat, deletes a disposable chat, attaches a saved CSV, previews a generated PDF and returns to the file view. This is selected coverage, not a complete accessibility or hardware audit.
-
-The verified installation input is **../PersonalAssistant-iPhone/0.3.0/PersonalAssistant-iPhone-only.ipa**, 13,980,729 bytes, SHA-256 **888656b529fdc98aeea1c2921f6cb9e3b4695c00c9496de22a4489766d75b00b**. It is a physical ARM64 iOS 27 build with Metal kernels, ten catalog entries and no downloaded model weights or Apple provisioning profile. The full Watch-containing archive, executable-identity comparison, checksums and build provenance are retained beside it.
+The verified iPhone-only IPA is `../PersonalAssistant-iPhone/0.4.0/PersonalAssistant-iPhone-only.ipa`, 19,708,149 bytes, SHA-256 `a8cc8e34131cfdd067096430b62071d5314ceeb9834184574c932b689b0c5217`. Inspection confirmed ARM64 physical iOS 27 code, Metal libraries, native math resources/licenses, 20 pinned dependencies and Files configuration. The full Watch-containing archive, byte-identical iPhone executable comparison, checksums, provenance and FeatureValidation.json are retained beside it. [Native captures](Documentation/Screenshots/0.4.0/README.md) use synthetic content only.
 
 ## What changed
 
-- ChatGPT-primary onboarding and a fresh conversation on cold launch; deliberate continuation through a slide-out sidebar.
-- Folders with optional instructions; rename, move, archive, restore and confirmed deletion.
-- Files and Library in the attachment menu; per-message playback and voice settings.
-- Preserved originals, scoped workspace search, native file preview/share, bounded PDF/Office/text extraction, OpenAI original-file inputs, and real paginated PDF output.
-- Public plans, understandable execution receipts, source links and durable error messages; corrected sparse/final-only/refusal response handling.
-- Plain JSON JavaScript returns, explicit tool success/failure and blocked fabricated follow-up files after failed calculations.
-- Device resources, reviewed foreground location, calendar/message composers, and reviewed Maps/Phone handoff.
-- Ten pinned MLX packages across Qwen, IBM Granite, Liquid, SmolLM and Gemma; upstream model configuration retained, working-memory estimates labeled and hardware performance unmeasured.
+- Public updates remain separate; response actions appear at the end. Web activity persists, JavaScript results are readable, and equations render natively.
+- More than three unique source URLs collapse into a source panel, preserving citation references.
+- Supported GPT models expose Low, Medium, High, Extra High and Max effort, remembered per model and wired to exact provider values.
+- New chats can receive bounded, model-generated topic names. Manual names and protected-context boundaries are preserved; the setting is optional.
+- Photo library opens from the persistent chat view, with cancellable, conversation-bound import.
+- Generated artifacts and PDFs receive verified Files-visible copies; native export reports completion or cancellation accurately.
+- Connected folders support scoped bookmarks, per-chat/model/editing access, listing, reading, bounded search, creation and reviewed version-aware text edits with recoverable original snapshots.
+- A compact base prompt and runtime capability query describe the real tool environment. Existing providers, history, memory, sandbox, PDF pipeline and native integrations are reused.
 
-Details are in [RELEASE_03.md](Documentation/RELEASE_03.md) and [OPERATING_BEHAVIOR.md](Documentation/OPERATING_BEHAVIOR.md).
+See [RELEASE_04.md](Documentation/RELEASE_04.md) for scope and [DEVICE_VALIDATION.md](Documentation/DEVICE_VALIDATION.md) for focused phone checks.
 
-## Live evidence and remaining checks
+## Remaining real-device evidence
 
-Jacob confirmed 0.2 installation and launch, ChatGPT authorization, account-model loading and a simple live reply. His Apple-model screenshot showed correct addition code rejected for returning an array, followed by an invented 61.55 total saved as JSON under a CSV filename. Tests now reproduce that code yielding **60.5**, allow its return shape, and guard failure-to-file recovery.
+Live semantic-title quality, the thinking control against Jacob's account models, real Photos import/vision, the earlier image/depth response, security-scoped provider access after relaunch/revocation, location/native composers, and local-model memory/speed/heat still require phone checks. The simulator establishes native picker presentation and actual local export, not iCloud synchronization or all document-provider behavior.
 
-GPT 6.1 Sol previously stopped without an answer on image/depth and text-only Jupiter requests. The source had a confirmed defect discarding completed tool calls when the terminal response contained an empty output list. That defect is corrected and tested, and genuinely blank completion becomes a persisted visible failure. The live 0.3 Jupiter retest passed according to Jacob and his screenshots. An image/depth retest remains pending.
-
-Native actions, camera/depth, dictation and local model loading/speed/heat still need physical-device checks. Web search is confirmed for Jacob's tested account/model request; other account policies are not inferred. CI uses synthetic fixtures and no paid external model inference. AppIntents SSU archive diagnostics remain nonfatal; actual Siri/Shortcuts discovery is not established by the build. Existing voice-session deprecation/main-thread warnings remain recorded for follow-up.
+The earlier empty-output transport defect and plain-array JavaScript result rejection are covered by regression tests. The tested sum is 60.5; failed calculations cannot be followed by a fabricated file save. A model still needs live task-quality evaluation.
 
 ## Installation and spending
 
-Use the same iLoader account and keep the existing app installed. See [DEVICE_VALIDATION.md](Documentation/DEVICE_VALIDATION.md). GUI, authentication and phone prompts remain user-operated; no computer-use automation is authorized.
+Use the same iLoader account and keep the existing app installed. GUI, authentication and phone prompts are user-operated; computer-use automation is not authorized. Official iLoader 2.3.6 does not provision this app's Watch target or HealthKit. Health is gated off before authorization/querying in this profile. The full compiled Watch archive remains available for a compatible signing route. Direct PCC requires this app's entitlement.
 
-Official iLoader 2.3.6 does not provision this app's Watch companion or request HealthKit. The iPhone-only deployment gates Health off before authorization/querying. Watch's compiled archive is retained for a compatible signing route. Direct PCC still requires this app's approved entitlement.
+The 21 recorded jobs total **189 rounded minutes**, estimated **USD 11.718 if fully billable**, within the authorized **USD 12** ceiling. The estimate includes failed and cancelled jobs at USD 0.062/minute; it is not an account invoice. Included allowance, taxes and separate artifact storage are not established. Full jobs have a 20-minute cap; the final focused run used a 15-minute cap. Check the remaining budget before any new run. [Ledger](Documentation/BuildValidation.json).
 
-Jacob explicitly raised the total hosted-Mac budget to **$12** after the first 0.3.1 native run. The 17 completed jobs total **152 rounded minutes**, an estimated **USD 9.424 if fully billable** at $0.062/minute before revalidation. This includes failed and cancelled jobs. Each job remains capped at 20 minutes. This is not an account invoice; included allowance, tax and separate artifact storage are not established. Evidence is in [BuildValidation.json](Documentation/BuildValidation.json).
+No remote shell/Python service, share extension, perpetual background agent, unrestricted iOS control or binary Office/PDF editing was added. Existing nonfatal App Intents discovery and voice-session warnings do not establish physical Siri/voice behavior.
 
 ## Historical 0.2 installation
 
