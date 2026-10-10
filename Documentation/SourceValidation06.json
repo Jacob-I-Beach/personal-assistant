@@ -1,9 +1,9 @@
 {
   "version": "0.6.0",
   "build": "6",
-  "recorded_at_utc": "2026-10-10T20:36:39+00:00",
+  "recorded_at_utc": "2026-10-10T20:54:53+00:00",
   "scope": "source candidate; Windows validation only",
-  "source_and_test_fingerprint_sha256": "df5f1abfab5552f287374afd54f08965e008a385c6c75e68c357b0c62d598409",
+  "source_and_test_fingerprint_sha256": "8436ac0fc1c1665727f7d00b178f36dc232d414217fdc662e9e66bf22d0b6d72",
   "fingerprint_file_count": 131,
   "fingerprint_definition": "Sorted relative path, NUL, LF-normalized bytes, NUL for App/Sources/Tests/PlatformTests/UITests Swift files plus project.yml and Package.swift",
   "core": {
@@ -12,7 +12,7 @@
     "failures": 0,
     "transport": "synthetic localhost",
     "paid_model_requests": 0,
-    "log_sha256": "31cd7c80ea3580c66922b16154609a1464cfd28eb0a92ddc10ec03fbff8c5f5c"
+    "log_sha256": "729e7e372c3c4fbda1c641f8573c34b1eb6058c0879c5eec0716d8113c1d2922"
   },
   "swift_syntax_parse": "passed; not an iOS type check or build",
   "native_platform_tests": {
@@ -26,9 +26,10 @@
   "iphone_archive": "not_built",
   "device_validation": "pending",
   "hosted_mac": {
-    "new_runs_for_this_candidate": 0,
-    "existing_estimate_usd": 15.872,
-    "authorized_total_usd": 16
+    "completed_runs_since_05": 1,
+    "existing_estimate_usd": 16.306,
+    "authorized_total_usd": 20
   },
+  "public_module_construction_typecheck": "passed on Windows without @testable import",
   "note": "Installed 0.5.0 build 5 and previous packages are preserved. Source and native/phone evidence must remain distinct."
 }

@@ -15,6 +15,10 @@ public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public var resumes = 0
     public var configuration: JSONValue = .object([:])
     public var plan: [JSONValue] = []
+    public init(id: UUID, conversationID: UUID, userMessageID: UUID, backendID: String, destination: String? = nil, goal: String, configuration: JSONValue = .object([:])) {
+        self.id = id; self.conversationID = conversationID; self.userMessageID = userMessageID
+        self.backendID = backendID; self.destination = destination; self.goal = goal; self.configuration = configuration
+    }
 }
 struct ToolOperation: Codable, Sendable {
     var key: String

@@ -74,3 +74,7 @@ Validation:
 - Physical phone behavior, real MapKit routing, weather/location permissions and connected-model background interruptions remain device checks after a validated install.
 
 The durable record in this batch tracks an assistant turn and its plan/action outcomes. It is not a scheduler, independent long-running project agent, Siri inbox or Share extension. Remote developer workspaces and continuous background processing remain separate future work. The existing HealthKit/Watch/PCC signing limitations still apply.
+
+## Native validation attempts
+
+- Run `38084859699`, source `244876a`: all 138 core tests passed on Mac. App compilation stopped because the new `WorkTurn` memberwise initializer was internal to AssistantCore, so the app's continuity fixture could not construct it. No interface tests ran. Added an explicit public initializer, reran 138 Windows tests and type-checked the app-facing types through a normal module import. This run used seven rounded minutes; the cumulative conservative estimate is USD 16.306 under the approved USD 20 ceiling.
