@@ -45,3 +45,5 @@ Real-provider access after relaunch, iCloud/provider cancellation, live title qu
 ## Spending
 
 The approved hosted-Mac ceiling is USD 12 total. Before this batch's validation, 18 completed/cancelled jobs total 153 rounded minutes, estimated USD 9.486 if fully billable. Read BuildValidation.json before dispatching. Each job remains capped at 20 minutes.
+
+Native run 38026294533 compiled the app and passed all 97 Mac core tests and 13 platform tests. Six of seven interface tests passed, including Photos presentation, all reasoning choices, source expansion and the repaired response rendering. The remaining test assumed a Cancel button at the export destination; the capture shows the real Files Save sheet. The test now uses its dismissal gesture, and pending native reviews resolve cancellation by exact request ID even after SwiftUI clears the sheet binding. A matching native callback test was added. Estimated accumulated compute is now USD 10.230; revalidation remains within the USD 12 ceiling.

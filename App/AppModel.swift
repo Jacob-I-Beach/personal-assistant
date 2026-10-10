@@ -46,6 +46,7 @@ final class AppModel: ObservableObject {
     private(set) var workspaceService: FolderWorkspaceService?
     var pickedFolderURL: URL?
     private var nativeActionWaiter: CheckedContinuation<String, any Error>?
+    private var nativeActionWaiterID: UUID?
     private let locationService = ForegroundLocation()
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
@@ -680,17 +681,18 @@ final class AppModel: ObservableObject {
         guard nativeActionWaiter == nil, UIApplication.shared.applicationState == .active else { throw AssistantError.invalidTool("Bring the app to the foreground and finish the current review before another action.") }
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
-            return try await withCheckedThrowingContinuation { continuation in nativeActionWaiter = continuation; nativeAction = request; activity = "Waiting for your review" }
+            return try await withCheckedThrowingContinuation { continuation in nativeActionWaiter = continuation; nativeActionWaiterID = request.id; nativeAction = request; activity = "Waiting for your review" }
         } onCancel: { Task { @MainActor [weak self] in
-            guard self?.nativeAction?.id == request.id else { return }
-            self?.resolveNativeAction("cancelled")
+            guard self?.isPendingNativeAction(request.id) == true else { return }
+            self?.resolveNativeAction("cancelled", for: request.id)
         } }
     }
     func resolveNativeAction(_ status: String, for requestID: UUID? = nil) {
-        if let requestID, nativeAction?.id != requestID { return }
-        let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeAction = nil
+        if let requestID, nativeActionWaiterID != requestID { return }
+        let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeActionWaiterID = nil; nativeAction = nil
         waiter?.resume(returning: status)
     }
+    func isPendingNativeAction(_ id: UUID) -> Bool { nativeActionWaiterID == id && nativeActionWaiter != nil }
     func refreshAccounts() async {
         guard let accountService else { return }
         accounts = await accountService.summaries()

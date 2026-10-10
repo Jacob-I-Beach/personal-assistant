@@ -58,10 +58,16 @@ final class AssistantUITests: XCTestCase {
         app.staticTexts["verified-total.csv"].tap()
         XCTAssertTrue(app.buttons["Export another copy"].waitForExistence(timeout: 5))
         app.buttons["Export another copy"].tap()
-        let cancel = app.buttons["Cancel"].firstMatch
-        XCTAssertTrue(cancel.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 8))
         saveScreenshot(app, name: "Native-file-export")
-        cancel.tap()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Export completed. Cloud sync depends on the selected provider."].waitForExistence(timeout: 8))
+        saveScreenshot(app, name: "Native-export-completed")
+        app.buttons["Export another copy"].tap()
+        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 8))
+        // iOS 27's destination sheet has Save/Back here; dragging its header dismisses it.
+        let header = app.buttons["Save"].coordinate(withNormalizedOffset: CGVector(dx: -1.8, dy: 0.5))
+        header.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)))
         XCTAssertTrue(app.staticTexts["Export cancelled."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }

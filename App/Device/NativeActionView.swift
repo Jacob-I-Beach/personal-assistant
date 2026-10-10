@@ -5,7 +5,7 @@ import MessageUI
 import SwiftUI
 
 struct NativeActionRequest: Identifiable, Sendable {
-    enum Kind: Sendable { case approval, calendar, message, folder, exportFile, fileEdit }
+    enum Kind: Sendable, Equatable { case approval, calendar, message, folder, exportFile, fileEdit }
     let id = UUID()
     var kind: Kind
     var title: String
@@ -38,7 +38,7 @@ struct NativeActionView: View {
                 TextMessageEditor(arguments: request.arguments) { model.resolveNativeAction($0, for: request.id) }
             case .folder:
                 FolderPicker { url in
-                    guard model.nativeAction?.id == request.id else { return }
+                    guard model.isPendingNativeAction(request.id) else { return }
                     model.pickedFolderURL = url; model.resolveNativeAction(url == nil ? "cancelled" : "selected", for: request.id)
                 }
             case .exportFile:
@@ -46,7 +46,13 @@ struct NativeActionView: View {
             case .fileEdit:
                 if let proposal = request.proposal { FileEditReviewView(proposal: proposal) { model.resolveNativeAction($0, for: request.id) } }
             }
-        }.interactiveDismissDisabled()
+        }
+        .interactiveDismissDisabled(request.kind != .folder && request.kind != .exportFile)
+        .onDisappear {
+            if request.kind == .folder || request.kind == .exportFile {
+                model.resolveNativeAction("cancelled", for: request.id)
+            }
+        }
     }
 }
 
