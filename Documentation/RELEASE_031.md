@@ -22,4 +22,4 @@ Native run 38019229700 compiled the app and passed all ten platform tests, inclu
 
 The [native preview captures](Screenshots/0.3.1-preview/README.md) were visually inspected. They confirm separate progress updates, no intermediate assistant actions, working web expansion and typeset inline math. The calculation capture predates the grouping repair. These are intermediate evidence, not release approval.
 
-The current installed version remains 0.3.0 build 3. The image/depth request still needs a physical-device retest. The $10 total hosted-Mac ceiling applies; the ledger now totals an estimated $9.424 if all recorded minutes are billable. The remaining $0.576 is insufficient for a complete native rerun; source and local checks are ready for budget approval.
+The current installed version remains 0.3.0 build 3. The image/depth request still needs a physical-device retest. Jacob approved raising the hosted-Mac ceiling to $12 total. The ledger records an estimated $9.424 before revalidation if all recorded minutes are billable; each job remains capped at 20 minutes.

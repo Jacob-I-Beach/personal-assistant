@@ -37,7 +37,7 @@ Use the same iLoader account and keep the existing app installed. See [DEVICE_VA
 
 Official iLoader 2.3.6 does not provision this app's Watch companion or request HealthKit. The iPhone-only deployment gates Health off before authorization/querying. Watch's compiled archive is retained for a compatible signing route. Direct PCC still requires this app's approved entitlement.
 
-Jacob explicitly raised the total hosted-Mac budget to **$10**. The 17 completed jobs total **152 rounded minutes**, an estimated **USD 9.424 if fully billable** at $0.062/minute. The remaining $0.576 does not fit a complete native rerun. This includes failed and cancelled jobs. It is not an account invoice; included allowance, tax and separate artifact storage are not established. Evidence is in [BuildValidation.json](Documentation/BuildValidation.json).
+Jacob explicitly raised the total hosted-Mac budget to **$12** after the first 0.3.1 native run. The 17 completed jobs total **152 rounded minutes**, an estimated **USD 9.424 if fully billable** at $0.062/minute before revalidation. This includes failed and cancelled jobs. Each job remains capped at 20 minutes. This is not an account invoice; included allowance, tax and separate artifact storage are not established. Evidence is in [BuildValidation.json](Documentation/BuildValidation.json).
 
 ## Historical 0.2 installation
 
