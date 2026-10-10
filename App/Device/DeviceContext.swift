@@ -13,13 +13,16 @@ enum NativeTools {
         ]))
     }
     static let device = definition("get_device_info", "Read current device model identifier, OS, memory, storage, battery and thermal state. No unique identifier, call history, account data or other apps' settings.", ["reason": "Short reason this information helps the user's task."])
-    static let location = definition("get_current_location", "Request one foreground location fix. The user reviews the purpose and processing destination before the iOS location prompt. No background tracking. Coordinates include accuracy and time.", ["reason": "Explain why this task needs the user's current location."])
+    static let context = definition("get_app_context", "Read this app's actual context settings: selected model, memory and history access, location-context permission and fresh home weather if the user enabled it. Weather is a cached estimate with a timestamp, not a new measurement. This does not request permissions or start tracking.", ["reason": "Why current app context is relevant."])
+    static let location = definition("get_current_location", "Read one foreground location fix for a relevant task. Reuses enabled location-context permission; otherwise presents native review. iOS permission still applies. Coordinates include accuracy and time. No continuous background tracking.", ["reason": "Explain why this task needs the user's current location."])
     static let pdf = definition("create_pdf", "Create an actual paginated PDF document on this iPhone from a title and Markdown text. Text layout only; no remote images or script execution. For calculated documents, use verified tool results.", ["filename": "A simple filename ending .pdf", "title": "Document title", "markdown": "Document body; converted to plain text with basic paragraph layout."])
     static let calendar = definition("prepare_calendar_event", "Present Apple's event editor with a proposed event. The user reviews and saves or cancels. Does not read other events and never silently adds one.", ["title": "Event title", "start": "ISO8601 date-time including time-zone offset", "end": "ISO8601 date-time including time-zone offset", "notes": "Optional details, or empty", "location": "Event location, or empty"])
-    static let maps = definition("open_in_maps", "Offer to open a place search in Apple Maps. Requires the user's review; does not claim navigation has started.", ["query": "Place name or address to find."])
+    static let maps = definition("open_in_maps", "Legacy external place-search handoff, only when the user explicitly asks to open Maps. For directions prefer prepare_route: it keeps the preview and reply in-app, with a separate Open in Maps button. Opening Maps does not confirm navigation started.", ["query": "Place name or address to find."])
+    static let route = definition("prepare_route", "Resolve and review places with Apple Maps, then calculate a route and display its native preview, distance and travel-time estimate in this conversation. Use this for directions instead of searching the web for addresses. The user confirms the destination. Does not leave the app or start navigation. Needs a connection to Apple; unavailable in Local only mode.", ["origin": "Place/address including city, or current_location for a reviewed foreground fix.", "destination": "Destination name/address including city if known. Do not invent a city.", "transport": "driving, walking, or cycling"])
+    static let readRoute = definition("read_route", "Read a route prepared in this conversation and its recorded Maps handoff status. This does not refresh the estimate or inspect active navigation.", ["route_id": "Exact route_id from prepare_route."])
     static let phone = definition("prepare_phone_call", "Offer a phone number to the system dialer after user review. The user controls calling. Cannot read call history or inspect ongoing calls.", ["number": "International or local phone number, digits with optional leading plus.", "reason": "Why the user requested this call."])
     static let message = definition("compose_text_message", "Open the system message composer inside the app. The user reviews recipients and text and presses Send. Cannot read previous messages or send automatically.", ["recipients": "Comma-separated phone numbers, or empty so the user selects recipients.", "body": "Proposed message text."])
-    static let definitions = [device, location, pdf, calendar, maps, phone, message]
+    static let definitions = [device, context, location, pdf, calendar, route, readRoute, maps, phone, message]
 }
 
 @MainActor
@@ -48,24 +51,39 @@ enum DeviceContext {
 final class ForegroundLocation: NSObject, @preconcurrency CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var waiter: CheckedContinuation<JSONValue, any Error>?
+    private var requestID: UUID?
     private var timeout: Task<Void, Never>?
     private var requested = false
     override init() { super.init(); manager.delegate = self; manager.desiredAccuracy = kCLLocationAccuracyHundredMeters }
+    var authorizationSummary: String {
+        switch manager.authorizationStatus {
+        case .notDetermined: "Not requested"
+        case .authorizedWhenInUse: "Allowed while using the app"
+        case .authorizedAlways: "Allowed by iOS; this app requests foreground fixes"
+        case .denied: "Denied in iPhone Settings"
+        case .restricted: "Restricted by iOS"
+        @unknown default: "Unavailable"
+        }
+    }
     func read() async throws -> JSONValue {
         guard UIApplication.shared.applicationState == .active else { throw AssistantError.invalidTool("Location needs the app open in the foreground.") }
         guard waiter == nil else { throw AssistantError.busy }
+        let id = UUID()
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                waiter = continuation; requested = false
+                waiter = continuation; requested = false; requestID = id
                 timeout = Task { [weak self] in
                     try? await Task.sleep(for: .seconds(25))
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled, self?.requestID == id else { return }
                     self?.finish(.failure(AssistantError.provider("A location fix did not arrive. Check Location Services and try again.")))
                 }
                 requestIfAuthorized()
             }
-        } onCancel: { Task { @MainActor [weak self] in self?.finish(.failure(CancellationError())) } }
+        } onCancel: { Task { @MainActor [weak self] in
+            guard self?.requestID == id else { return }
+            self?.finish(.failure(CancellationError()))
+        } }
     }
     private func requestIfAuthorized() {
         guard waiter != nil else { return }
@@ -88,7 +106,7 @@ final class ForegroundLocation: NSObject, @preconcurrency CLLocationManagerDeleg
             "precision": .string(manager.accuracyAuthorization == .fullAccuracy ? "full" : "reduced"), "source": .string("Core Location")])))
     }
     private func finish(_ result: Result<JSONValue, any Error>) {
-        guard let continuation = waiter else { return }; waiter = nil; requested = false
+        guard let continuation = waiter else { return }; waiter = nil; requested = false; requestID = nil
         timeout?.cancel(); timeout = nil; manager.stopUpdatingLocation()
         continuation.resume(with: result)
     }

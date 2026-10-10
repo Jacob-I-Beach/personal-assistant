@@ -52,7 +52,10 @@ public actor LocalStore {
         revised.modelTitleOverride = "Conversation"
         if revised.titleWasGenerated { revised.title = "New conversation"; revised.needsAutomaticTitle = true }
         revised.updatedAt = Date()
-        try database.transaction { try Self.persist(revised, in: database) }
+        try database.transaction {
+            try Self.persist(revised, in: database)
+            try reconcileAutomaticMemoryAfterEdit(conversationID: original.id, removedMessageIDs: Set(removed.map(\.id)))
+        }
         return revised
     }
     public func loadConversation(_ id: UUID) throws -> Conversation {
@@ -158,6 +161,12 @@ public actor LocalStore {
         }
         try database.transaction {
             for artifact in generated { try database.execute("DELETE FROM metadata WHERE key = ?", [.text("artifact-draft:" + artifact.id.uuidString)]) }
+            // Optional tables may not exist in an older installation until their feature is used.
+            for table in ["work_turns", "tool_operations", "prepared_routes"] {
+                if !(try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [.text(table)])).isEmpty {
+                    try database.execute("DELETE FROM \(table) WHERE conversation_id=?", [.text(id.uuidString)])
+                }
+            }
             try database.execute("DELETE FROM artifacts WHERE conversation_id = ?", [.text(id.uuidString)])
             try database.execute("DELETE FROM memories WHERE json_extract(CAST(payload AS TEXT),'$.conversationID') = ?", [.text(id.uuidString)])
             try database.execute("DELETE FROM conversations WHERE id = ?", [.text(id.uuidString)])
@@ -237,18 +246,20 @@ public actor LocalStore {
         }
     }
     public func memories() throws -> [SavedMemory] {
-        try database.execute("SELECT payload FROM memories ORDER BY updated_at DESC")
+        try database.execute("SELECT payload FROM memories WHERE COALESCE(json_extract(CAST(payload AS TEXT),'$.status'),'active') != 'forgotten' ORDER BY updated_at DESC")
             .map { try Self.decode(SavedMemory.self, $0[0].data!) }
     }
     public func saveMemory(_ memory: SavedMemory) throws {
         guard !memory.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               memory.title.utf8.count <= 200, !memory.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               memory.text.utf8.count <= 16_384, memory.source.utf8.count <= 600 else { throw AssistantError.provider("Give this memory a title and a focused note, up to 16 KB, with a short source label.") }
-        var updated = memory; updated.updatedAt = Date()
-        try database.execute("INSERT INTO memories(id,updated_at,payload) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload",
-            [.text(updated.id.uuidString), .real(updated.updatedAt.timeIntervalSince1970), .blob(try Self.encode(updated))])
+        var updated = memory; updated.basis = .userEdited
+        try recordMemory(updated, action: "saved", actor: "user")
     }
-    public func removeMemory(_ id: UUID) throws { try database.execute("DELETE FROM memories WHERE id = ?", [.text(id.uuidString)]) }
+    public func removeMemory(_ id: UUID) throws {
+        guard var note = try memory(id), note.status != .forgotten else { return }
+        note.status = .forgotten; note.basis = .userEdited; try recordMemory(note, action: "forgotten", actor: "user")
+    }
     public func saveWatchReply(_ reply: WatchReply) throws {
         try database.execute("UPDATE watch_requests SET state = ?, reply = ? WHERE id = ?",
             [.text(reply.state.rawValue), .blob(try WatchWire.encode(reply)), .text(reply.requestID.uuidString)])
@@ -260,7 +271,7 @@ public actor LocalStore {
 
     private static func prepare(_ database: SQLiteDatabase, root: URL) throws {
         let version = Int(try database.execute("PRAGMA user_version").first?[0].number ?? 0)
-        guard version <= 5 else { throw AssistantError.unsupportedSchema(version) }
+        guard version <= 6 else { throw AssistantError.unsupportedSchema(version) }
         if version == 0 {
             try database.transaction {
                 try database.execute("CREATE TABLE conversations(id TEXT PRIMARY KEY, title TEXT NOT NULL, updated_at REAL NOT NULL, payload BLOB NOT NULL)")
@@ -297,6 +308,13 @@ public actor LocalStore {
             try database.transaction {
                 try database.execute("CREATE TABLE workspace_files(id TEXT PRIMARY KEY, created_at REAL NOT NULL, payload BLOB NOT NULL)")
                 try database.execute("PRAGMA user_version = 5")
+            }
+        }
+        if version < 6 {
+            try database.transaction {
+                try database.execute("CREATE TABLE memory_changes(id TEXT PRIMARY KEY, memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, created_at REAL NOT NULL, operation_id TEXT NOT NULL UNIQUE, payload BLOB NOT NULL)")
+                try database.execute("CREATE INDEX memory_change_order ON memory_changes(memory_id, created_at)")
+                try database.execute("PRAGMA user_version = 6")
             }
         }
         if try database.execute("SELECT value FROM metadata WHERE key = 'legacy-import'").isEmpty {

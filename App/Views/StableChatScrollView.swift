@@ -1,3 +1,4 @@
+import AssistantCore
 import SwiftUI
 import UIKit
 
@@ -55,13 +56,17 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private var conversationID: UUID?
     private var streaming = false
     private var hasMessages = false
-    private var following = true
+    private var follow = ConversationFollow()
+    private var displayLink: CADisplayLink?
+    private var frameDriver: ChatFrameDriver?
+    private var lastFrameTime: CFTimeInterval = 0
     private var pendingJump = true
     private var reconciling = false
     private var lastContentSize = CGSize.zero
     private var lastViewportSize = CGSize.zero
     private var anchor: (id: UUID, offset: CGFloat)?
     private var lastOffset: CGFloat = 0
+    private var reachedBottomDuringGesture = false
 
     init(viewport: ChatViewport) { self.viewport = viewport; super.init(nibName: nil, bundle: nil); viewport.controller = self }
     required init?(coder: NSCoder) { fatalError("Use init(viewport:)") }
@@ -89,13 +94,11 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         ])
         host.didMove(toParent: self)
         scroll.didLayout = { [weak self] in self?.reconcileLayout() }
-        let tap = UITapGestureRecognizer(target: self, action: #selector(readerTapped))
-        tap.cancelsTouchesInView = false; tap.delegate = self; scroll.addGestureRecognizer(tap)
     }
     func update(_ content: AnyView, conversationID: UUID, streaming: Bool, hasMessages: Bool) {
         loadViewIfNeeded()
         if self.conversationID != conversationID {
-            self.conversationID = conversationID; anchor = nil; lastOffset = 0; pendingJump = true; following = true
+            self.conversationID = conversationID; anchor = nil; lastOffset = 0; pendingJump = true; follow.followLatest()
         }
         self.streaming = streaming
         self.hasMessages = hasMessages
@@ -103,9 +106,8 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         host.view.invalidateIntrinsicContentSize()
         scroll.setNeedsLayout()
     }
-    func detach() { scroll.didLayout = nil; scroll.delegate = nil; dismissKeyboard = nil; viewport?.controller = nil }
-    func jumpToLatest() { following = true; pendingJump = true; scroll.setNeedsLayout() }
-    @objc private func readerTapped() { following = false }
+    func detach() { displayLink?.invalidate(); displayLink = nil; frameDriver = nil; scroll.didLayout = nil; scroll.delegate = nil; dismissKeyboard = nil; viewport?.controller = nil }
+    func jumpToLatest() { follow.followLatest(); pendingJump = true; scroll.setNeedsLayout() }
     @objc private func readerPanned(_ gesture: UIPanGestureRecognizer) {
         if composerFocused && gesture.state == .changed && gesture.translation(in: scroll).y > 12 { dismissKeyboard?() }
     }
@@ -117,11 +119,19 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         guard !reconciling, scroll.bounds.width > 0, scroll.bounds.height > 0 else { return }
         reconciling = true
         defer { reconciling = false }
-        let changed = lastContentSize != scroll.contentSize || lastViewportSize != scroll.bounds.size
+        let viewportChanged = lastViewportSize != scroll.bounds.size
+        let changed = lastContentSize != scroll.contentSize || viewportChanged
         if !scroll.isDragging && !scroll.isDecelerating && (changed || pendingJump) {
             let target: CGFloat
             // Empty chats show onboarding from its beginning, including at large text sizes.
-            if pendingJump || (streaming && following) { target = hasMessages ? maximumOffset : 0 }
+            if pendingJump { target = hasMessages ? maximumOffset : 0 }
+            else if streaming && follow.isFollowing && !viewportChanged {
+                startFollowingFrames()
+                lastContentSize = scroll.contentSize; lastViewportSize = scroll.bounds.size
+                publishPosition()
+                return
+            }
+            else if follow.isFollowing { target = hasMessages ? maximumOffset : 0 }
             else if let anchor, let marker = scroll.markers[anchor.id]?.value {
                 target = marker.convert(.zero, to: scroll).y - anchor.offset
             } else { target = lastOffset }
@@ -130,6 +140,27 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         }
         lastContentSize = scroll.contentSize; lastViewportSize = scroll.bounds.size
         rememberPosition()
+        publishPosition()
+    }
+    private func startFollowingFrames() {
+        if displayLink == nil {
+            let driver = ChatFrameDriver(); driver.owner = self; frameDriver = driver
+            let link = CADisplayLink(target: driver, selector: #selector(ChatFrameDriver.tick(_:)))
+            link.add(to: .main, forMode: .common); displayLink = link
+        }
+        lastFrameTime = 0; displayLink?.isPaused = false
+    }
+    fileprivate func advanceFollowingFrame(_ link: CADisplayLink) {
+        guard streaming, follow.isFollowing, !scroll.isDragging, !scroll.isDecelerating else { link.isPaused = true; return }
+        let elapsed = lastFrameTime == 0 ? link.duration : link.timestamp - lastFrameTime
+        lastFrameTime = link.timestamp
+        let current = scroll.contentOffset.y
+        let next = CGFloat(ConversationFollow.advance(current: Double(current), bottom: Double(maximumOffset), elapsed: elapsed, scale: Double(scroll.window?.screen.scale ?? 3)))
+        if abs(next - current) < 0.01 { link.isPaused = true; return }
+        reconciling = true
+        scroll.setContentOffset(CGPoint(x: 0, y: next), animated: false)
+        rememberPosition()
+        reconciling = false
         publishPosition()
     }
     private func rememberPosition() {
@@ -144,22 +175,43 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         scroll.markers = scroll.markers.filter { $0.value.value != nil }
     }
     private func publishPosition() {
-        let value = nearBottom
+        #if DEBUG
+        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))"
+        #endif
+        let value = follow.isFollowing || nearBottom
         DispatchQueue.main.async { [weak self] in self?.viewport?.updateNearBottom(value) }
     }
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        following = false; pendingJump = false; rememberPosition()
+        reachedBottomDuringGesture = false
+        follow.beginReading(); displayLink?.isPaused = true; pendingJump = false; rememberPosition()
         // The composer belongs to the enclosing SwiftUI root, outside this scroll view.
         // Native interactive dismissal alone does not resign that external first responder.
         if composerFocused && scrollView.panGestureRecognizer.velocity(in: scrollView).y > 0 { dismissKeyboard?() }
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard !reconciling else { return }
-        if scrollView.isDragging || scrollView.isDecelerating { rememberPosition() }
+        if scrollView.isDragging || scrollView.isDecelerating {
+            if maximumOffset - scroll.contentOffset.y <= 6 { reachedBottomDuringGesture = true }
+            else if scrollView.isDragging && scrollView.panGestureRecognizer.velocity(in: scrollView).y > 0 { reachedBottomDuringGesture = false }
+            rememberPosition()
+        }
         publishPosition()
     }
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { following = nearBottom; rememberPosition() } }
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { following = nearBottom; rememberPosition() }
+    private func readerSettled() {
+        if reachedBottomDuringGesture { follow.followLatest() }
+        else { follow.userReached(distanceFromBottom: Double(maximumOffset - scroll.contentOffset.y)) }
+        rememberPosition(); publishPosition()
+        if streaming && follow.isFollowing { startFollowingFrames() }
+    }
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { readerSettled() } }
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { readerSettled() }
+    func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool { follow.beginReading(); displayLink?.isPaused = true; return true }
+}
+
+@MainActor
+private final class ChatFrameDriver: NSObject {
+    weak var owner: ChatScrollController?
+    @objc func tick(_ link: CADisplayLink) { owner?.advanceFollowingFrame(link) }
 }
 
 @MainActor

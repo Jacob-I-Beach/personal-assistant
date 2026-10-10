@@ -1,6 +1,17 @@
 import AssistantCore
 import SwiftUI
 
+struct ActiveWorkRow: View {
+    let title: String
+    var body: some View {
+        HStack(alignment: .center, spacing: 7) {
+            ProgressView().controlSize(.mini).frame(width: 16, height: 16)
+            Text(title).font(.caption.weight(.medium)).lineLimit(1)
+        }.foregroundStyle(.secondary).frame(minHeight: 22).padding(.vertical, 3)
+            .accessibilityElement(children: .combine).accessibilityIdentifier("active-tool-row")
+    }
+}
+
 struct ResponseContentView: View {
     let message: Message
     private var parts: [ResponsePart] { message.displayParts }
@@ -16,11 +27,16 @@ struct ResponseContentView: View {
                             .foregroundStyle(Color.primary)
                             .accessibilityIdentifier("response-text-\(index)")
                     } else if let activity = part.web {
-                        WebActivityView(activity: activity)
+                        WebActivityView(activity: resolved(activity))
                     }
                 }
             }
         }
+    }
+    private func resolved(_ activity: WebActivity) -> WebActivity {
+        var value = activity
+        if message.state != .streaming && value.isRunning { value.status = "incomplete" }
+        return value
     }
 }
 
@@ -47,12 +63,14 @@ struct WebActivityView: View {
                 }
             }.padding(.top, 10)
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                if activity.isRunning { ProgressView().controlSize(.small) }
-                else { Image(systemName: activity.isSuccessful ? "globe" : "exclamationmark.circle").padding(.top, 2) }
-                Text(activity.title).font(.caption.weight(.medium))
+            HStack(alignment: .center, spacing: 7) {
+                Group {
+                    if activity.isRunning { ProgressView().controlSize(.mini) }
+                    else { Image(systemName: activity.isSuccessful ? "globe" : "exclamationmark.circle") }
+                }.frame(width: 16, height: 16)
+                Text(activity.title).font(.caption.weight(.medium)).lineLimit(1)
                 if let page = activity.sources.first { Text(page.url.host ?? "").font(.caption2).lineLimit(1) }
-            }.foregroundStyle(.secondary).padding(.vertical, 3)
+            }.foregroundStyle(.secondary).frame(minHeight: 22).padding(.vertical, 3)
         }
         .tint(.secondary)
         .font(.caption).transaction { $0.animation = nil }

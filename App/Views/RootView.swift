@@ -137,6 +137,7 @@ struct ChatView: View {
     @State private var showPhotos = false
     @State private var showReasoningEffort = false
     @State private var showAttachmentLibrary = false
+    @State private var showCreationBrief = false
     @State private var photo: PhotosPickerItem?
     @State private var importing = false
     @State private var photoImportTask: Task<Void, Never>?
@@ -164,9 +165,14 @@ struct ChatView: View {
                     ForEach(model.files.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedFileIDs.contains($0.id) }.prefix(6)) { file in
                         Button { chatNavigation.destination = .file(file.id) } label: { WorkspaceFileRow(file: file) }.buttonStyle(.plain)
                     }
-                    if let activity = model.activity {
-                        HStack(spacing: 8) { ProgressView().controlSize(.small); Text(activity).font(.footnote).foregroundStyle(.secondary) }
-                            .accessibilityElement(children: .combine)
+                    if let call = model.activeToolCall {
+                        ActiveWorkRow(title: model.activity ?? ToolResultPresentation.activeTitle(call))
+                    } else if let activity = model.activity, !model.conversation.messages.suffix(2).filter({ $0.state == .streaming }).flatMap(\.displayParts).contains(where: { $0.web?.isRunning == true }) {
+                        ActiveWorkRow(title: activity)
+                    }
+                    if !model.isRunning, !model.conversation.messages.isEmpty,
+                       let work = model.unfinishedReplies.first(where: { $0.conversationID == model.conversation.id }) {
+                        SavedWorkCard(work: work)
                     }
                     Color.clear.frame(height: 10).id("conversation-bottom")
                 }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 12)
@@ -182,13 +188,6 @@ struct ChatView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button { composerFocused = false } label: { Image(systemName: "keyboard.chevron.compact.down") }
-                    .accessibilityLabel("Dismiss keyboard")
-            }
-        }
         .onChange(of: model.conversation.id) { _, _ in
             photoImportTask?.cancel(); voice.stopAll(); voicePrefix = ""; visibleMessageCount = 100
         }
@@ -197,6 +196,7 @@ struct ChatView: View {
         .sheet(isPresented: $showCapture) { SceneCaptureSheet().environmentObject(model) }
         .sheet(isPresented: $showAttachmentLibrary) { FileAttachmentPicker() }
         .sheet(isPresented: $showReasoningEffort) { ReasoningEffortView() }
+        .sheet(isPresented: $showCreationBrief) { CreationBriefView(text: model.draft) { model.draft = $0; composerFocused = true } }
         .sheet(isPresented: $model.showConnectedFolders) {
             NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.showConnectedFolders = false } } } }
         }
@@ -230,29 +230,10 @@ struct ChatView: View {
         }
     }
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("What are we working on?").font(.system(.title, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-            Text("Think it through. Make something useful.").font(.subheadline).foregroundStyle(.secondary)
-            VStack(spacing: 10) {
-                if model.accounts.allSatisfy({ !$0.isConnected }) {
-                    Button { model.connectChatGPT() } label: {
-                        HStack { Text(model.isConnecting ? "Connecting…" : "Continue with ChatGPT").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }.padding(8).foregroundStyle(Color(uiColor: .systemBackground))
-                    }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isConnecting)
-                }
-                if model.accounts.allSatisfy({ !$0.isConnected }) {
-                    Button("Choose an on-device model") { model.showModels = true }.font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 6)
-                }
-            }
-            VStack(alignment: .leading, spacing: 12) {
-                suggestion("Explore something in front of you", icon: "viewfinder") { showCapture = true }
-                suggestion("Turn an idea into a useful file", icon: "doc.badge.plus") { model.draft = "Help me create "; composerFocused = true }
-                suggestion("Work through a calculation", icon: "function") { model.draft = "Use code to help me calculate "; composerFocused = true }
-                suggestion("Read a document with me", icon: "doc.text") { showFiles = true }
-            }.padding(.top, 4)
-        }.padding(.top, 70).padding(.bottom, 32)
-    }
-    private func suggestion(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Label(title, systemImage: icon).font(.subheadline).foregroundStyle(Color.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6) }
+        WelcomeWorkspaceView(camera: { showCapture = true }, files: { showFiles = true }, create: { showCreationBrief = true }, voice: {
+            voice.stopSpeaking(); voicePrefix = model.draft.isEmpty ? "" : model.draft + " "
+            Task { await voice.startRecording() }
+        })
     }
     private var composer: some View {
         VStack(spacing: 8) {

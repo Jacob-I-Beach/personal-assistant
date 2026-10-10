@@ -5,6 +5,16 @@ import XCTest
 
 @MainActor
 final class NativeReviewPlatformTests: XCTestCase {
+    func testInterruptedReviewIsNotRecordedAsAUserCancellation() async throws {
+        let model = AppModel(); try await model.waitUntilReady()
+        let request = NativeActionRequest(kind: .approval, title: "Fixture", detail: "Synthetic review", arguments: .object([:]))
+        let task = Task { try await model.reviewNativeAction(request) }
+        for _ in 0..<50 { if model.isPendingNativeAction(request.id) { break }; try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(model.isPendingNativeAction(request.id))
+        task.cancel()
+        let status = try await task.value
+        XCTAssertEqual(status, "interrupted"); XCTAssertFalse(model.isPendingNativeAction(request.id))
+    }
     func testCancelMessageEditRestoresDraftAndAttachmentsWithoutChangingHistory() async throws {
         let model = AppModel(); try await model.waitUntilReady()
         let originalCapture = UUID(), draftCapture = UUID()

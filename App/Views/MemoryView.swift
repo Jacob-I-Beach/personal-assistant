@@ -8,7 +8,8 @@ struct MemoryView: View {
     var body: some View {
         List {
             Section {
-                Text("Save preferences and context you want to use again. You choose which notes connected models may receive.").font(.subheadline).foregroundStyle(.secondary)
+                Text(model.settings.automaticMemory ? "Useful things you share can become saved context. Review what was learned, correct it, or undo a change." : "Automatic memory is off. You can still add, edit and review saved context.").font(.subheadline).foregroundStyle(.secondary)
+                NavigationLink("History and undo") { MemoryHistoryView() }
             }
             ForEach(notes) { note in
                 Button { editing = note } label: {
@@ -19,15 +20,16 @@ struct MemoryView: View {
                         Text((note.conversationID == nil ? "Across conversations" : "One conversation") + " · " + (note.allowsConnectedModels ? "Connected models allowed" : "On-device models only")).font(.caption2).foregroundStyle(.secondary)
                     }.padding(.vertical, 5)
                 }
-                .swipeActions { Button("Remove", role: .destructive) { Task { try? await model.store?.removeMemory(note.id); await refresh() } } }
+                .swipeActions { Button("Forget", role: .destructive) { Task { try? await model.store?.removeMemory(note.id); await refresh() } } }
             }
             Section {
-                Text("Removing a saved note stops adding it to future model context. Existing conversation messages and files remain in your history; removing a note does not erase those originals.").font(.footnote).foregroundStyle(.secondary)
+                Text("Forgetting a note stops adding it to future model context and can be undone in history. Original chats and files are separate; forgetting a note does not erase them.").font(.footnote).foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Saved memory")
         .toolbar { Button("Add memory", systemImage: "plus") { editing = SavedMemory(title: "", text: "") } }
         .task { await refresh() }
+        .onAppear { Task { await refresh() } }
         .sheet(item: $editing, onDismiss: { Task { await refresh() } }) { note in MemoryEditor(note: note) }
     }
     private func refresh() async { notes = (try? await model.store?.memories()) ?? [] }
@@ -47,8 +49,13 @@ private struct MemoryEditor: View {
                 TextEditor(text: $note.text).frame(minHeight: 160).accessibilityLabel("Memory note")
                 Section("Meaning and evidence") {
                     Picker("Kind", selection: $note.kind) { ForEach(MemoryKind.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) } }
+                    Picker("Profile field", selection: Binding(get: { note.profileKey ?? "" }, set: { note.profileKey = $0.isEmpty ? nil : $0 })) {
+                        Text("None").tag(""); Text("Preferred name").tag("preferred_name"); Text("Occupation").tag("occupation"); Text("Interests").tag("interests")
+                    }
                     Picker("Status", selection: $note.status) { ForEach(MemoryStatus.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) } }
                     TextField("Source or reason", text: $note.source)
+                    if let quote = note.sourceQuote { Text(quote).font(.footnote).foregroundStyle(.secondary).textSelection(.enabled) }
+                    if let date = note.sourceMessageCreatedAt { LabeledContent("Source date", value: date.formatted(date: .abbreviated, time: .omitted)) }
                     if let confirmed = note.confirmedAt { LabeledContent("You last confirmed", value: confirmed.formatted(date: .abbreviated, time: .omitted)) }
                     Button("Confirm this is current") { note.confirmedAt = Date(); note.status = .active }
                     Toggle("Expires", isOn: $hasExpiration)

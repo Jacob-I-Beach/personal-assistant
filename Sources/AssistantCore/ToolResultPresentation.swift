@@ -2,6 +2,41 @@ import Foundation
 
 /// Deterministic receipt formatting. No model is asked to paraphrase or re-calculate tool output.
 public enum ToolResultPresentation {
+    public static func activeTitle(_ call: ToolCall) -> String {
+        let name = call.name == "use_tool" ? call.arguments["name"]?.stringValue ?? "" : call.name
+        switch name {
+        case "get_capabilities", "find_tools": return "Checking available tools"
+        case "list_conversations", "search_history", "search_workspace", "read_conversation", "read_history", "read_workspace": return "Looking through saved context"
+        case "read_memory": return "Reading saved memory"
+        case "save_memory", "forget_memory": return "Updating saved memory"
+        case "run_javascript": return "Calculating with JavaScript"
+        case "create_pdf", "create_artifact", "create_file": return "Creating your file"
+        case "read_capture", "inspect_depth": return "Inspecting the saved image"
+        case "prepare_route", "read_route": return "Preparing directions"
+        case "prepare_calendar_event", "compose_text_message", "prepare_phone_call", "open_in_maps", "apply_file_edit": return "Preparing your review"
+        case "connect_workspace", "list_files", "search_files", "read_file": return "Working with your folder"
+        case "present_surface": return "Building an interactive view"
+        case "get_current_location": return "Reading your location"
+        case "get_device_info", "get_app_context": return "Checking device context"
+        case "export_artifact": return "Preparing export"
+        default: return "Working on your request"
+        }
+    }
+    public static func summary(tool: String, output: JSONValue) -> [Field] {
+        func count(_ key: String, label: String) -> Field? { output[key]?.arrayValue.map { Field(label: label, value: $0.isEmpty ? "None in this result" : String($0.count)) } }
+        switch tool {
+        case "search_workspace": return [count("messages", label: "Matching messages"), count("files", label: "Files"), count("artifacts", label: "Created files")].compactMap { $0 }
+        case "list_conversations": return [count("conversations", label: "Available chats")].compactMap { $0 }
+        case "read_conversation": return [count("messages", label: "Messages read")].compactMap { $0 }
+        case "read_memory": return [count("result", label: "Current memories")].compactMap { $0 }
+        case "get_capabilities":
+            return [count("tools", label: "Available tools"), output["workspace_search_enabled"]?.boolValue.map { Field(label: "Other app chats", value: $0 ? "Search enabled" : "Enable workspace search in Settings") },
+                output["automatic_memory_enabled"]?.boolValue.map { Field(label: "Automatic memory", value: $0 ? "Enabled · history and undo in Library" : "Off") }].compactMap { $0 }
+        case "read_task":
+            return [output["goal"]?.stringValue.map { Field(label: "Request", value: String($0.prefix(350))) }, output["phase"]?.stringValue.map { Field(label: "Reply", value: $0.capitalized) }, count("actions", label: "Action receipts")].compactMap { $0 }
+        default: return []
+        }
+    }
     public struct Field: Equatable, Sendable, Identifiable {
         public var label: String
         public var value: String

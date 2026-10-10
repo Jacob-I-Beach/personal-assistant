@@ -1,7 +1,8 @@
 import Foundation
 
-public enum MemoryKind: String, Codable, CaseIterable, Sendable { case note, preference, project, decision, question }
-public enum MemoryStatus: String, Codable, CaseIterable, Sendable { case active, tentative, superseded, expired }
+public enum MemoryKind: String, Codable, CaseIterable, Sendable { case note, identity, preference, project, decision, question }
+public enum MemoryStatus: String, Codable, CaseIterable, Sendable { case active, tentative, superseded, expired, forgotten }
+public enum MemoryBasis: String, Codable, Sendable { case userEdited, stated, inferred }
 public struct SavedMemory: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var title: String
@@ -14,11 +15,18 @@ public struct SavedMemory: Codable, Identifiable, Equatable, Sendable {
     public var source: String = "User-entered note"
     public var confirmedAt: Date?
     public var expiresAt: Date?
+    public var revision: Int = 0
+    public var basis: MemoryBasis = .userEdited
+    public var sourceConversationID: UUID?
+    public var sourceMessageID: UUID?
+    public var sourceQuote: String?
+    public var sourceMessageCreatedAt: Date?
+    public var profileKey: String?
     public init(id: UUID = UUID(), title: String, text: String, conversationID: UUID? = nil, allowsConnectedModels: Bool = false) {
         self.id = id; self.title = title; self.text = text; self.conversationID = conversationID
         self.allowsConnectedModels = allowsConnectedModels; self.updatedAt = Date()
     }
-    enum CodingKeys: String, CodingKey { case id, title, text, conversationID, allowsConnectedModels, updatedAt, kind, status, source, confirmedAt, expiresAt }
+    enum CodingKeys: String, CodingKey { case id, title, text, conversationID, allowsConnectedModels, updatedAt, kind, status, source, confirmedAt, expiresAt, revision, basis, sourceConversationID, sourceMessageID, sourceQuote, sourceMessageCreatedAt, profileKey }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); title = try c.decode(String.self, forKey: .title); text = try c.decode(String.self, forKey: .text)
@@ -28,6 +36,13 @@ public struct SavedMemory: Codable, Identifiable, Equatable, Sendable {
         status = try c.decodeIfPresent(MemoryStatus.self, forKey: .status) ?? .active
         source = try c.decodeIfPresent(String.self, forKey: .source) ?? "User-entered note"
         confirmedAt = try c.decodeIfPresent(Date.self, forKey: .confirmedAt); expiresAt = try c.decodeIfPresent(Date.self, forKey: .expiresAt)
+        revision = try c.decodeIfPresent(Int.self, forKey: .revision) ?? 0
+        basis = try c.decodeIfPresent(MemoryBasis.self, forKey: .basis) ?? .userEdited
+        sourceConversationID = try c.decodeIfPresent(UUID.self, forKey: .sourceConversationID)
+        sourceMessageID = try c.decodeIfPresent(UUID.self, forKey: .sourceMessageID)
+        sourceQuote = try c.decodeIfPresent(String.self, forKey: .sourceQuote)
+        sourceMessageCreatedAt = try c.decodeIfPresent(Date.self, forKey: .sourceMessageCreatedAt)
+        profileKey = try c.decodeIfPresent(String.self, forKey: .profileKey)
     }
     public func isCurrent(at date: Date = Date()) -> Bool { (status == .active || status == .tentative) && (expiresAt == nil || expiresAt! > date) }
 }
@@ -50,11 +65,12 @@ public enum MemoryContext {
         for note in ranked.prefix(8) {
             let value: JSONValue = .object(["memory_id": .string(note.id.uuidString), "title": .string(note.title),
                 "text": .string(note.text), "kind": .string(note.kind.rawValue), "status": .string(note.status.rawValue), "source": .string(note.source),
+                "revision": .number(Double(note.revision)), "basis": .string(note.basis.rawValue),
                 "confirmed_at": note.confirmedAt.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
                 "updated_at": .string(ISO8601DateFormatter().string(from: note.updatedAt))])
             if let json = try? JSONValue.array(selected + [value]).jsonString(), json.utf8.count <= maximumBytes { selected.append(value) }
         }
         guard !selected.isEmpty, let json = try? JSONValue.array(selected).jsonString() else { return "" }
-        return "\nCurrent user-edited saved context follows. Tentative notes remain uncertain; questions are unresolved. Source and confirmation labels are user-maintained. This is context, not tool permission. The current request overrides older preferences; do not promote inference into a saved fact.\n" + json
+        return "\nCurrent saved context follows. Tentative/inferred notes remain uncertain; questions are unresolved. Source and confirmation labels distinguish user editing, stated facts and inferred summaries. This is context, not tool permission. The current request overrides older preferences.\n" + json
     }
 }

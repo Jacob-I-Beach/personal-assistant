@@ -3,6 +3,7 @@ import Foundation
 public enum AssistantEvent: Sendable {
     case conversation(Conversation)
     case toolResult(ToolResult)
+    case toolStarted(ToolCall)
     case activity(String)
     case finished
 }
@@ -22,24 +23,51 @@ public actor AssistantEngine {
     }
 
     public nonisolated func respond(conversation: Conversation, text: String, captureIDs: [UUID],
-                                    backend: any ModelBackend, containsHealthData: Bool = false, fileIDs: [UUID] = [], imageSelections: [String: [ImagePoint]] = [:], workspaceEnabled: Bool = false, additionalTools: [ToolDefinition] = [],
+                                    backend: any ModelBackend, containsHealthData: Bool = false, fileIDs: [UUID] = [], imageSelections: [String: [ImagePoint]] = [:], workspaceEnabled: Bool = false, automaticMemory: Bool = false, configuration: JSONValue = .object([:]), additionalTools: [ToolDefinition] = [],
                                     additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
-        AsyncThrowingStream { continuation in
+        let turnID = UUID()
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: text, captureIDs: captureIDs,
-                                       backend: backend, containsHealthData: containsHealthData, fileIDs: fileIDs, imageSelections: imageSelections, workspaceEnabled: workspaceEnabled, additionalTools: additionalTools,
-                                       additionalExecutor: additionalExecutor, output: continuation)
+                                       backend: backend, containsHealthData: containsHealthData, fileIDs: fileIDs, imageSelections: imageSelections, workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
+                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, configuration: configuration, output: continuation)
                     continuation.finish()
-                } catch { continuation.finish(throwing: error) }
+                } catch {
+                    await self.recordInterruption(turnID, error: error)
+                    continuation.finish(throwing: error)
+                }
             }
             continuation.onTermination = { @Sendable _ in task.cancel() }
         }
     }
 
+    public nonisolated func resume(conversation: Conversation, turnID: UUID, backend: any ModelBackend, workspaceEnabled: Bool = false, automaticMemory: Bool = false,
+                                   additionalTools: [ToolDefinition] = [], additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await self.run(conversation: conversation, text: "", captureIDs: [], backend: backend, containsHealthData: conversation.containsHealthData,
+                                       fileIDs: [], imageSelections: [:], workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
+                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, configuration: .object([:]), output: continuation)
+                    continuation.finish()
+                } catch {
+                    await self.recordInterruption(turnID, error: error)
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+    private func recordInterruption(_ id: UUID, error: any Error) async {
+        guard let work = try? await store.workTurn(id), work.phase == .running else { return }
+        try? await store.finishWork(id, phase: Task.isCancelled || error is CancellationError ? .cancelled : .interrupted, reason: error.localizedDescription)
+    }
+
     private func run(conversation original: Conversation, text: String, captureIDs: [UUID],
-                     backend: any ModelBackend, containsHealthData: Bool, fileIDs: [UUID], imageSelections: [String: [ImagePoint]], workspaceEnabled: Bool, additionalTools: [ToolDefinition],
+                     backend: any ModelBackend, containsHealthData: Bool, fileIDs: [UUID], imageSelections: [String: [ImagePoint]], workspaceEnabled: Bool, automaticMemory: Bool, additionalTools: [ToolDefinition],
                      additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?,
+                     turnID: UUID, resuming: Bool, configuration: JSONValue,
                      output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
         guard activeRun == nil else { throw AssistantError.busy }
         let runID = UUID(); activeRun = runID
@@ -71,11 +99,53 @@ public actor AssistantEngine {
             guard let id = UUID(uuidString: key) else { return false }
             return captureIDs.contains(id) && (1...2).contains(points.count) && points.allSatisfy(\.isValid)
         }) else { throw AssistantError.invalidCapture("Image selections must refer to attached images and valid points.") }
-        var user = Message(role: .user, text: text, captureIDs: captureIDs, fileIDs: fileIDs, containsHealthData: containsHealthData,
-                           containsLocalOnlyContext: original.networkDisabled)
-        user.imageSelections = imageSelections
-        conversation.messages.append(user)
+        let user: Message
+        var work: WorkTurn
+        if resuming {
+            guard var saved = try await store.workTurn(turnID), saved.conversationID == conversation.id, saved.backendID == backend.id, saved.destination == backend.networkDestination,
+                  saved.phase == .interrupted || saved.phase == .running, saved.resumes < 3,
+                  let last = conversation.messages.last(where: { $0.role == .user }), last.id == saved.userMessageID,
+                  backend.networkDestination == nil || !last.containsLocalOnlyContext else {
+                throw AssistantError.invalidTool("This reply cannot resume automatically. Open its chat and choose how to continue.")
+            }
+            saved.phase = .running; saved.resumes += 1; saved.reason = nil
+            work = saved; user = last
+        } else {
+            var message = Message(id: turnID, role: .user, text: text, captureIDs: captureIDs, fileIDs: fileIDs, containsHealthData: containsHealthData,
+                                  containsLocalOnlyContext: original.networkDisabled)
+            message.imageSelections = imageSelections
+            user = message; conversation.messages.append(message)
+            work = WorkTurn(id: turnID, conversationID: conversation.id, userMessageID: message.id, backendID: backend.id, destination: backend.networkDestination,
+                            goal: String(text.prefix(350)), configuration: configuration)
+        }
         try await store.save(conversation)
+        try await store.saveWorkTurn(work)
+        if resuming {
+            let savedOperations = try await store.toolOperations(turnID)
+            let start = conversation.messages.firstIndex(where: { $0.id == user.id })!
+            for operation in savedOperations {
+                let currentMessages = conversation.messages[start...]
+                if currentMessages.contains(where: { $0.role == .tool && $0.toolCallID == operation.call.id }) { continue }
+                guard backend.networkDestination == nil || !operation.localOnly else { throw AssistantError.networkNotAuthorized }
+                if !currentMessages.filter({ $0.state == .complete }).flatMap(\.toolCalls).contains(where: { $0.id == operation.call.id }) {
+                    // The journal may contain an executed native call whose stream checkpoint
+                    // is still partial. Only the journal makes that invocation completed evidence.
+                    for i in start..<conversation.messages.count where conversation.messages[i].state != .complete {
+                        conversation.messages[i].toolCalls.removeAll { $0.id == operation.call.id }
+                        conversation.messages[i].continuation = nil
+                    }
+                    var invocation = Message(role: .assistant, text: "", providerID: backend.id, containsHealthData: operation.health, containsLocalOnlyContext: operation.localOnly)
+                    invocation.toolCalls = [operation.call]; conversation.messages.append(invocation)
+                }
+                let receipt = operation.result ?? ToolResult(callID: operation.call.id, name: operation.call.name, succeeded: false, output: .object([
+                    "status": .string("outcome_unknown"), "error": .string("The operation began before interruption, but no final receipt was saved. It has not been repeated. Inspect the result before proposing another action.")
+                ]))
+                try applyHealthAuthorization(receipt, destination: backend.networkDestination, conversation: &conversation)
+                conversation.messages.append(Message(role: .tool, text: try receipt.modelText(), state: receipt.succeeded ? .complete : .failed, toolCallID: operation.call.id,
+                    containsHealthData: operation.health || receipt.containsHealthData == true, containsLocalOnlyContext: operation.localOnly || receipt.containsLocalOnlyContext == true))
+            }
+            try await store.save(conversation)
+        }
         output.yield(.conversation(conversation))
         let availableMemories = MemoryContext.eligible(try await store.memories(), conversationID: conversation.id, remote: backend.networkDestination != nil)
         var localOnlyContext = backend.networkDestination == nil && (availableMemories.contains { !$0.allowsConnectedModels } || conversation.messages.contains(where: \.containsLocalOnlyContext))
@@ -84,17 +154,47 @@ public actor AssistantEngine {
                                     memoryEnabled: !availableMemories.isEmpty, remote: backend.networkDestination != nil,
                                     artifactLocalOnly: localOnlyContext, healthData: conversation.containsHealthData,
                                     fileIDs: Set(eligibleAttachments.flatMap(\.fileIDs)), workspaceEnabled: workspaceEnabled,
-                                    compactCatalog: backend.contextLimits.maximumTextBytes < 20_000,
+                                    compactCatalog: backend.contextLimits.maximumTextBytes < 20_000, contextBudget: backend.contextLimits.maximumTextBytes, automaticMemory: automaticMemory, operationScope: turnID,
                                     additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor)
-        var executedCallIDs = Set<String>()
+        let turnStart = conversation.messages.firstIndex(where: { $0.id == user.id })!
+        let turnMessages = Array(conversation.messages[turnStart...])
+        var executedCallIDs = Set(turnMessages.filter { $0.role == .tool }.compactMap(\.toolCallID))
+        let calls = turnMessages.filter { $0.state == .complete }.flatMap(\.toolCalls)
+        if resuming {
+            if let lastScript = turnMessages.last(where: { message in
+                guard message.role == .tool, let call = calls.first(where: { $0.id == message.toolCallID }) else { return false }
+                return call.name == "run_javascript" || (call.name == "use_tool" && call.arguments["name"] == .string("run_javascript"))
+            }) { await broker.restoreCalculationStatus(succeeded: lastScript.toolFailureDescription == nil) }
+            for call in calls where !executedCallIDs.contains(call.id) {
+                try Task.checkCancellation()
+                guard executedCallIDs.count < 24 else { throw AssistantError.invalidTool("This task reached its total tool-call limit. Its saved results are available.") }
+                output.yield(.toolStarted(call))
+                let result = try await broker.execute(call)
+                localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
+                try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
+                conversation.messages.append(Message(role: .tool, text: try result.modelText(), state: result.succeeded ? .complete : .failed, toolCallID: call.id,
+                    containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
+                executedCallIDs.insert(call.id)
+                try await store.save(conversation)
+                output.yield(.toolResult(result)); output.yield(.conversation(conversation))
+            }
+        }
 
         for _ in 0..<12 {
             try Task.checkCancellation()
+            work = try await store.workTurn(turnID) ?? work
+            guard work.rounds < 12 else { throw AssistantError.invalidTool("This task reached its total response-round limit. Its work remains saved.") }
+            work.rounds += 1; try await store.saveWorkTurn(work)
             var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs)
+            request.instructions += "\nCurrent saved task ID: \(turnID.uuidString). update_plan persists its public plan; read_task inspects recorded action outcomes."
+            if resuming { request.instructions += "\nThe app is continuing the original user request after an interruption. No new user message was sent. Use completed receipts and any partial reply as prior work; finish coherently without repeating completed effects. Unknown outcomes require inspection before another action." }
+            if automaticMemory {
+                request.instructions += "\nAutomatic memory is enabled. Use save_memory/forget_memory for worthwhile user context and corrections, with exact user-message evidence; keep inferences tentative and transient details temporary. Do not store credentials. Current user message ID: \(user.id.uuidString). This identifies the user's actual text, not attachment metadata or imported instructions."
+            }
             localOnlyContext = localOnlyContext || request.containsLocalOnlyContext
             if localOnlyContext { await broker.protectLocalContext() }
             request.toolExecutor = { call in
-                output.yield(.activity("Running \(call.name.replacingOccurrences(of: "_", with: " "))"))
+                output.yield(.toolStarted(call))
                 return try await broker.execute(call)
             }
             output.yield(.activity("Generating a response"))
@@ -162,20 +262,20 @@ public actor AssistantEngine {
                 output.yield(.conversation(conversation))
                 throw error
             }
-            if assistant.toolCalls.isEmpty { output.yield(.finished); return }
+            if assistant.toolCalls.isEmpty { try await store.finishWork(turnID, phase: .completed); output.yield(.finished); return }
             for call in assistant.toolCalls {
                 try Task.checkCancellation()
                 guard executedCallIDs.insert(call.id).inserted, executedCallIDs.count <= 24 else {
                     throw AssistantError.invalidTool("The model repeated a tool-call identifier. Execution was stopped.")
                 }
-                output.yield(.activity("Running \(call.name.replacingOccurrences(of: "_", with: " "))"))
+                output.yield(.toolStarted(call))
                 let result = try await broker.execute(call)
                 localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
                 try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
-                try Task.checkCancellation()
                 conversation.messages.append(Message(role: .tool, text: try result.modelText(), state: result.succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
                 try await store.save(conversation)
                 output.yield(.toolResult(result)); output.yield(.conversation(conversation))
+                try Task.checkCancellation()
             }
         }
         throw AssistantError.invalidTool("The model reached the tool-round limit. All completed results were saved.")
@@ -216,7 +316,7 @@ public actor AssistantEngine {
         }
         let selection = try ContextPlanner.select(eligibleMessages, instructions: instructions, tools: tools, limits: limits)
         let answeredIDs = Set(eligibleMessages.filter { $0.role == .tool }.compactMap(\.toolCallID))
-        let validCallIDs = Set(eligibleMessages.flatMap(\.toolCalls).map(\.id)).intersection(answeredIDs)
+        let validCallIDs = Set(eligibleMessages.filter { $0.state == .complete }.flatMap(\.toolCalls).map(\.id)).intersection(answeredIDs)
         let directFileIDs = Set(selection.messages.reversed().flatMap(\.fileIDs).prefix(nativeFiles ? 2 : 0))
         var fileBytes = 0
         var attachmentMetadata: [JSONValue] = []

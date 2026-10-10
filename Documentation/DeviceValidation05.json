@@ -9,13 +9,20 @@
   "previous_chats_present": true,
   "expected_package_source": "c8855c12341ec73241333c285fb12db81d0cb109",
   "functional_checks": {
-    "long_conversation_scrolling": "pending",
-    "tool_disclosure_position": "pending",
-    "keyboard_swipe_dismissal": "pending",
+    "long_conversation_scrolling": "large random jumps fixed; small live-generation jitter reported",
+    "tool_disclosure_position": "passed_by_user_report",
+    "keyboard_swipe_dismissal": "passed_by_user_report; remove extra keyboard toolbar button",
     "live_model_edit_regenerate": "pending",
     "image_only_send_and_preview": "pending",
     "live_model_working_surfaces": "pending",
-    "physical_depth_accuracy": "not_measured"
+    "physical_depth_accuracy": "not_measured",
+    "active_web_row_alignment": "defect_reported_while_running",
+    "maps_handoff": "opened_successfully_by_user_report",
+    "reply_after_maps_handoff": "interrupted_network_connection_lost_in_screenshot",
+    "home_canvas": "functional_redesign_requested",
+    "earlier_chat_retrieval": "keyword_miss_and_empty_query_failed_to_recover_context_in_screenshot"
   },
-  "note": "Installation and visible history are user-confirmed. Native automated validation is recorded separately in ReleaseValidation05.json; it is not physical-device functional evidence."
+  "note": "Installation, visible history, tool-disclosure position, swipe dismissal and Maps opening have user evidence. Streaming jitter and handoff recovery remain defects in installed 0.5. Automated tests and untested 0.6 source changes are separate evidence.",
+  "followup_recorded_at_utc": "2026-10-10T20:36:39+00:00",
+  "followup_evidence": "User device report and two supplied screenshot batches (12 + 8); personal captures are not repository fixtures."
 }

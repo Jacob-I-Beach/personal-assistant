@@ -4,6 +4,10 @@
 
 ## Current evidence
 
+**Next source candidate: 0.6.0 build 6.** The [0.6 scope and evidence](Documentation/RELEASE_06.md) covers streaming follow, automatic memory/history/undo, useful home/context actions, permitted history browsing, durable turn recovery and in-app route preparation. 138 Windows tests pass and Swift syntax parsing passes. New native/platform scenarios are prepared but unrun. No 0.6 IPA exists yet; the USD 16 hosted-Mac ceiling currently has only USD 0.128 of estimated compute headroom.
+
+Jacob's latest 0.5 phone report confirms tool disclosure position and swipe keyboard dismissal. Large scrolling jumps are gone, but live responses still jitter; the extra keyboard button and active-tool alignment need the 0.6 repairs. Maps opening succeeded, followed by an interrupted reply. [DeviceValidation05.json](Documentation/DeviceValidation05.json) records this separately from automated tests.
+
 [Native run 38062830456](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38062830456), source `c8855c12341ec73241333c285fb12db81d0cb109`, passed **119 core tests, 15 native platform tests and 9 interface scenarios**, then built the Release iPhone and Watch targets. The final app source was validated in a full run. The shared suite also passed on Windows. Tests use synthetic local fixtures and do not make paid model requests.
 
 The verified input for the existing iLoader route is `../PersonalAssistant-iPhone/0.5.0/PersonalAssistant-iPhone-only.ipa`, 19,990,620 bytes, SHA-256 `fb9cc533223697d04a5d274e0b029fb2473b85b12bba97d4787c523224500f03`. Full and phone-only archives have the same iPhone executable; the complete Watch archive and validation receipts are retained beside it. [Screenshots](Documentation/Screenshots/0.5.0/README.md) use synthetic data.
@@ -16,7 +20,7 @@ Edit/regenerate removes later messages, provider context, generated working cont
 
 Saved depth supports point inspection and approximate calibrated separation, with confidence/mixed-depth limits and capture timestamps. Selected points can accompany the image without becoming user-authored prose. Native working surfaces support metrics, charts, tables, comparisons, checklists, timelines and bounded scenarios. Saved selections/inputs enter the next authorized model request; they do not execute external actions or grant permission. Memory now distinguishes lifecycle, kind, source and confirmation while keeping existing scope controls.
 
-See [RELEASE_05.md](Documentation/RELEASE_05.md) and [DEVICE_VALIDATION.md](Documentation/DEVICE_VALIDATION.md). Real-phone scrolling, larger conversations, live model behavior and LiDAR accuracy still need physical checks. Inbox routing, Share extension, scheduling and a separate persistent task ledger remain follow-on design work.
+See [RELEASE_05.md](Documentation/RELEASE_05.md) and [DEVICE_VALIDATION.md](Documentation/DEVICE_VALIDATION.md). The new 0.6 behavior, larger conversations, live model behavior and LiDAR accuracy still need physical checks. Inbox routing, Share extension, scheduling and a project-level task ledger remain follow-on work; 0.6 adds durable assistant-turn checkpoints and action receipts.
 
 ## Installation and budget
 

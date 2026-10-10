@@ -5,7 +5,7 @@ import MessageUI
 import SwiftUI
 
 struct NativeActionRequest: Identifiable, Sendable {
-    enum Kind: Sendable, Equatable { case approval, calendar, message, folder, exportFile, fileEdit }
+    enum Kind: Sendable, Equatable { case approval, calendar, message, folder, exportFile, fileEdit, placeSelection }
     let id = UUID()
     var kind: Kind
     var title: String
@@ -13,6 +13,7 @@ struct NativeActionRequest: Identifiable, Sendable {
     var arguments: JSONValue
     var fileURL: URL?
     var proposal: FileEditProposal?
+    var places: [RoutePlace] = []
 }
 
 struct NativeActionView: View {
@@ -21,6 +22,24 @@ struct NativeActionView: View {
     var body: some View {
         Group {
             switch request.kind {
+            case .placeSelection:
+                NavigationStack {
+                    List {
+                        Section { Text(request.detail).font(.subheadline).foregroundStyle(.secondary) }
+                        ForEach(request.places) { place in
+                            Button { model.resolveNativeAction(place.id.uuidString, for: request.id) } label: {
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: "mappin.and.ellipse").foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(place.name).foregroundStyle(.primary)
+                                        Text(place.address).font(.footnote).foregroundStyle(.secondary)
+                                    }
+                                }.padding(.vertical, 6)
+                            }
+                        }
+                    }.navigationTitle(request.title).navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.resolveNativeAction("cancelled", for: request.id) } } }
+                }
             case .approval:
                 NavigationStack {
                     VStack(alignment: .leading, spacing: 22) {

@@ -4,7 +4,11 @@ import SwiftUI
 struct WorkReceiptView: View {
     @EnvironmentObject private var model: AppModel
     let message: Message
-    private var call: ToolCall? { model.conversation.messages.flatMap(\.toolCalls).first { $0.id == message.toolCallID } }
+    @State private var memoryUndoNotice: String?
+    private var call: ToolCall? {
+        guard let index = model.conversation.messages.firstIndex(where: { $0.id == message.id }) else { return nil }
+        return model.conversation.messages.prefix(index).reversed().flatMap(\.toolCalls).first { $0.id == message.toolCallID }
+    }
     private var toolName: String { call?.name == "use_tool" ? call?.arguments["name"]?.stringValue ?? "use_tool" : call?.name ?? "tool" }
     private var output: JSONValue? { try? JSONValue.parse(message.text) }
     private var arguments: JSONValue? { ToolResultPresentation.arguments(of: call) }
@@ -19,6 +23,9 @@ struct WorkReceiptView: View {
     }
     private var title: String {
         if output?["status"]?.stringValue == "cancelled" { return "Action cancelled" }
+        if output?["status"]?.stringValue == "outcome_unknown" { return "Outcome not confirmed" }
+        if output?["status"]?.stringValue == "interrupted" { return "Review interrupted" }
+        if output?["status"]?.stringValue == "failed" { return "Action could not finish" }
         if message.toolFailureDescription != nil { return "Action needs attention" }
         switch toolName {
         case "get_capabilities": return "Checked available tools"
@@ -41,17 +48,27 @@ struct WorkReceiptView: View {
         case "read_history", "read_workspace": return "Read saved context"
         case "read_capture": return "Read image observations"
         case "get_device_info": return "Checked device resources"
+        case "get_app_context": return "Checked current app context"
         case "get_current_location": return "Read your approved location"
         case "prepare_calendar_event": return "Saved your reviewed event"
         case "compose_text_message": return "Completed message review"
         case "prepare_phone_call", "open_in_maps": return "Opened the approved action"
         case "find_tools": return "Found available tools"
         case "read_memory": return "Read saved memory"
+        case "save_memory": return output?["change"]?.stringValue == "updated" ? "Updated saved memory" : "Remembered useful context"
+        case "forget_memory": return "Forgot saved context"
+        case "list_conversations": return "Browsed recent chats"
+        case "read_conversation": return "Read an earlier conversation"
+        case "read_task": return "Checked saved progress"
+        case "prepare_route": return "Prepared directions"
+        case "read_route": return "Read the saved route"
         default: return toolName.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
     var body: some View {
-        if toolName == "present_surface", let raw = output?["surface_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
+        if toolName == "prepare_route", let raw = output?["route_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
+            RouteCard(id: id)
+        } else if toolName == "present_surface", let raw = output?["surface_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
             WorkingSurfaceView(id: id)
         } else if toolName == "update_plan", let steps = output?["steps"]?.arrayValue, message.toolFailureDescription == nil {
             VStack(alignment: .leading, spacing: 10) {
@@ -67,6 +84,21 @@ struct WorkReceiptView: View {
         } else {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 14) {
+                    if let output {
+                        ForEach(ToolResultPresentation.summary(tool: toolName, output: output)) { field in
+                            VStack(alignment: .leading, spacing: 3) { Text(field.label).font(.caption).foregroundStyle(.secondary); Text(field.value).font(.subheadline) }
+                        }
+                    }
+                    if ["save_memory", "forget_memory"].contains(toolName), let raw = output?["memory_change_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
+                        if let title = output?["title"]?.stringValue { Text(title).font(.subheadline) }
+                        Button("Undo memory change", systemImage: "arrow.uturn.backward") {
+                            Task {
+                                do { _ = try await model.store?.undoMemoryChange(id); memoryUndoNotice = "Change undone. Future replies use the restored memory state." }
+                                catch { memoryUndoNotice = error.localizedDescription }
+                            }
+                        }.font(.footnote).disabled(memoryUndoNotice != nil)
+                        if let memoryUndoNotice { Text(memoryUndoNotice).font(.caption).foregroundStyle(.secondary) }
+                    }
                     if toolName == "read_capture", message.toolFailureDescription == nil {
                         if let source = output?["source"]?.stringValue { LabeledContent("Source", value: source).font(.subheadline) }
                         if let meters = output?["center_depth"]?["medianMeters"]?.numberValue {
@@ -119,9 +151,10 @@ struct WorkReceiptView: View {
                 }.padding(.top, 12)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Label(title, systemImage: message.toolFailureDescription == nil ? "checkmark.circle" : "exclamationmark.circle")
+                    Label(title, systemImage: receiptIcon)
                         .font(.caption.weight(.medium)).foregroundStyle(message.toolFailureDescription == nil || output?["status"]?.stringValue == "cancelled" ? Color.secondary : Color.red)
                     if output?["status"]?.stringValue == "cancelled" { Text("No completed action was reported.").font(.caption).foregroundStyle(.secondary) }
+                    else if ["outcome_unknown", "interrupted"].contains(output?["status"]?.stringValue ?? "") { Text("Check the outcome before trying this action again.").font(.caption).foregroundStyle(.secondary) }
                     else if let failure = message.toolFailureDescription { Text(failure).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
                     else if let filename = output?["filename"]?.stringValue { Text(filename).font(.caption).foregroundStyle(.secondary) }
                 }
@@ -129,6 +162,15 @@ struct WorkReceiptView: View {
             .tint(.secondary)
             .font(.caption).padding(.vertical, 3).transaction { $0.animation = nil }
             .accessibilityIdentifier("tool-receipt")
+        }
+    }
+    private var receiptIcon: String {
+        switch output?["status"]?.stringValue {
+        case "cancelled": "xmark.circle"
+        case "outcome_unknown": "questionmark.circle"
+        case "interrupted": "pause.circle"
+        case "failed": "exclamationmark.circle"
+        default: message.toolFailureDescription == nil ? "checkmark.circle" : "exclamationmark.circle"
         }
     }
 }

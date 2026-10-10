@@ -2,6 +2,7 @@ import AssistantCore
 import SwiftUI
 
 struct DeviceAccessView: View {
+    @EnvironmentObject private var model: AppModel
     @State private var snapshot: JSONValue = .null
     var body: some View {
         List {
@@ -20,8 +21,10 @@ struct DeviceAccessView: View {
                 capability("Code execution", "JavaScript runs on the phone in an isolated, offline engine. It can compute results and create text files. Web research and native device actions are separate tools.", "curlybraces")
                 capability("Documents", "Read attached files, search permitted app content, create editable text files and real PDFs, and share originals through iOS.", "doc.text")
                 capability("Camera & depth", "Attach a camera capture or photo. The assistant receives the selected image and can read saved OCR and available depth observations. It has no unattended live camera feed.", "viewfinder")
-                capability("Location", "One foreground fix after you review the purpose and selected model. Accuracy and capture time accompany the coordinates.", "location")
-                capability("Calendar, Maps & Phone", "Prepare a calendar event for your review, open a place in Maps, or hand an approved number to the system dialer.", "calendar")
+                capability("Location", model.locationService.authorizationSummary + ". " + (model.settings.locationContextEnabled ? "Context access is enabled for relevant requests without repeated app reviews. " : "Context access is off; each request uses a review. ") + "Readings include accuracy and time. Configure Home context to remember access.", "location")
+                capability("Calendar, Maps & Phone", "Review and save a calendar event, prepare a route preview here and choose when to open Maps, or hand an approved number to the system dialer.", "calendar")
+                capability("Memory & continuity", (model.settings.automaticMemory ? "Automatic memory is enabled" : "Automatic memory is off") + "; changes have history and undo. Interrupted replies keep their progress and action receipts. Stopped replies stay stopped.", "clock.arrow.circlepath")
+                capability("Other app chats", model.settings.workspaceSearchEnabled ? "History search and recent-chat browsing are enabled for eligible conversations in this app." : "Workspace search is off. Enable it in Settings to use eligible earlier conversations; this does not connect the separate ChatGPT app’s history.", "bubble.left.and.bubble.right")
                 capability("Messages", "Prepare a message in Apple's composer. You review recipients and press Send. Existing message history is not accessible.", "message")
             }
             Section("Shortcuts & devices") {

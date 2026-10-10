@@ -2,6 +2,47 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testSavedRouteMemoryUndoAndResumeStayInTheApp() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-continuity", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Continue reply"].waitForExistence(timeout: 15))
+        let open = app.buttons["open-prepared-route"]
+        for _ in 0..<4 { if open.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(open.isHittable)
+        saveScreenshot(app, name: "In-chat-route-and-saved-progress")
+        app.buttons["Continue reply"].tap()
+        XCTAssertTrue(app.staticTexts["The saved route is ready. Open it when you’re ready."].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Continue reply"].exists)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Prepare an example walking route").count, 1)
+        app.buttons["Assistant menu"].tap(); app.buttons["Library"].tap()
+        app.buttons["Saved memory"].tap()
+        app.buttons["History and undo"].tap()
+        XCTAssertTrue(app.navigationBars["Memory history"].waitForExistence(timeout: 5))
+        app.staticTexts["Example preference"].firstMatch.tap()
+        let undo = app.buttons["Undo this change"].firstMatch
+        XCTAssertTrue(undo.waitForExistence(timeout: 5)); undo.tap()
+        saveScreenshot(app, name: "Memory-history-and-undo")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["Use short examples"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+    func testForegroundReturnContinuesWithoutAnotherUserMessage() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-background", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
+        XCTAssertTrue(app.staticTexts["Progress saved before leaving."].waitForExistence(timeout: 8))
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["Continued from saved progress."].waitForExistence(timeout: 12))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Continue after the app returns").count, 1)
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+        saveScreenshot(app, name: "Reply-recovered-on-foreground-return")
+    }
     func testKeyboardAndDisclosurePreserveReadingPosition() {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -18,22 +59,81 @@ final class AssistantUITests: XCTestCase {
         XCTAssertLessThan(abs(row.frame.minY - before), 24)
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
         composer.tap(); composer.typeText("A saved draft")
-        XCTAssertTrue(app.buttons["Dismiss keyboard"].waitForExistence(timeout: 5))
-        app.buttons["Dismiss keyboard"].tap()
-        let stable = NSPredicate { _, _ in abs(row.frame.minY - before) < 30 }
-        expectation(for: stable, evaluatedWith: row); waitForExpectations(timeout: 5)
-        saveScreenshot(app, name: "Compact-tools-keyboard-dismissed")
-        composer.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Dismiss keyboard"].exists)
         app.scrollViews["conversation-scroll"].swipeDown()
         let dismissed = NSPredicate { _, _ in app.keyboards.count == 0 }
         expectation(for: dismissed, evaluatedWith: app); waitForExpectations(timeout: 5)
+        saveScreenshot(app, name: "Compact-tools-swipe-keyboard-dismissed")
         app.swipeUp(); app.swipeDown()
         if row.isHittable {
             let settled = row.frame.minY
             for _ in 0..<3 { Thread.sleep(forTimeInterval: 0.2); XCTAssertLessThan(abs(row.frame.minY - settled), 30) }
         }
         XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+    func testStreamingFollowsDetachesAndReturnsToFollowing() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-streaming", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
+        XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 8))
+        let scroll = app.scrollViews["conversation-scroll"]
+        func position() -> (String, Double, Double) {
+            let parts = (scroll.value as? String ?? "").split(separator: "|").map(String.init)
+            return (parts.first ?? "", parts.count > 1 ? Double(parts[1]) ?? -1 : -1, parts.count > 2 ? Double(parts[2]) ?? -1 : -1)
+        }
+        let moving = NSPredicate { _, _ in let p = position(); return p.0 == "following" && p.1 > 0 }
+        expectation(for: moving, evaluatedWith: scroll); waitForExpectations(timeout: 8)
+        saveScreenshot(app, name: "Live-tool-and-streaming")
+        var prior = position().1
+        for _ in 0..<8 {
+            Thread.sleep(forTimeInterval: 0.2)
+            let next = position().1; XCTAssertGreaterThanOrEqual(next, prior - 2); prior = next
+        }
+        scroll.swipeDown()
+        let detached = NSPredicate { _, _ in position().0 == "reading" }
+        expectation(for: detached, evaluatedWith: scroll); waitForExpectations(timeout: 4)
+        Thread.sleep(forTimeInterval: 0.5)
+        let reading = position().1
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertLessThan(abs(position().1 - reading), 8)
+        saveScreenshot(app, name: "Streaming-reader-detached")
+        // Scroll to the actual bottom rather than using the jump button.
+        for _ in 0..<8 { if position().0 == "following" { break }; scroll.swipeUp(velocity: .fast) }
+        let reattached = NSPredicate { _, _ in position().0 == "following" }
+        expectation(for: reattached, evaluatedWith: scroll); waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.buttons["Stop response"].exists)
+        saveScreenshot(app, name: "Streaming-follow-resumed")
+        app.buttons["Stop response"].tap()
+        XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Continue reply"].exists)
+    }
+    func testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-empty", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["home-greeting"].waitForExistence(timeout: 15))
+        for _ in 0..<3 { if app.buttons["Make something"].isHittable { break }; app.swipeUp() }
+        app.buttons["Make something"].tap()
+        let brief = app.textViews["Creation brief"]
+        XCTAssertTrue(brief.waitForExistence(timeout: 5)); brief.tap(); brief.typeText("A two-page study guide")
+        app.buttons["Use this brief"].tap()
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        XCTAssertEqual(composer.value as? String, "A two-page study guide")
+        app.scrollViews["conversation-scroll"].swipeDown()
+        for _ in 0..<4 { if app.buttons["Home context"].isHittable { break }; app.swipeUp() }
+        app.buttons["Home context"].tap()
+        XCTAssertTrue(app.switches["Use location while I’m here"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Use my approximate location"].exists)
+        saveScreenshot(app, name: "Home-context-controls")
+        app.buttons["Done"].tap()
+        for _ in 0..<4 { if app.buttons["Work with files"].isHittable { break }; app.swipeDown() }
+        app.buttons["Work with files"].tap()
+        XCTAssertTrue(app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].waitForExistence(timeout: 8))
+        saveScreenshot(app, name: "Home-file-picker")
     }
     func testAttachmentPreviewWorkingSurfacesAndActualMessageEdit() {
         continueAfterFailure = false
@@ -243,7 +343,7 @@ final class AssistantUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["--ui-library"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["What are we working on?"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["home-greeting"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.staticTexts["study-plan.md"].exists)
         app.buttons["Add to message"].tap()
         XCTAssertTrue(app.buttons["Choose files"].waitForExistence(timeout: 5))
@@ -301,7 +401,7 @@ final class AssistantUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Dictate message"].exists)
-        let heading = app.staticTexts["What are we working on?"]
+        let heading = app.staticTexts["home-greeting"]
         XCTAssertTrue(heading.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(heading.frame.minY, app.navigationBars.firstMatch.frame.maxY)
         saveScreenshot(app, name: "Welcome-dark-large-text")

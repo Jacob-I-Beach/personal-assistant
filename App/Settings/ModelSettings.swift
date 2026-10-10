@@ -1,4 +1,5 @@
 import Foundation
+import AssistantCore
 
 enum ModelChoice: String, CaseIterable, Codable, Identifiable {
     case localMLX, chatGPT, appleOnDevice, appleCloud, openAI, compatibleServer
@@ -31,6 +32,10 @@ struct ModelSettings: Codable, Equatable {
     var healthToolsEnabled = false
     var chatGPTWebSearch = true
     var workspaceSearchEnabled = false
+    var automaticMemory = true
+    var locationContextEnabled = false
+    var weatherFollowsLocation = false
+    var weatherPlace: WeatherPlace?
     var speakReplies = false
     var automaticChatTitles = true
     var reasoningByModel: [String: String] = [:]
@@ -38,7 +43,7 @@ struct ModelSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
         case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled, chatGPTWebSearch
-        case workspaceSearchEnabled, speakReplies, automaticChatTitles, reasoningByModel
+        case workspaceSearchEnabled, automaticMemory, locationContextEnabled, weatherFollowsLocation, weatherPlace, speakReplies, automaticChatTitles, reasoningByModel
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -58,6 +63,10 @@ struct ModelSettings: Codable, Equatable {
         healthToolsEnabled = try values.decodeIfPresent(Bool.self, forKey: .healthToolsEnabled) ?? false
         chatGPTWebSearch = try values.decodeIfPresent(Bool.self, forKey: .chatGPTWebSearch) ?? true
         workspaceSearchEnabled = try values.decodeIfPresent(Bool.self, forKey: .workspaceSearchEnabled) ?? false
+        automaticMemory = try values.decodeIfPresent(Bool.self, forKey: .automaticMemory) ?? true
+        locationContextEnabled = try values.decodeIfPresent(Bool.self, forKey: .locationContextEnabled) ?? false
+        weatherFollowsLocation = try values.decodeIfPresent(Bool.self, forKey: .weatherFollowsLocation) ?? false
+        weatherPlace = try values.decodeIfPresent(WeatherPlace.self, forKey: .weatherPlace)
         speakReplies = try values.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? false
         automaticChatTitles = try values.decodeIfPresent(Bool.self, forKey: .automaticChatTitles) ?? true
         reasoningByModel = try values.decodeIfPresent([String: String].self, forKey: .reasoningByModel) ?? [:]
@@ -99,6 +108,9 @@ enum PrivatePaths {
         if ProcessInfo.processInfo.arguments.contains("--ui-demo") { folder = "PersonalAssistant-UITests-Demo" }
         if ProcessInfo.processInfo.arguments.contains("--ui-library") { folder = "PersonalAssistant-UITests-Demo" }
         if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { folder = "PersonalAssistant-UITests-Presentation" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { folder = "PersonalAssistant-UITests-Streaming" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { folder = "PersonalAssistant-UITests-Continuity" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-background") { folder = "PersonalAssistant-UITests-Background" }
         #endif
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)

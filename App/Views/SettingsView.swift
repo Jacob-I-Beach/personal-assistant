@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var draft = ModelSettings()
     @State private var credential = ""
     @State private var showSaved = false
+    @State private var showContext = false
     var body: some View {
         NavigationStack {
             Form {
@@ -31,6 +32,8 @@ struct SettingsView: View {
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
+                    Toggle("Automatic memory", isOn: $draft.automaticMemory)
+                    Text("Remember useful things you share and keep them current. Inferences stay tentative. Inspect changes and undo them in Library → Saved memory.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow workspace search", isOn: $draft.workspaceSearchEnabled)
                     Text("Lets the selected model search other chats in this app and files you marked for workspace access. Connected models cannot search archived, on-device-only, or Health chats. This does not import your history from the ChatGPT app.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow assistant Health reads", isOn: $draft.healthToolsEnabled).disabled(!HealthOverviewService.isEnabledInThisBuild)
@@ -64,6 +67,7 @@ struct SettingsView: View {
                     Text("You can also play an individual answer from its speaker button. Voice input uses on-device transcription when available.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Conversations") {
+                    Button("Home context", systemImage: "sun.max") { showContext = true }
                     Toggle("Automatic chat titles", isOn: $draft.automaticChatTitles)
                     Text("Uses the selected model to name new chats after the first answer. Names you enter yourself are kept.").font(.footnote).foregroundStyle(.secondary)
                 }
@@ -90,6 +94,11 @@ struct SettingsView: View {
                 draft.chatGPTModel = model.settings.chatGPTModel
                 draft.choice = model.settings.choice
             }
+            .sheet(isPresented: $showContext, onDismiss: {
+                draft.locationContextEnabled = model.settings.locationContextEnabled
+                draft.weatherFollowsLocation = model.settings.weatherFollowsLocation
+                draft.weatherPlace = model.settings.weatherPlace
+            }) { HomeContextSettingsView() }
             .onChange(of: model.libraryContainsHealthData) { _, contains in if contains { draft.includeInDeviceBackup = false } }
             .alert("Settings saved", isPresented: $showSaved) { Button("Done") { dismiss() } }
         }

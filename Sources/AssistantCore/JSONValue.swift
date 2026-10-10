@@ -38,6 +38,7 @@ public enum JSONValue: Codable, Equatable, Sendable {
     public var arrayValue: [JSONValue]? { if case .array(let v) = self { v } else { nil } }
     public var objectValue: [String: JSONValue]? { if case .object(let v) = self { v } else { nil } }
     public var numberValue: Double? { if case .number(let v) = self { v } else { nil } }
+    public var boolValue: Bool? { if case .bool(let v) = self { v } else { nil } }
 
     public static func parse(_ string: String) throws -> JSONValue {
         try JSONDecoder().decode(JSONValue.self, from: Data(string.utf8))

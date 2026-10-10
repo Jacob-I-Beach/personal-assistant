@@ -31,6 +31,7 @@ final class AppModel: ObservableObject {
     @Published var downloadingModelID: String?
     @Published var modelStatus = "Choose a model to begin"
     @Published var activity: String?
+    @Published var activeToolCall: ToolCall?
     @Published var errorMessage: String?
     @Published var noticeMessage: String?
     @Published var settings = ModelSettings()
@@ -43,6 +44,8 @@ final class AppModel: ObservableObject {
     @Published var appleCloud = AppleModelBackend.readiness(.privateCloud)
     @Published var showModels = false
     @Published var watchRequests: [WatchRequest] = []
+    @Published var unfinishedReplies: [WorkTurn] = []
+    @Published var contextRefresh = 0
     @Published var nativeAction: NativeActionRequest?
     @Published var connectedFolders: [FolderConnection] = []
     @Published var showConnectedFolders = false
@@ -50,11 +53,16 @@ final class AppModel: ObservableObject {
     var pickedFolderURL: URL?
     private var nativeActionWaiter: CheckedContinuation<String, any Error>?
     private var nativeActionWaiterID: UUID?
-    private let locationService = ForegroundLocation()
+    let locationService = ForegroundLocation()
+    let routeService = RouteService()
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
     private var localBackend: MLXLocalBackend?
     private var responseTask: Task<Void, Never>?
+    private let completionWindow = ResponseCompletionWindow()
+    private var responseWasBackgrounded = false
+    private var userRequestedStop = false
+    private(set) var activeTurnID: UUID?
     private var titleTask: Task<Void, Never>?
     private var titleGenerationID = UUID()
     private var downloadTask: Task<Void, Never>?
@@ -125,6 +133,9 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { await installPresentationFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-workspace") { await installWorkspaceFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { await installInteractionFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { await installStreamingFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { await installContinuityFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-background") { await installBackgroundFixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -157,17 +168,24 @@ final class AppModel: ObservableObject {
             captures = try await store.captures()
             artifacts = try await store.artifacts()
             watchRequests = try await store.pendingWatchRequests()
+            unfinishedReplies = try await store.unfinishedWork()
         } catch { errorMessage = error.localizedDescription }
     }
     func becameActive() {
+        contextRefresh += 1
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
-        Task { await processNextWatchRequest() }
+        Task {
+            if !isRunning { await continueInterruptedReplyIfEligible() }
+            await processNextWatchRequest()
+        }
     }
     func enteredBackground() {
         flushDraft()
         titleTask?.cancel()
-        guard isRunning, settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
-        stop()
+        guard isRunning else { return }
+        responseWasBackgrounded = true
+        guard settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
+        pauseResponseForBackground()
         let backend = localBackend, engine = engine
         Task {
             await engine?.waitUntilIdle()
@@ -371,7 +389,42 @@ final class AppModel: ObservableObject {
         conversation.allowedHealthDestinations = []
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
     }
-    func stop() { responseTask?.cancel() }
+    func stop() { userRequestedStop = true; responseWasBackgrounded = false; responseTask?.cancel() }
+    private func pauseResponseForBackground() {
+        guard isRunning, !userRequestedStop else { return }
+        responseWasBackgrounded = true; responseTask?.cancel()
+    }
+    private func continueInterruptedReplyIfEligible() async {
+        guard !isRunning, !userRequestedStop, responseWasBackgrounded, UIApplication.shared.applicationState == .active,
+              let work = try? await store?.unfinishedWork().first(where: { $0.conversationID == conversation.id }),
+              work.resumes < 3, Date().timeIntervalSince(work.updatedAt) < 86_400 else { return }
+        await resumeReply(work, automatic: true)
+    }
+    func resumeReply(_ work: WorkTurn, automatic: Bool = false) async {
+        guard !isRunning, let store, UIApplication.shared.applicationState == .active else { return }
+        do {
+            let restored = try await store.loadConversation(work.conversationID)
+            guard restored.messages.last(where: { $0.role == .user })?.id == work.userMessageID else { throw AssistantError.provider("A newer request followed this reply. Open its conversation to choose what should continue.") }
+            if work.conversationID != conversation.id {
+                guard !automatic, let summary = histories.first(where: { $0.id == work.conversationID }) else { return }
+                await selectConversation(summary)
+            }
+            guard work.conversationID == conversation.id else { return }
+            // Never silently change the selected account, model or its access policy.
+            let selectedSettings = settings
+            let selected = try await backend(for: selectedSettings)
+            guard selected.id == work.backendID, selected.networkDestination == work.destination else {
+                throw AssistantError.provider("Choose the model previously used for this reply before continuing it.")
+            }
+            guard !settings.localOnly || selected.networkDestination == nil else { throw AssistantError.networkNotAuthorized }
+            guard conversation.id == work.conversationID, !isRunning, settings == selectedSettings, !automatic || !userRequestedStop else { return }
+            conversation = restored
+            startResponse("", resuming: work)
+        } catch {
+            if automatic { noticeMessage = "The saved reply needs your attention. Open it and choose Continue when ready." }
+            else { errorMessage = error.localizedDescription }
+        }
+    }
     func beginEditing(_ message: Message) {
         guard !isRunning, message.role == .user, conversation.messages.contains(where: { $0.id == message.id }) else { return }
         if editingMessageID == nil { draftBeforeEditing = (draft, attachedCaptureIDs, attachedFileIDs, draftContainsHealthData, selectedImagePoints) }
@@ -384,13 +437,15 @@ final class AppModel: ObservableObject {
         if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections }
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
-    private func startResponse(_ text: String) {
+    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil) {
         guard let engine else { return }
         let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
         let previousIDs = Set(original.messages.map(\.id))
         draftTask?.cancel()
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
+        responseWasBackgrounded = false; userRequestedStop = false; activeTurnID = savedWork?.id
+        completionWindow.begin { [weak self] in self?.pauseResponseForBackground() }
         requiresManualResume = false
         let previousTitleTask = titleTask
         previousTitleTask?.cancel(); titleTask = nil
@@ -407,41 +462,62 @@ final class AppModel: ObservableObject {
                 let selectedBackend = try await backend(for: selection)
                 titleBackend = selectedBackend
                 try Task.checkCancellation()
-                if let editID, let store {
+                if savedWork == nil, let editID, let store {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + WorkspaceTools.definitions + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
                 let destination = selection.networkDestination
-                for try await event in engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
-                    containsHealthData: healthData, fileIDs: fileAttachments, imageSelections: imageSelections, workspaceEnabled: selection.workspaceSearchEnabled, additionalTools: extras, additionalExecutor: { [weak self, conversationID = original.id] call in
+                let execute: @Sendable (ToolCall) async throws -> ToolResult = { [weak self, conversationID = original.id] call in
                         guard let self else { throw CancellationError() }
                         return try await self.executeNativeTool(call, conversationID: conversationID, destination: destination)
-                    }) {
+                    }
+                let events: AsyncThrowingStream<AssistantEvent, any Error>
+                if let savedWork {
+                    events = engine.resume(conversation: current, turnID: savedWork.id, backend: selectedBackend,
+                        workspaceEnabled: selection.workspaceSearchEnabled, automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute)
+                    activity = "Continuing from saved work"
+                } else {
+                    events = engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
+                        containsHealthData: healthData, fileIDs: fileAttachments, imageSelections: imageSelections, workspaceEnabled: selection.workspaceSearchEnabled,
+                        automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute)
+                }
+                for try await event in events {
                     switch event {
                     case .conversation(let updated):
                         conversation = updated
-                        if updated.messages.contains(where: { $0.role == .user && $0.text == text && !previousIDs.contains($0.id) }) {
+                        if let user = updated.messages.last(where: { $0.role == .user }) { activeTurnID = savedWork?.id ?? user.id }
+                        if savedWork == nil, updated.messages.contains(where: { $0.role == .user && $0.text == text && !previousIDs.contains($0.id) }) {
                             attachedCaptureIDs = []
                             selectedImagePoints = [:]
                             attachedFileIDs = []
                             if draft == text || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = ""; flushDraft() }
                         }
-                    case .toolResult: await refresh(); activity = "Preparing the result"
-                    case .activity(let value): activity = value
+                    case .toolResult: activeToolCall = nil; await refresh(); activity = "Preparing the result"
+                    case .toolStarted(let call): activeToolCall = call; activity = nil
+                    case .activity(let value): activeToolCall = nil; activity = value
                     case .finished: break
                     }
                 }
             } catch {
                 if !Task.isCancelled && !(error is CancellationError) {
-                    errorMessage = error.localizedDescription
-                    noticeMessage = error.localizedDescription
+                    if responseWasBackgrounded { noticeMessage = "Reply paused while the app was away. Your progress is saved." }
+                    else { errorMessage = error.localizedDescription; noticeMessage = error.localizedDescription }
                 }
             }
             await engine.waitUntilIdle()
             if let saved = try? await store?.loadConversation(current.id) { conversation = saved }
-            requiresManualResume = errorMessage != nil || Task.isCancelled || conversation.messages.last?.state != .complete
-            isRunning = false; responseTask = nil; activity = nil
+            var completedTurn = false
+            if let id = activeTurnID, let work = try? await store?.workTurn(id) {
+                completedTurn = work.phase == .completed
+                if !completedTurn {
+                    if userRequestedStop { try? await store?.finishWork(id, phase: .cancelled, reason: "Stopped by the user") }
+                    else if responseWasBackgrounded { try? await store?.finishWork(id, phase: .interrupted, reason: "Interrupted while the app was away") }
+                }
+            }
+            requiresManualResume = !completedTurn && (errorMessage != nil || Task.isCancelled || conversation.messages.last?.state != .complete)
+            isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
+            completionWindow.end()
             if !requiresManualResume, let titleBackend, conversation.needsAutomaticTitle, selection.automaticChatTitles {
                 let namedConversation = conversation
                 let generationID = UUID(); titleGenerationID = generationID
@@ -472,11 +548,17 @@ final class AppModel: ObservableObject {
                     state: successful ? .complete : .needsPhone, message: text, modelName: modelTitle))
             }
             await refresh()
+            if responseWasBackgrounded && !userRequestedStop && UIApplication.shared.applicationState == .active {
+                Task { [weak self] in await self?.continueInterruptedReplyIfEligible() }
+            }
         }
     }
     private func backend(for selection: ModelSettings) async throws -> any ModelBackend {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { return UIInteractionBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { return UIStreamingBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { return UIContinuityBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-background") { return UIBackgroundBackend() }
         #endif
         switch selection.choice {
         case .localMLX:
@@ -628,9 +710,24 @@ final class AppModel: ObservableObject {
         try Task.checkCancellation()
         guard isRunning, conversation.id == conversationID else { throw CancellationError() }
         if WorkspaceTools.names.contains(call.name) { return try await executeWorkspaceTool(call, conversationID: conversationID, destination: destination) }
-        func nativeResult(_ value: JSONValue) -> ToolResult { ToolResult(callID: call.id, name: call.name, succeeded: true, output: value) }
+        func nativeResult(_ value: JSONValue) -> ToolResult {
+            ToolResult(callID: call.id, name: call.name, succeeded: !["failed", "outcome_unknown", "interrupted"].contains(value["status"]?.stringValue ?? ""), output: value)
+        }
         switch call.name {
+        case NativeTools.route.name, NativeTools.readRoute.name:
+            return nativeResult(try await executeRouteTool(call, conversationID: conversationID))
         case NativeTools.device.name: return nativeResult(DeviceContext.snapshot())
+        case NativeTools.context.name:
+            var context: [String: JSONValue] = ["model": .string(modelTitle), "processing": .string(modelLocation),
+                "automatic_memory": .bool(settings.automaticMemory), "workspace_history_enabled": .bool(settings.workspaceSearchEnabled),
+                "location_context_enabled": .bool(settings.locationContextEnabled), "location_authorization": .string(locationService.authorizationSummary),
+                "local_only": .bool(settings.localOnly), "background_tracking": .bool(false), "weather": .null]
+            if !settings.localOnly, let weather = try await store?.cachedHomeWeather(), weather.isFresh(),
+               (settings.weatherFollowsLocation && settings.locationContextEnabled && weather.place.name == "Nearby") || (!settings.weatherFollowsLocation && settings.weatherPlace == weather.place) {
+                context["weather"] = .object(["place": .string(weather.place.name), "celsius": .number(weather.celsius), "conditions": .string(weather.condition),
+                    "observed_at": .string(ISO8601DateFormatter().string(from: weather.observedAt)), "source": .string("Open-Meteo cached weather estimate")])
+            }
+            return nativeResult(.object(context))
         case NativeTools.pdf.name:
             guard let filename = call.arguments["filename"]?.stringValue, filename.lowercased().hasSuffix(".pdf"), let store else { throw AssistantError.invalidTool("Choose a filename ending in .pdf.") }
             try WorkspaceFile.validateFilename(filename)
@@ -646,8 +743,10 @@ final class AppModel: ObservableObject {
                 "saved_to": .string(output?.status == "saved_local" ? output!.location : "App Library"), "warning": output?.warning.map(JSONValue.string) ?? .null]))
         case NativeTools.location.name:
             let purpose = String((call.arguments["reason"]?.stringValue ?? "").prefix(500))
-            let status = try await reviewNativeAction(NativeActionRequest(kind: .approval, title: "Use your current location?", detail: purpose + "\n\nThis one location fix will be available to \(modelTitle) \(modelLocation.lowercased()) in this conversation.", arguments: call.arguments))
-            guard status == "approved" else { throw AssistantError.invalidTool("The user declined location access. Continue without it.") }
+            if !settings.locationContextEnabled {
+                let status = try await reviewNativeAction(NativeActionRequest(kind: .approval, title: "Use your current location?", detail: purpose + "\n\nThis location fix will be available to \(modelTitle) in this conversation. Enable location context on the home screen to remember this permission for future requests.", arguments: call.arguments))
+                guard status == "approved" else { return nativeResult(.object(["status": .string(status == "cancelled" ? "cancelled" : "interrupted"), "location_shared": .bool(false)])) }
+            }
             return nativeResult(try await locationService.read())
         case NativeTools.calendar.name:
             let formatter = ISO8601DateFormatter()
@@ -655,14 +754,14 @@ final class AppModel: ObservableObject {
                   end > start, end.timeIntervalSince(start) <= 366 * 86400, let title = call.arguments["title"]?.stringValue, !title.isEmpty, title.count <= 300,
                   (call.arguments["notes"]?.stringValue?.count ?? 0) <= 8000, (call.arguments["location"]?.stringValue?.count ?? 0) <= 500 else { throw AssistantError.invalidTool("Use a short title, valid ISO8601 dates with time zones, and an end after the start.") }
             let status = try await reviewNativeAction(NativeActionRequest(kind: .calendar, title: "Review event", detail: "", arguments: call.arguments))
-            guard status == "saved" else { throw AssistantError.invalidTool("The user cancelled the calendar event. No event was saved by this action.") }
+            guard status == "saved" else { return nativeResult(.object(["status": .string(status == "cancelled" ? "cancelled" : "outcome_unknown"), "completed_action_confirmed": .bool(false)])) }
             return nativeResult(.object(["status": .string("saved_by_user"), "proposed_title": .string(title),
                 "note": .string("The user may have edited details in Apple's editor. The app did not query the saved event contents.")]))
         case NativeTools.message.name:
             guard MFMessageComposeViewController.canSendText(), let body = call.arguments["body"]?.stringValue, body.count <= 8000,
                   let recipients = call.arguments["recipients"]?.stringValue, recipients.count <= 300 else { throw AssistantError.invalidTool("Text messaging is unavailable or the proposed message is too long.") }
             let status = try await reviewNativeAction(NativeActionRequest(kind: .message, title: "Review message", detail: "", arguments: call.arguments))
-            guard status == "sent" else { throw AssistantError.invalidTool(status == "cancelled" ? "The user cancelled the message. Do not retry automatically." : "The system reported that the message could not be sent.") }
+            guard status == "sent" else { return nativeResult(.object(["status": .string(status == "cancelled" ? "cancelled" : status == "failed" ? "failed" : "outcome_unknown"), "delivery_confirmed": .bool(false), "notice": .string("Do not retry sending automatically.")])) }
             return nativeResult(.object(["status": .string("system_reported_sent"), "delivery_confirmed": .bool(false)]))
         case NativeTools.maps.name, NativeTools.phone.name:
             let url: URL, title: String, detail: String
@@ -678,7 +777,7 @@ final class AppModel: ObservableObject {
                 url = phoneURL; title = "Open this number in Phone?"; detail = number + "\n\n" + String((call.arguments["reason"]?.stringValue ?? "").prefix(500))
             }
             let status = try await reviewNativeAction(NativeActionRequest(kind: .approval, title: title, detail: detail, arguments: call.arguments))
-            guard status == "approved" else { throw AssistantError.invalidTool("The user declined this action. Do not retry automatically.") }
+            guard status == "approved" else { return nativeResult(.object(["status": .string(status == "cancelled" ? "cancelled" : "interrupted"), "completed_action_confirmed": .bool(false)])) }
             try Task.checkCancellation()
             let opened = await UIApplication.shared.open(url)
             guard opened else { throw AssistantError.invalidTool("iOS could not open the requested app action.") }
@@ -711,7 +810,7 @@ final class AppModel: ObservableObject {
             return try await withCheckedThrowingContinuation { continuation in nativeActionWaiter = continuation; nativeActionWaiterID = request.id; nativeAction = request; activity = "Waiting for your review" }
         } onCancel: { Task { @MainActor [weak self] in
             guard self?.isPendingNativeAction(request.id) == true else { return }
-            self?.resolveNativeAction("cancelled", for: request.id)
+            self?.resolveNativeAction("interrupted", for: request.id)
         } }
     }
     func resolveNativeAction(_ status: String, for requestID: UUID? = nil) {

@@ -6,7 +6,9 @@ Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com
 
 Jacob confirms that **0.5.0 build 5 opens on his iPhone and preserves his previous chats** (October 10, 2026). ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
-## Current source: 0.5
+## Current source: 0.6 candidate
+
+The installed baseline remains 0.5.0 build 5. The [0.6 source batch](Documentation/RELEASE_06.md) adds automatic memory/history/undo, recent-chat browsing, durable reply/action recovery, in-app route previews and a useful home canvas with optional persistent location/weather context. It also addresses the reported streaming jitter, keyboard toolbar and active-tool alignment. 138 Windows core tests pass; native validation and a new IPA remain pending a hosted-Mac budget increase.
 
 - A portable Swift core with SQLite transactions, retained legacy JSON migration, full-text history search, bounded working context, and app-owned records.
 - Shared app-controlled tools for captures, history, saved memory, actual offline JavaScript execution, editable artifacts, and authorized native Health overviews. External streamed calls are held until terminal completion; native Foundation Models tools use complete validated arguments through the same executor.
