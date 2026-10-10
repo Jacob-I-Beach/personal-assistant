@@ -86,7 +86,7 @@ struct ModelLibraryView: View {
                             } else {
                                 HStack {
                                     Button("Download") { model.downloadModel(entry) }.buttonStyle(.bordered).disabled(model.settings.localOnly)
-                                    Button("Import from Files") { importEntry = entry; showImport = true }.font(.subheadline)
+                                    Button("Import from Files") { importEntry = entry; showImport = true }.font(.subheadline).buttonStyle(.borderless)
                                 }.disabled(model.isDownloading || (model.isRunning && model.settings.choice == .localMLX))
                             }
                             Text(entry.validation).font(.caption2).foregroundStyle(.secondary)
@@ -97,7 +97,6 @@ struct ModelLibraryView: View {
                 }
             }
             .navigationTitle("Models")
-            .buttonStyle(.plain)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads() }
             .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in

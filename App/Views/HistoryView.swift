@@ -62,7 +62,7 @@ struct HistoryView: View {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(match.title).font(.subheadline.weight(.medium)).lineLimit(2)
                                     Text(MarkdownContent(match.excerpt).renderPlainText()).font(.caption).foregroundStyle(.secondary).lineLimit(3)
-                                }.padding(.vertical, 5)
+                                }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                             }.disabled(model.isRunning)
                         }
                         if matches.isEmpty { Text("No matching chats").foregroundStyle(.secondary) }
