@@ -55,6 +55,7 @@ final class AppModel: ObservableObject {
     @Published var contextRefresh = 0
     @Published var nativeAction: NativeActionRequest?
     var nativeReviewVisible = false
+    var questionResumeAfterDismiss: WorkTurn?
     @Published var connectedFolders: [FolderConnection] = []
     @Published var showConnectedFolders = false
     private(set) var workspaceService: FolderWorkspaceService?
@@ -898,7 +899,10 @@ final class AppModel: ObservableObject {
     }
     func nativeReviewDidDismiss() {
         nativeReviewVisible = false
-        Task { await presentDeferredReview() }
+        if let work = questionResumeAfterDismiss {
+            questionResumeAfterDismiss = nil
+            Task { await resumeReply(work) }
+        } else { Task { await presentDeferredReview() } }
     }
     private func notifyReview(_ request: NativeActionRequest) async {
         guard settings.taskNotifications, UIApplication.shared.applicationState != .active, isPendingNativeAction(request.id) else { return }

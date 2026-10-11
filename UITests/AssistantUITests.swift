@@ -31,7 +31,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(question.isHittable); saveScreenshot(app, name: "Today-and-needs-you"); question.tap()
         XCTAssertTrue(app.buttons["Afternoon"].waitForExistence(timeout: 5)); app.buttons["Afternoon"].tap()
         app.buttons["Answer and continue"].tap()
-        XCTAssertTrue(app.staticTexts["Save event?"].waitForExistence(timeout: 10))
+        let reviewAppeared = app.staticTexts["Save event?"].waitForExistence(timeout: 10)
+        if !reviewAppeared { saveScreenshot(app, name: "Daily-workflow-review-missing"); print(app.debugDescription) }
+        XCTAssertTrue(reviewAppeared)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Example work session")).firstMatch.exists)
         saveScreenshot(app, name: "Reviewed-calendar-change")
         app.buttons["Continue"].tap()

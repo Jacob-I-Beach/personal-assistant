@@ -36,16 +36,16 @@ struct TaskQuestionView: View {
                         if let error { Text(error).font(.footnote).foregroundStyle(.red) }
                         Button {
                             busy = true
-                            Task { defer { busy = false }; do { try await model.submitQuestion(questionID, text: answer, captureIDs: captureID.map { [$0] } ?? [], skip: false); dismiss() } catch { self.error = error.localizedDescription } }
+                            Task { defer { busy = false }; do { try await model.submitQuestion(questionID, text: answer, captureIDs: captureID.map { [$0] } ?? [], skip: false) } catch { self.error = error.localizedDescription } }
                         } label: { Text(busy ? "Saving…" : "Answer and continue").frame(maxWidth: .infinity).padding(8) }.buttonStyle(.borderedProminent).disabled(busy || (answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && captureID == nil))
                         Button("Skip this question") {
-                            Task { do { try await model.submitQuestion(questionID, text: "", captureIDs: [], skip: true); dismiss() } catch { self.error = error.localizedDescription } }
+                            Task { do { try await model.submitQuestion(questionID, text: "", captureIDs: [], skip: true) } catch { self.error = error.localizedDescription } }
                         }.frame(maxWidth: .infinity).disabled(busy)
                     } else if let error { Text(error).foregroundStyle(.secondary) }
                     else { ProgressView() }
                 }.padding(24)
             }.navigationTitle("Needs you").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") { if model.isRunning { model.deferQuestion() }; dismiss() } } }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") { if model.isRunning { model.deferQuestion() } else { model.nativeAction = nil } } } }
                 .task { do { question = try await model.store?.question(questionID) } catch { self.error = error.localizedDescription } }
                 .sheet(isPresented: $showCamera) { SceneCaptureSheet { capture, jpeg in
                     try await model.store?.saveCapture(capture, jpeg: jpeg); captureID = capture.id

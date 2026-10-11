@@ -42,8 +42,8 @@ extension AppModel {
         if let request = nativeAction, request.questionID == id, isPendingNativeAction(request.id) {
             resolveNativeAction(skip ? "skipped" : "answered", for: request.id)
         } else {
+            questionResumeAfterDismiss = try await store.workTurn(question.turnID)
             nativeAction = nil
-            if let work = try await store.workTurn(question.turnID) { await resumeReply(work) }
         }
         await refresh()
     }
