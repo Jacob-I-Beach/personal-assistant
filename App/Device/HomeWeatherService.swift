@@ -41,7 +41,7 @@ final class HomeWeatherService: ObservableObject {
            (settings.weatherFollowsLocation && cached.place.name == "Nearby") || (!settings.weatherFollowsLocation && cached.place == settings.weatherPlace) { weather = cached }
         guard !Task.isCancelled, model.settings == settings else { return }
         guard Date().timeIntervalSince(lastAttempt) > 300 else { return }
-        if let weather, Date().timeIntervalSince(weather.retrievedAt) < 1800 { return }
+        if let weather, Date().timeIntervalSince(weather.retrievedAt) < 300 { return }
         lastAttempt = Date()
         do {
             let place: WeatherPlace

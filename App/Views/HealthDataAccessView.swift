@@ -7,6 +7,7 @@ struct HealthDataAccessView: View {
     @State private var search = ""
     @State private var busy = false
     @State private var notice: String?
+    @AppStorage("assistant.health.selectionDraft") private var selectionDraft = ""
     private var entries: [HealthDataType] { HealthDataCatalog.matching(search) }
     private var isFiltering: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var groups: [String] { Array(Set(entries.map(\.group))).sorted() }
@@ -32,6 +33,7 @@ struct HealthDataAccessView: View {
                             if !selected.isEmpty { try await HealthDataReader().requestAccess(selected) }
                             var settings = model.settings; settings.healthTypeIDs = selected.intersection(supported); settings.healthToolsEnabled = !selected.isEmpty
                             try model.saveSettings(settings); AppFeedback.play(.saved)
+                            selectionDraft = ""
                             notice = selected.isEmpty ? "Assistant Health reads are off. Existing Health permissions can be managed in iPhone Settings." : "Your selection is saved. Health controls which read records are shared."
                         } catch { notice = "Health access could not be updated. " + error.localizedDescription }
                     }
@@ -63,6 +65,13 @@ struct HealthDataAccessView: View {
         }
         .navigationTitle("Connected Health data").navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, prompt: "Find a measurement or category")
-        .onAppear { selected = model.settings.healthTypeIDs }
+        .onAppear {
+            if let data = selectionDraft.data(using: .utf8), let ids = try? JSONDecoder().decode([String].self, from: data) {
+                selected = Set(ids).intersection(Set(HealthDataCatalog.entries.map(\.id)))
+            } else { selected = model.settings.healthTypeIDs }
+        }
+        .onChange(of: selected) { _, ids in
+            if let data = try? JSONEncoder().encode(ids.sorted()) { selectionDraft = String(decoding: data, as: UTF8.self) }
+        }
     }
 }

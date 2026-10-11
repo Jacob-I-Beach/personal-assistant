@@ -86,6 +86,6 @@ public enum ToolResultPresentation {
     }
     public static func arguments(of call: ToolCall?) -> JSONValue? {
         guard let call else { return nil }
-        return call.name == "use_tool" ? (call.arguments["arguments_json"]?.stringValue.flatMap { try? JSONValue.parse($0) }) : call.arguments
+        return call.name == "use_tool" ? (try? CompactToolInvocation.values(from: call.arguments)) : call.arguments
     }
 }

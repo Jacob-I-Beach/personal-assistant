@@ -672,6 +672,35 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Health-type-search")
     }
 
+    func testShortUserContentRemainsAtTheRightEdge() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-interactions", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
+        let picture = app.buttons["Open attached image"].firstMatch
+        for _ in 0..<6 { if picture.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(picture.isHittable)
+        XCTAssertLessThan(app.frame.maxX - picture.frame.maxX, 40)
+        saveScreenshot(app, name: "Right-aligned-user-image")
+        let text = app.staticTexts["1+1"]
+        for _ in 0..<8 { if text.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(text.isHittable)
+        XCTAssertLessThan(app.frame.maxX - text.frame.maxX, 65)
+        saveScreenshot(app, name: "Right-aligned-short-message")
+    }
+
+    func testHomeUsesAContextualGreeting() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-empty", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let greeting = app.staticTexts["home-greeting"]
+        XCTAssertTrue(greeting.waitForExistence(timeout: 15))
+        XCTAssertFalse(greeting.label.hasPrefix("Good "))
+        XCTAssertFalse(greeting.label.isEmpty)
+        saveScreenshot(app, name: "Contextual-home-greeting")
+    }
+
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

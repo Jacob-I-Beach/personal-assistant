@@ -88,7 +88,7 @@ struct AppleModelBackend: ModelBackend {
                 if !message.text.isEmpty { entries.append(.response(.init(id: message.id.uuidString, assetIDs: [], segments: segments))) }
                 if !message.toolCalls.isEmpty {
                     let calls = try message.toolCalls.map { call in
-                        Transcript.ToolCall(id: call.id, toolName: call.name, arguments: try GeneratedContent(json: call.arguments.jsonString()))
+                        Transcript.ToolCall(id: call.id, toolName: call.name, arguments: try GeneratedContent(json: CompactToolInvocation.modelArguments(for: call).jsonString()))
                     }
                     entries.append(.toolCalls(.init(calls)))
                 }
@@ -109,10 +109,7 @@ private struct AppleToolProxy: Tool {
     let gate: AppleToolGate
     init(definition: AssistantCore.ToolDefinition, gate: AppleToolGate) throws {
         name = definition.name; description = definition.description; self.gate = gate
-        let properties = definition.parameters["properties"]?.objectValue ?? [:]
-        parameters = try GenerationSchema(root: DynamicGenerationSchema(name: name + "Arguments", properties: properties.sorted { $0.key < $1.key }.map {
-            DynamicGenerationSchema.Property(name: $0.key, description: $0.value["description"]?.stringValue, schema: DynamicGenerationSchema(type: String.self))
-        }), dependencies: [])
+        parameters = try AppleToolSchema.make(definition)
     }
     func call(arguments: GeneratedContent) async throws -> String {
         guard arguments.isComplete else { throw AssistantError.invalidTool("Apple supplied incomplete tool arguments.") }

@@ -139,7 +139,9 @@ public struct NetworkModelBackend: ModelBackend {
             "instructions": .string(input.instructions + (webSearchEnabled ? "\nWeb search is enabled subject to the selected model and account policy. Use it for current or sourced facts. Cite returned sources with visible Markdown links; do not invent citations." : "")), "input": .array(items),
             "include": .array([.string("reasoning.encrypted_content")]),
         ]
-        if let contextBudget { body["max_output_tokens"] = .number(Double(contextBudget.outputReserve)) }
+        // ChatGPT-plan token sharing rejects this field. The input planner still
+        // reserves reply space; API-key connections can set an explicit output cap.
+        if chatGPTAccountID == nil, let contextBudget { body["max_output_tokens"] = .number(Double(contextBudget.outputReserve)) }
         if !input.tools.isEmpty {
             let functions = input.tools.map { tool in
                 .object(["type": .string("function"), "name": .string(tool.name),

@@ -43,6 +43,14 @@ final class CoherenceTests: XCTestCase, @unchecked Sendable {
         let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(request.httpBody))
         XCTAssertEqual(body["max_output_tokens"], .number(50_000))
         XCTAssertEqual(backend.contextLimits.maximumTextBytes, plan.textByteBudget)
+        let account = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: "gpt-6.1-sol", wireProtocol: .responses,
+                                              credential: "synthetic-token", chatGPTAccountID: "synthetic-account", contextBudget: plan)
+        let accountRequest = try account.makeRequest(.init(instructions: "Test", messages: [], tools: []))
+        let accountBody = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(accountRequest.httpBody))
+        XCTAssertNil(accountBody["max_output_tokens"])
+        XCTAssertNil(accountBody["background"])
+        XCTAssertEqual(accountBody["stream"], .bool(true))
+        XCTAssertEqual(accountBody["store"], .bool(false))
     }
     func testExplicitSendDoesNotSilentlyApproveHealthOrRevokedSharing() throws {
         var conversation = Conversation()

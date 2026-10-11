@@ -15,7 +15,7 @@ struct MessageRow: View {
             if message.role == .user {
                 HStack(alignment: .top, spacing: 0) {
                     Spacer(minLength: 30)
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .trailing, spacing: 8) {
                         attachments
                         if !message.text.isEmpty {
                             Text(message.text).font(.body).foregroundStyle(.primary).textSelection(.enabled)
@@ -56,7 +56,9 @@ struct MessageRow: View {
                         }.buttonStyle(.plain).accessibilityLabel("Open attached image")
                     }
                 }
-            }.scrollIndicators(.hidden).frame(maxWidth: 300, alignment: .leading)
+            }.scrollIndicators(.hidden)
+                .defaultScrollAnchor(message.role == .user ? .trailing : .leading)
+                .frame(maxWidth: message.captureIDs.count == 1 ? 132 : 300, alignment: message.role == .user ? .trailing : .leading)
         }
         ForEach(message.fileIDs, id: \.self) { id in
             if let file = model.files.first(where: { $0.id == id }) {

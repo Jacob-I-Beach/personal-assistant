@@ -58,10 +58,22 @@ public enum HomeGreeting {
         memories.filter { $0.profileKey == "preferred_name" && $0.conversationID == nil && $0.status == .active && $0.isCurrent(at: date) && $0.basis != .inferred && $0.text.count <= 60 && !$0.text.contains("\n") }
             .max(by: { $0.updatedAt < $1.updatedAt })?.text
     }
-    public static func title(at date: Date = Date(), calendar: Calendar = .current, name: String?) -> String {
+    public static func title(at date: Date = Date(), calendar: Calendar = .current, name: String?, weather: HomeWeather? = nil,
+                             unfinishedCount: Int = 0, needsAttention: Bool = false, nextCommitment: Date? = nil) -> String {
         let hour = calendar.component(.hour, from: date)
-        let greeting = hour < 5 ? "Hello" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
-        return name.map { greeting + ", " + $0 + "." } ?? greeting + "."
+        let phrase: String
+        if needsAttention { phrase = "One answer, then onward." }
+        else if unfinishedCount > 0 { phrase = "Let’s pick up the thread." }
+        else if let nextCommitment, (0...7200).contains(nextCommitment.timeIntervalSince(date)) { phrase = "A little room before what’s next." }
+        else if let weather, weather.isFresh(at: date), weather.code == 0 { phrase = weather.isDay ? "Clear skies, fresh ideas." : "A clear night for an idea." }
+        else if let weather, weather.isFresh(at: date), weather.celsius < 6 { phrase = "Cold air, fresh ideas." }
+        else if calendar.isDateInWeekend(date) { phrase = "A little space to explore." }
+        else if hour < 5 { phrase = "Something on your mind?" }
+        else if hour < 12 { phrase = "Start with something worthwhile." }
+        else if hour < 17 { phrase = "Make room for a good idea." }
+        else { phrase = "Bring a little clarity." }
+        guard let name, !name.isEmpty, name.count <= 24 else { return phrase }
+        return String(phrase.dropLast()) + ", " + name + String(phrase.suffix(1))
     }
     public static func subtitle(weather: HomeWeather?, unfinishedCount: Int, at date: Date = Date()) -> String {
         if unfinishedCount > 0 { return "Pick up where you left off, or start something new." }

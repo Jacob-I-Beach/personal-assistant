@@ -55,12 +55,31 @@ final class HealthDataReader {
     }
     func requestAccess(_ selected: Set<String>) async throws {
         try available()
-        let types = Set(HealthDataCatalog.entries.filter { selected.contains($0.id) }.compactMap(Self.objectType))
-        guard !types.isEmpty else { throw AssistantError.invalidTool("Choose at least one available Health data type.") }
-        let ordinary = Set(types.filter { !$0.requiresPerObjectAuthorization() })
-        if !ordinary.isEmpty { try await store.requestAuthorization(toShare: [], read: ordinary) }
-        for type in types where type.requiresPerObjectAuthorization() {
-            try await store.requestPerObjectReadAuthorization(for: type, predicate: nil)
+        let plan = HealthAuthorizationPlan(selected: selected)
+        guard !plan.ordinary.isEmpty || !plan.perObject.isEmpty else { throw AssistantError.invalidTool("Choose at least one available Health data type.") }
+        if !plan.ordinary.isEmpty {
+            try await authorization { finish in
+                self.store.requestAuthorization(toShare: [], read: plan.ordinary, completion: finish)
+            }
+        }
+        for type in plan.perObject {
+            try await authorization { finish in
+                self.store.requestPerObjectReadAuthorization(for: type, predicate: nil, completion: finish)
+            }
+        }
+    }
+    private func authorization(_ request: (@escaping @Sendable (Bool, (any Error)?) -> Void) -> Void) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            let completion = HealthAuthorizationCompletion(continuation)
+            do {
+                try HealthFrameworkBoundary.perform {
+                    request { success, error in
+                        if let error { completion.finish(.failure(error)) }
+                        else if success { completion.finish(.success(())) }
+                        else { completion.finish(.failure(AssistantError.provider("Health did not finish the access request. Your selection is kept."))) }
+                    }
+                }
+            } catch { completion.finish(.failure(error)) }
         }
     }
     private func available() throws {

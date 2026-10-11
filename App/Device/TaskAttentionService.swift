@@ -46,16 +46,34 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
         guard let id = queuedConversation, let onOpen else { return }
         queuedConversation = nil; await onOpen(id)
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-              let raw = response.notification.request.content.userInfo["conversation_id"] as? String,
-              let id = UUID(uuidString: raw) else { return }
-        await receive(id, notificationID: response.notification.request.identifier)
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let id = (response.notification.request.content.userInfo["conversation_id"] as? String).flatMap(UUID.init(uuidString:))
+        let shouldOpen = response.actionIdentifier == UNNotificationDefaultActionIdentifier
+        let notificationID = response.notification.request.identifier
+        let completion = MainThreadNotificationCompletion<Void> { _ in completionHandler() }
+        Task { @MainActor in
+            defer { completion.finish(()) }
+            guard shouldOpen, let id else { return }
+            await receive(id, notificationID: notificationID)
+        }
     }
     private func receive(_ id: UUID, notificationID: String) async {
         notificationIDs[id, default: []].insert(notificationID)
         clear(id)
         if let onOpen { await onOpen(id) } else { queuedConversation = id }
     }
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions { [] }
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let completion = MainThreadNotificationCompletion(completionHandler)
+        Task { @MainActor in completion.finish([]) }
+    }
+}
+
+/// UIKit's notification-return snapshot requires its completion on the main thread.
+/// The callback enters through a nonisolated delegate, then is used only on MainActor.
+final class MainThreadNotificationCompletion<Value: Sendable>: @unchecked Sendable {
+    private var callback: ((Value) -> Void)?
+    init(_ callback: @escaping (Value) -> Void) { self.callback = callback }
+    @MainActor func finish(_ value: Value) {
+        let action = callback; callback = nil; action?(value)
+    }
 }

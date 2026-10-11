@@ -11,7 +11,9 @@ final class HomeAndRouteTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(HomeGreeting.name(from: [stated, inferred, scoped], at: date), "Sam")
         stated.status = .forgotten
         XCTAssertNil(HomeGreeting.name(from: [stated, inferred, scoped], at: date))
-        XCTAssertEqual(HomeGreeting.title(at: date, calendar: calendar, name: "Sam"), "Good evening, Sam.")
+        XCTAssertEqual(HomeGreeting.title(at: date, calendar: calendar, name: "Sam"), "Bring a little clarity, Sam.")
+        XCTAssertEqual(HomeGreeting.title(at: date, calendar: calendar, name: nil, unfinishedCount: 2), "Let’s pick up the thread.")
+        XCTAssertEqual(HomeGreeting.title(at: date, calendar: calendar, name: nil, unfinishedCount: 2, needsAttention: true), "One answer, then onward.")
     }
     func testWeatherRejectsStaleMalformedDataAndCachesOnlyRecordedConditions() async throws {
         let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down)), place = WeatherPlace(name: "Example city", region: "Test", latitude: 40, longitude: -75)

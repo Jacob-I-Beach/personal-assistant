@@ -5,6 +5,7 @@ struct WelcomeWorkspaceView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var weather = HomeWeatherService()
     @State private var name: String?
     @State private var showContext = false
@@ -13,13 +14,15 @@ struct WelcomeWorkspaceView: View {
     let files: () -> Void
     let create: () -> Void
     let voice: () -> Void
-    private var refreshID: String { "\(model.contextRefresh):\(model.settings.localOnly):\(model.settings.locationContextEnabled):\(model.settings.weatherFollowsLocation):\(model.settings.weatherPlace?.id ?? "")" }
+    private var refreshID: String { "\(scenePhase):\(model.contextRefresh):\(model.settings.localOnly):\(model.settings.locationContextEnabled):\(model.settings.weatherFollowsLocation):\(model.settings.weatherPlace?.id ?? "")" }
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(context.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())).font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                    Text(HomeGreeting.title(at: context.date, name: name)).font(.system(.largeTitle, weight: .semibold)).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("home-greeting")
+                    Text(HomeGreeting.title(at: context.date, name: name, weather: weather.weather,
+                                            unfinishedCount: model.unfinishedReplies.count, needsAttention: !model.pendingQuestions.isEmpty))
+                        .font(.system(.largeTitle, weight: .semibold)).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("home-greeting")
                     Text(HomeGreeting.subtitle(weather: weather.weather, unfinishedCount: model.unfinishedReplies.count, at: context.date)).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     if let value = weather.weather, value.isFresh(at: context.date) {
                         HStack(alignment: .center, spacing: 10) {
@@ -29,8 +32,10 @@ struct WelcomeWorkspaceView: View {
                         }.font(.footnote).foregroundStyle(.secondary).padding(.top, 3)
                         HStack(spacing: 4) {
                             Link("Open-Meteo", destination: URL(string: "https://open-meteo.com/")!)
-                            Text("· \(value.observedAt.formatted(date: .omitted, time: .shortened))")
+                            Text("· Observed \(value.observedAt.formatted(date: .omitted, time: .shortened))")
                         }.font(.caption2).foregroundStyle(.secondary)
+                        Text("Checked \(value.retrievedAt, style: .relative) ago").font(.caption2).foregroundStyle(.secondary)
+                        if let status = weather.status { Text(status).font(.caption2).foregroundStyle(.secondary) }
                     } else if let status = weather.status { Text(status).font(.caption).foregroundStyle(.secondary) }
                 }
             }
@@ -72,7 +77,19 @@ struct WelcomeWorkspaceView: View {
             .sheet(isPresented: $showMemory, onDismiss: { Task { await readName() } }) {
                 NavigationStack { MemoryView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showMemory = false } } } }
             }
-            .task(id: refreshID) { await readName(); await weather.refresh(model: model) }
+            .task(id: refreshID) {
+                guard scenePhase == .active else { return }
+                await readName()
+                var lastPlanningRefresh = Date.distantPast
+                while !Task.isCancelled {
+                    await weather.refresh(model: model)
+                    if Date().timeIntervalSince(lastPlanningRefresh) >= 300 {
+                        await model.planning.refreshHome(settings: model.settings)
+                        lastPlanningRefresh = Date()
+                    }
+                    do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                }
+            }
     }
     @ViewBuilder private var shortcuts: some View {
         Button("Memory", systemImage: "brain.head.profile") { showMemory = true }
