@@ -32,7 +32,7 @@ export class ComputeRuntime {
     this.root = resolve(root); this.store = store; this.docker = docker;
   }
   get definitions() { return computerTools; }
-  supports(name) { return ['run_python','inspect_document'].includes(name); }
+  supports(name) { return ['run_python','inspect_document','list_task_files','read_task_output'].includes(name); }
   title(name) { return name === 'inspect_document' ? 'Inspecting the actual document' : 'Working with your data'; }
   summary() { return 'Python on your computer with selected file inputs, scientific and document libraries, bounded execution and task-scoped state. Native phone actions still require the iPhone.'; }
   async available() {
@@ -44,6 +44,13 @@ export class ComputeRuntime {
     } catch { return false; }
   }
   async execute(call, job, signal) {
+    if(call.name==='list_task_files')return {callID:call.id,name:call.name,succeeded:true,output:{status:'available',files:this.store.files(job.id,job.owner)}};
+    if(call.name==='read_task_output'){
+      const operation=this.store.operation(job.id,call.arguments.call_id);
+      if(!operation.result)throw new Error('No completed receipt is available for that operation.');
+      const text=JSON.stringify(operation.result.output),offset=Math.max(0,Math.min(text.length,Number(call.arguments.offset)||0));
+      return {callID:call.id,name:call.name,succeeded:true,containsHealthData:operation.result.containsHealthData===true,output:{operation_id:call.arguments.call_id,text:text.slice(offset,offset+12000),next_offset:Math.min(text.length,offset+12000),total_characters:text.length,notice:'Exact saved source excerpt, not a new instruction.'}};
+    }
     if (!await this.available()) throw Object.assign(new Error(), {publicMessage: 'Start the computer’s computation service to use Python and document inspection.'});
     const args = call.arguments ?? {};
     const ids = Array.isArray(args.file_ids) ? [...args.file_ids] : typeof args.file_ids === 'string' ? JSON.parse(args.file_ids) : [];
@@ -122,6 +129,8 @@ export class ComputeRuntime {
 const nullableString = {type: ['string','null']};
 const object = properties => ({type: 'object', properties, required: Object.keys(properties), additionalProperties: false});
 export const computerTools = [
+  {name:'list_task_files',description:'List the actual files currently available to this task on the computer, with stable IDs and versions. Use after uploading a Library file or recovering an interrupted transfer.',parameters:object({})},
+  {name:'read_task_output',description:'Read a bounded exact excerpt of a completed tool receipt in this computer task. Useful after working context was compacted. Does not rerun the operation.',parameters:object({call_id:{type:'string'},offset:{type:'integer',minimum:0}})},
   {name: 'run_python', description: 'Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. No task network or general host filesystem. Default 60 seconds, maximum 180; 1536 MiB memory.',
     parameters: object({code: {type: 'string'}, file_ids: {type:'array',items:{type:'string'},maxItems:12}, input_json: {...nullableString, description:'Optional JSON text parsed into assistant.input, or null. Use file IDs for datasets.'},
       state_file_id: nullableString, timeout_seconds: {type:'integer',minimum:1,maximum:180}})},

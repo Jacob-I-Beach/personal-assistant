@@ -14,6 +14,6 @@ export function validateJob(payload) {
   if (!Array.isArray(payload.catalog) || payload.catalog.length>150 || payload.catalog.some(t=>typeof t.name!=='string'||typeof t.description!=='string'||!t.parameters)) throw new Error('Invalid task tool catalog.');
   const allowed=new Set(['model','input','instructions','tools','reasoning','include','parallel_tool_calls','text','store','stream']);
   if(Object.keys(payload.body).some(key=>!allowed.has(key)))throw new Error('The task contains unsupported model options.');
-  if(payload.limits && (typeof payload.limits!=='object' || ['maximum_seconds','maximum_tool_calls'].some(key=>payload.limits[key]!=null&&(!Number.isFinite(payload.limits[key])||payload.limits[key]<1))))throw new Error('Invalid task allowance.');
+  if(payload.limits && (typeof payload.limits!=='object' || ['maximum_seconds','maximum_tool_calls','context_text_bytes'].some(key=>payload.limits[key]!=null&&(!Number.isFinite(payload.limits[key])||payload.limits[key]<1))))throw new Error('Invalid task allowance.');
   return {...payload,body:{...payload.body,store:false,stream:true}};
 }

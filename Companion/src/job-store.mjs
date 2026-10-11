@@ -117,6 +117,11 @@ export class JobStore {
   checkpoint(id, value) {
     this.db.prepare('UPDATE jobs SET checkpoint=?,updated=? WHERE id=?').run(this.vault.sealJSON(value, 'checkpoint:' + id), Date.now(), id);
   }
+  contextBudget(id,owner,bytes){
+    if(!Number.isSafeInteger(bytes)||bytes<4096||bytes>4000000)throw new Error('Choose a supported context allowance.');
+    const job=this.get(id,owner);job.payload.limits={...job.payload.limits,context_text_bytes:bytes};
+    this.db.prepare('UPDATE jobs SET data=? WHERE id=?').run(this.vault.sealJSON(job.payload,'job:'+id),id);
+  }
   beginOperation(id, operationId, request, location) {
     const hash = digest(stableJSON(request));
     const existing = this.db.prepare('SELECT * FROM operations WHERE job_id=? AND id=?').get(id, operationId);

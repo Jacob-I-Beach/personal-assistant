@@ -707,12 +707,12 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-empty", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Assistant menu"].waitForExistence(timeout: 15))
-        app.buttons["Assistant menu"].tap(); app.buttons["Connections"].tap()
+        app.buttons["Assistant menu"].tap(); app.collectionViews.buttons["Connections"].firstMatch.tap()
         let computer = app.buttons.containing(.staticText, identifier: "Computer").firstMatch
         XCTAssertTrue(computer.waitForExistence(timeout: 5)); computer.tap()
         XCTAssertTrue(app.buttons["Scan computer code"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Computer-connection")
-        app.buttons["Done"].firstMatch.tap()
+        app.navigationBars["Computer"].buttons["Done"].tap()
         let contacts = app.buttons.containing(.staticText, identifier: "Contacts").firstMatch
         XCTAssertTrue(contacts.waitForExistence(timeout: 5)); contacts.tap()
         XCTAssertTrue(app.buttons["Connect Contacts"].waitForExistence(timeout: 5))

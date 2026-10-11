@@ -104,7 +104,7 @@ public struct NetworkModelBackend: ModelBackend {
         return .object(["type": .string("image_url"), "image_url": .object(["url": .string(url)])])
     }
 
-    public func responsesBody(_ input: ModelRequest) throws -> JSONValue {
+    public func responsesBody(_ input: ModelRequest, includeFileContents: Bool = true) throws -> JSONValue {
         let webSearchEnabled = self.webSearchEnabled && !input.isMetadata
         var items: [JSONValue] = []
         for entry in input.messages {
@@ -120,7 +120,7 @@ public struct NetworkModelBackend: ModelBackend {
                     let type = m.role == .user ? "input_text" : "output_text"
                     var content: [JSONValue] = m.text.isEmpty ? [] : [.object(["type": .string(type), "text": .string(m.text)])]
                     if m.role == .user { content += entry.images.map { imagePart($0, responses: true) } }
-                    if m.role == .user && supportsFileInputs {
+                    if m.role == .user && supportsFileInputs && includeFileContents {
                         content += entry.files.map { .object(["type": .string("input_file"), "filename": .string($0.filename),
                             "file_data": .string("data:\($0.mediaType);base64," + $0.data.base64EncodedString())]) }
                     }

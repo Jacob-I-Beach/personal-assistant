@@ -46,9 +46,9 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 "request_key": .string(identity.turnID.uuidString), "turn_id": .string(identity.turnID.uuidString),
                 "conversation_id": .string(identity.conversationID.uuidString), "profile_id": .string(connection.profileID),
                 "title": .string(String((request.messages.last(where: { $0.message.isRequest })?.message.text ?? "Assistant task").prefix(120))),
-                "contains_health_data": .bool(identity.containsHealthData), "body": try wire.responsesBody(request),
+                "contains_health_data": .bool(identity.containsHealthData), "body": try wire.responsesBody(request, includeFileContents: false),
                 "catalog": .array(request.toolCatalog.map { .object(["name": .string($0.name), "description": .string($0.description), "parameters": $0.parameters]) }),
-                "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40)])
+                "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40), "context_text_bytes": .number(Double(contextLimits.maximumTextBytes))])
             ])
             record = CompanionRunRecord(turnID: identity.turnID, connectionID: connection.destination, payload: payload)
             // Save before POST: if its reply is lost, the original key and bytes
@@ -83,7 +83,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
             }
         }
         if status == "queued" || (allowJobRestart && ["failed", "interrupted"].contains(status)) {
-            _ = try await client.json(path + "/start", method: "POST", body: .object([:]))
+            _ = try await client.json(path + "/start", method: "POST", body: .object(["context_text_bytes": .number(Double(contextLimits.maximumTextBytes))]))
         }
         var transcript = CompanionTranscript(jobID: UUID(uuidString: jobID)!, providerID: id, health: identity.containsHealthData)
         var pending: [String: ToolCall] = [:], answered = Set<String>(), retries = 0
@@ -134,6 +134,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
             if record.status == "cancelled" { throw CancellationError() }
             if ["failed", "interrupted"].contains(record.status) {
                 _ = try await importOutputs(path: path, identity: identity)
+                if events.last(where: { $0["type"] == .string("status") })?["error"]?["code"] == .string("context_limit") { throw AssistantError.contextCapacity }
                 throw AssistantError.provider(events.last(where: { $0["type"] == .string("status") })?["text"]?.stringValue ?? "Your computer saved this task. Continue when ready.")
             }
             for call in pending.values.sorted(by: { $0.id < $1.id }) where !answered.contains(call.id) {
@@ -152,7 +153,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
         let catalog = try await client.json(path + "/files")
         var imported: [UUID] = []
         for entry in catalog["files"]?.arrayValue ?? [] {
-            guard ["artifact", "inspection"].contains(entry["role"]?.stringValue ?? ""), let rawID = entry["id"]?.stringValue, let id = UUID(uuidString: rawID),
+            guard entry["role"] == .string("artifact"), let rawID = entry["id"]?.stringValue, let id = UUID(uuidString: rawID),
                   let name = entry["filename"]?.stringValue else { continue }
             imported.append(id)
             if (try? await store.workspaceFile(id)) != nil { continue }

@@ -18,7 +18,7 @@ struct WorkingSurfaceView: View {
                 if let failure { Label(failure, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.secondary) }
                 if saving { Text("Saving changes…").font(.caption2).foregroundStyle(.secondary) }
                 if surface.kind == .scenario { Text("Calculated on this iPhone from the displayed assumptions.").font(.caption2).foregroundStyle(.secondary) }
-                else if surface.dataCallID != nil { Text("Values from the saved JavaScript calculation.").font(.caption2).foregroundStyle(.secondary) }
+                else if surface.dataCallID != nil { Text("Values from the saved calculation.").font(.caption2).foregroundStyle(.secondary) }
                 if surface.kind == .checklist { Text("Your checkmarks track progress; they do not confirm an external action.").font(.caption2).foregroundStyle(.secondary) }
                 if [.scenario, .comparison, .checklist].contains(surface.kind) {
                     if surface.revision > 1 { Text("Updated here · the earlier reply may use older inputs").font(.caption2).foregroundStyle(.secondary) }

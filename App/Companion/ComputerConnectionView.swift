@@ -72,7 +72,10 @@ struct ComputerConnectionView: View {
         do {
             let (connection, token) = try await CompanionClient.pair(code, deviceName: "My iPhone")
             try CredentialStore.save(token, account: connection.credentialAccount)
-            var next = model.settings; next.companion = connection; next.useComputer = true
+            var next = model.settings
+            let previousContext = model.contextBudget(for: next)?.selectedInputTokens
+            next.companion = connection; next.useComputer = true
+            if let previousContext, next.contextTokensByModel[next.contextPreferenceKey] == nil { next.contextTokensByModel[next.contextPreferenceKey] = previousContext }
             try model.saveSettings(next); manualCode = ""; AppFeedback.play(.saved)
             await check(connection)
         } catch { self.error = error.localizedDescription }

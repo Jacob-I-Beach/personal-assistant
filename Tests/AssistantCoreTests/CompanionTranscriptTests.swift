@@ -2,6 +2,14 @@ import XCTest
 @testable import AssistantCore
 
 final class CompanionTranscriptTests: XCTestCase, @unchecked Sendable {
+    func testComputerFileHandlesDoNotEmbedDatasetBytesInTheModelRequest() throws {
+        let backend = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: "synthetic", wireProtocol: .responses, chatGPTAccountID: "synthetic")
+        let file = ModelFile(filename: "data.csv", mediaType: "text/csv", data: Data("synthetic private rows".utf8), id: UUID())
+        let request = ModelRequest(instructions: "Use the computer file handle.", messages: [.init(message: Message(role: .user, text: "Calculate the total."), files: [file])], tools: [])
+        let body = try backend.responsesBody(request, includeFileContents: false).jsonString()
+        XCTAssertFalse(body.contains("input_file")); XCTAssertFalse(body.contains(file.data.base64EncodedString()))
+        XCTAssertTrue(try backend.responsesBody(request).jsonString().contains("input_file"))
+    }
     func testReplayRetainsMessageIdentityAndQuestionBeforeAnswer() throws {
         let id = UUID(), turn = UUID()
         var answer = Message(role: .user, text: "Saturday"); answer.replyToTaskID = turn

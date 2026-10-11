@@ -14,18 +14,19 @@ export class Scheduler {
     if(!Array.isArray(times)||times.length<1||times.length>30||times.some((time,index)=>!Number.isSafeInteger(time)||time<this.now()-60000||time>this.now()+90*86400000||(index>0&&time-times[index-1]<15*60000)))throw new Error('Choose 1–30 future runs within 90 days, at least 15 minutes apart.');
     const source=this.store.get(body.source_job_id,owner);
     if(this.list(owner).filter(item=>item.enabled).length>=20)throw new Error('Pause or finish an existing schedule before adding another.');
-    const schedule={id:randomUUID(),owner,enabled:true,request_key:body.request_key,title:body.title,prompt:body.prompt,source_job_id:source.id,created_at:this.now(),runs:times.map(at=>({at,status:'scheduled',job_id:null}))};
+    const inputFiles=this.store.files(source.id,owner).filter(file=>file.role==='input').map(file=>({id:file.id,version:file.version,sha:file.sha}));
+    const schedule={id:randomUUID(),owner,enabled:true,request_key:body.request_key,title:body.title,prompt:body.prompt,source_job_id:source.id,input_files:inputFiles,created_at:this.now(),runs:times.map(at=>({at,status:'scheduled',job_id:null}))};
     this.save(schedule);return schedule;
   }
   setEnabled(owner,id,enabled){const value=this.list(owner).find(item=>item.id===id);if(!value)throw new Error('Schedule not found.');value.enabled=enabled===true;this.save(value);return value;}
   stopOwner(owner){for(const value of this.list(owner)){value.enabled=false;this.save(value);}}
   async tick(){
-    if(this.busy)return;this.busy=true;
+    if(this.busy||this.stopped)return;this.busy=true;
     try{
       const schedules=this.store.db.prepare('SELECT * FROM schedules WHERE enabled=1').all().map(row=>this.decode(row));
       for(const schedule of schedules){
         const source=this.store.get(schedule.source_job_id,schedule.owner);
-        if(!await this.mayRun(schedule.owner,source.payload.profile_id))continue;
+        if(!await this.mayRun(schedule.owner,source.payload.profile_id)||this.stopped)continue;
         for(const run of schedule.runs){
           if(run.job_id){run.status=this.store.get(run.job_id,schedule.owner).status;if(run.status==='interrupted'&&this.runner.active.size<4)this.runner.start(run.job_id,schedule.owner);continue;}
           if(run.status!=='scheduled'||run.at>this.now())continue;
@@ -39,9 +40,10 @@ export class Scheduler {
           const key='schedule:'+schedule.id+':'+run.at;
           const existing=this.store.find(schedule.owner,key);
           const job=existing??this.store.create(schedule.owner,key,{request_key:key,conversation_id:conversation,turn_id:turn,profile_id:source.payload.profile_id,title:schedule.title,display_prompt:schedule.prompt,schedule_id:schedule.id,contains_health_data:source.payload.contains_health_data===true,body,catalog:[],limits:{maximum_seconds:600,maximum_tool_calls:12}}).job;
-          for(const file of this.store.files(source.id,schedule.owner).filter(file=>file.role==='input'&&!this.store.files(job.id,schedule.owner).some(saved=>saved.id===file.id))){
-            const bytes=this.store.file(source.id,schedule.owner,file.id).data;
-            this.store.saveFile(job.id,{...file,version:undefined,sha:undefined},bytes);
+          for(const file of (schedule.input_files??[]).filter(file=>!this.store.files(job.id,schedule.owner).some(saved=>saved.id===file.id))){
+            const original=this.store.file(source.id,schedule.owner,file.id,file.version);
+            if(original.metadata.sha!==file.sha)throw new Error('A scheduled source snapshot no longer matches its recorded version.');
+            this.store.saveFile(job.id,{...original.metadata,version:undefined,sha:undefined},original.data);
           }
           run.job_id=job.id;run.status=job.status;this.save(schedule);
           if(['queued','interrupted'].includes(job.status))this.runner.start(job.id,schedule.owner);

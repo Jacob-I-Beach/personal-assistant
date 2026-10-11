@@ -40,8 +40,8 @@ export async function startCompanion(options={}) {
   const provider=options.provider??createChatGPT({appName:'Personal Assistant Computer',appId:'personal-assistant-companion',redirectPort:0,storageDir:join(root,'chatgpt'),credentialEncryption,sendHostId:true,openBrowser});
   const runner=new JobRunner(store,provider,runtime);
   const serverId=createHash('sha256').update(tls.cert).digest('hex').slice(0,32);
-  let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0;
-  const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
+  let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
+  const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>!closing&&session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
   provider.subscribe?.(value=>{session=value;});
   const setupSessions=new Map();
   const listen=(server,port,host)=>new Promise((resolveListen,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.off('error',reject);resolveListen();});});
@@ -102,7 +102,7 @@ export async function startCompanion(options={}) {
       const id=match[1],action=match[2]??'',job=store.metadata(id,owner);
       if(!action&&request.method==='GET')return jsonReply(response,200,publicJob(job));
       if(action==='resume-info'&&request.method==='GET')return jsonReply(response,200,{job:publicJob(job),payload:store.get(id,owner).payload});
-      if(action==='start'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(await startJob(store.get(id,owner))));}
+      if(action==='start'&&request.method==='POST'){const body=await jsonBody(request,4096);if(body.context_text_bytes!=null)store.contextBudget(id,owner,body.context_text_bytes);return jsonReply(response,200,publicJob(await startJob(store.get(id,owner))));}
       if(action==='cancel'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(runner.cancel(id,owner)));}
       if(action==='events'&&request.method==='GET'){
         const after=Number(url.searchParams.get('after')??0),wait=Math.min(25000,Math.max(0,Number(url.searchParams.get('wait_ms'))||0));
@@ -119,7 +119,7 @@ export async function startCompanion(options={}) {
         return;
       }
       if(action==='files'&&request.method==='POST'){
-        if(job.status!=='queued')throw Object.assign(new Error('Inputs must be supplied before the task starts.'),{status:409});
+        if(!['queued','waiting_for_phone'].includes(job.status))throw Object.assign(new Error('Supply inputs before the task starts or through its current phone file request.'),{status:409});
         const body=await jsonBody(request,36*1024*1024);
         if(!safeFileName(body.filename)||typeof body.data_base64!=='string')throw new Error('Provide a named task file.');
         const bytes=Buffer.from(body.data_base64,'base64');if(bytes.length>24*1024*1024)throw new Error('This input file is too large.');
@@ -188,6 +188,9 @@ export async function startCompanion(options={}) {
         pairing.revoke(body.device_id);scheduler.stopOwner(body.device_id);for(const job of store.incomplete(body.device_id))runner.cancel(job.id,job.owner);
         return jsonReply(response,200,{disconnected:true});
       }
+      if(url.pathname==='/api/quit'){
+        jsonReply(response,202,{stopping:true});setTimeout(()=>closeService?.().then(()=>options.onQuit?.()),150);return;
+      }
       return jsonReply(response,404,{error:'That setup action is not available.'});
     }catch(error){if(!response.headersSent)jsonReply(response,error.status??400,{error:String(error.message??'Setup could not finish.').slice(0,500)});else response.destroy();}
   });
@@ -198,14 +201,21 @@ export async function startCompanion(options={}) {
   if(options.keepAwake!==false&&process.platform==='win32'){
     powerLease=spawn(join(process.env.SystemRoot??'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fileURLToPath(new URL('../scripts/keep-awake.ps1',import.meta.url))],{windowsHide:true,stdio:['pipe','ignore','ignore']});powerLease.on('error',()=>{lastError='Keep this computer awake manually; the app could not obtain a power lease.';});powerLease.on('exit',code=>{if(code)lastError='Keep this computer awake manually; its power lease could not start.';});
   }
-  return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,
-    close:async()=>{clearInterval(scheduleTimer);powerLease?.stdin.end();for(const job of store.list())if(runner.active.has(job.id))runner.interrupt(job.id);await Promise.all([...runner.active.values()].map(value=>value.promise));await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();}};
+  let closePromise;
+  closeService=()=>closePromise??=(async()=>{
+    closing=true;clearInterval(scheduleTimer);scheduler.stopped=true;powerLease?.stdin.end();
+    while(scheduler.busy)await new Promise(resolveWait=>setTimeout(resolveWait,20));
+    for(const job of store.incomplete())if(runner.active.has(job.id))runner.interrupt(job.id);
+    await Promise.all([...runner.active.values()].map(value=>value.promise));
+    await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();
+  })();
+  return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,close:closeService};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
   try{
     const local=process.argv.includes('--local-test');
-    const host=await startCompanion({apiHost:local?'127.0.0.1':'0.0.0.0'});
+    const host=await startCompanion({apiHost:local?'127.0.0.1':'0.0.0.0',onQuit:()=>process.exit(0)});
     console.log('Personal Assistant Computer is ready at '+host.setupURL);
     if(!process.argv.includes('--no-open'))openBrowser(host.setupURL);
     process.on('SIGINT',()=>{host.close().then(()=>process.exit(0));});
@@ -213,6 +223,6 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   }catch(error){
     const logs=join(process.env.LOCALAPPDATA??'.','PersonalAssistantCompanion','logs');await mkdir(logs,{recursive:true});
     await appendFile(join(logs,'startup.log'),new Date().toISOString()+' Startup failed: '+String(error.message).slice(0,600)+'\n');
-    process.exitCode=1;
+    process.exit(1);
   }
 }

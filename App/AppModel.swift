@@ -536,7 +536,7 @@ final class AppModel: ObservableObject {
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request]
-                    + (selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create] : [])
+                    + (selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create, ComputerFileTools.transfer] : [])
                     + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selection.networkDestination
                 let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
@@ -837,6 +837,7 @@ final class AppModel: ObservableObject {
         if WorkspaceTools.names.contains(call.name) { return try await executeWorkspaceTool(call, conversationID: conversationID, destination: destination) }
         if CommunicationTools.names.contains(call.name) { return try await executeCommunicationTool(call, conversationID: conversationID) }
         if call.name == ComputerScheduleTools.create.name { return try await executeScheduleTool(call) }
+        if call.name == ComputerFileTools.transfer.name { return try await transferFileToComputer(call, conversationID: conversationID) }
         func nativeResult(_ value: JSONValue) -> ToolResult {
             ToolResult(callID: call.id, name: call.name, succeeded: !["failed", "outcome_unknown", "interrupted"].contains(value["status"]?.stringValue ?? ""), output: value)
         }
