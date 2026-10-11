@@ -7,6 +7,7 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = TaskAttentionService()
     var onOpen: (@MainActor (UUID) async -> Void)?
     private var queuedConversation: UUID?
+    private var notificationIDs: [UUID: Set<String>] = [:]
     private override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
@@ -27,11 +28,19 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
         content.title = title; content.body = explanation; content.sound = .default
         content.threadIdentifier = conversationID.uuidString
         content.userInfo = ["conversation_id": conversationID.uuidString]
-        try? await center.add(UNNotificationRequest(identifier: "task-" + conversationID.uuidString, content: content, trigger: nil))
+        clear(conversationID)
+        let identifier = "task-" + conversationID.uuidString + "-" + UUID().uuidString
+        notificationIDs[conversationID, default: []].insert(identifier)
+        try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
     }
     func clear(_ id: UUID) {
-        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["task-" + id.uuidString])
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["task-" + id.uuidString])
+        let identifiers = Array(notificationIDs.removeValue(forKey: id) ?? [])
+        guard !identifiers.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            let center = UNUserNotificationCenter.current()
+            center.removeDeliveredNotifications(withIdentifiers: identifiers)
+            center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        }
     }
     func openQueued() async {
         guard let id = queuedConversation, let onOpen else { return }
@@ -41,9 +50,10 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
         guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
               let raw = response.notification.request.content.userInfo["conversation_id"] as? String,
               let id = UUID(uuidString: raw) else { return }
-        await receive(id)
+        await receive(id, notificationID: response.notification.request.identifier)
     }
-    private func receive(_ id: UUID) async {
+    private func receive(_ id: UUID, notificationID: String) async {
+        notificationIDs[id, default: []].insert(notificationID)
         clear(id)
         if let onOpen { await onOpen(id) } else { queuedConversation = id }
     }

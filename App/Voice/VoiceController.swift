@@ -11,8 +11,9 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
     @Published private(set) var isPreparing = false
     @Published private(set) var transcript = ""
     @Published var errorMessage: String?
-    private let engine = AVAudioEngine()
-    private let speaker = AVSpeechSynthesizer()
+    private lazy var engine = AVAudioEngine()
+    private lazy var speaker: AVSpeechSynthesizer = { let value = AVSpeechSynthesizer(); value.delegate = self; return value }()
+    private var audioSessionActive = false
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var recognition: SFSpeechRecognitionTask?
     private var timeout: Task<Void, Never>?
@@ -23,7 +24,6 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
 
     override init() {
         super.init()
-        speaker.delegate = self
         interruption = NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
             .merge(with: NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification))
             .receive(on: DispatchQueue.main).sink { [weak self] _ in
@@ -48,6 +48,7 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
             try session.setActive(true)
+            audioSessionActive = true
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.requiresOnDeviceRecognition = true
             request.shouldReportPartialResults = true
@@ -78,14 +79,15 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
         } catch { stopRecording(); errorMessage = error.localizedDescription }
     }
     func stopRecording() {
+        let hadRecording = isRecording || tapInstalled || request != nil || recognition != nil
         recordingID = nil; isPreparing = false
         isRecording = false
         timeout?.cancel(); timeout = nil
-        engine.stop()
+        if hadRecording { engine.stop() }
         if tapInstalled { engine.inputNode.removeTap(onBus: 0); tapInstalled = false }
         request?.endAudio(); recognition?.cancel()
         request = nil; recognition = nil
-        if !isSpeaking { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+        releaseAudioIfIdle()
     }
     func speak(_ text: String) {
         stopRecording(); stopSpeaking()
@@ -93,6 +95,7 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: .duckOthers)
             try AVAudioSession.sharedInstance().setActive(true)
+            audioSessionActive = true
             let utterance = AVSpeechUtterance(string: text)
             utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.identifier.replacingOccurrences(of: "_", with: "-"))
             utterance.rate = AVSpeechUtteranceDefaultSpeechRate
@@ -101,8 +104,14 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
         } catch { errorMessage = error.localizedDescription }
     }
     func stopSpeaking() {
-        utteranceID = nil; speaker.stopSpeaking(at: .immediate); isSpeaking = false
-        if !isRecording { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+        let hadSpeech = isSpeaking || utteranceID != nil
+        utteranceID = nil; if hadSpeech { speaker.stopSpeaking(at: .immediate) }; isSpeaking = false
+        releaseAudioIfIdle()
+    }
+    private func releaseAudioIfIdle() {
+        guard audioSessionActive, !isRecording, !isSpeaking else { return }
+        audioSessionActive = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
     func stopAll() { stopRecording(); stopSpeaking() }
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
@@ -110,7 +119,7 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
         Task { @MainActor [weak self] in
             guard let self, self.utteranceID == id else { return }
             self.utteranceID = nil; self.isSpeaking = false
-            if !self.isRecording { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+            self.releaseAudioIfIdle()
         }
     }
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {

@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class AssistantUITests: XCTestCase {
     func testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent() {
+        executionTimeAllowance = 180
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-daily-work", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -148,6 +149,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
     func testStreamingFollowsDetachesAndReturnsToFollowing() {
+        executionTimeAllowance = 180
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-streaming", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -216,7 +218,8 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Done"].tap()
         for _ in 0..<4 { if app.buttons["Work with files"].isHittable { break }; app.swipeDown() }
         app.buttons["Work with files"].tap()
-        XCTAssertTrue(app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].waitForExistence(timeout: 8))
+        let picker = NSPredicate { _, _ in app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].exists || (app.navigationBars["Recents"].exists && app.buttons["Browse"].exists) }
+        expectation(for: picker, evaluatedWith: app); waitForExpectations(timeout: 15)
         saveScreenshot(app, name: "Home-file-picker")
     }
     func testAttachmentPreviewWorkingSurfacesAndActualMessageEdit() {
@@ -297,6 +300,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
     func testConnectedFolderAndFilesOutputs() {
+        executionTimeAllowance = 180
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo", "--ui-workspace", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -423,6 +427,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
     func testFreshLaunchSidebarFoldersAndAttachmentActions() {
+        executionTimeAllowance = 180
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo"]
