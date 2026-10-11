@@ -666,7 +666,9 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Health-data-connections")
         let search = app.searchFields.firstMatch
         search.tap(); search.typeText("blood pressure")
-        XCTAssertTrue(app.switches.matching(NSPredicate(format: "label CONTAINS[c] %@", "systolic")).firstMatch.waitForExistence(timeout: 5))
+        let systolic = app.switches.matching(NSPredicate(format: "label CONTAINS[c] %@", "systolic")).firstMatch
+        XCTAssertTrue(systolic.waitForExistence(timeout: 5))
+        XCTAssertTrue(systolic.isHittable, "Search results must be reachable above the keyboard without scrolling past the introduction.")
         saveScreenshot(app, name: "Health-type-search")
     }
 
