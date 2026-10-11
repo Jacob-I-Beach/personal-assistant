@@ -367,11 +367,35 @@
       "started_at": "2026-10-11T02:48:25Z",
       "status": "completed",
       "rounded_minutes": 21
+    },
+    {
+      "run_id": 38108101131,
+      "attempt": 1,
+      "job_id": 114377790153,
+      "source_revision": "04a7f025d648ad69e12fc936e7ac6a17ecc11368",
+      "completed_at": "2026-10-11T03:28:03Z",
+      "conclusion": "success",
+      "name": "ios",
+      "started_at": "2026-10-11T03:21:18Z",
+      "status": "completed",
+      "rounded_minutes": 7
+    },
+    {
+      "run_id": 38108101131,
+      "attempt": 1,
+      "job_id": 114378878285,
+      "source_revision": "04a7f025d648ad69e12fc936e7ac6a17ecc11368",
+      "completed_at": "2026-10-11T03:48:46Z",
+      "conclusion": "cancelled",
+      "name": "simulator-tests",
+      "started_at": "2026-10-11T03:28:13Z",
+      "status": "completed",
+      "rounded_minutes": 21
     }
   ],
-  "rounded_runner_minutes": 356,
+  "rounded_runner_minutes": 384,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 22.072,
+  "estimated_compute_usd_if_fully_billable": 23.808,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",

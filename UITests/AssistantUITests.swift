@@ -30,6 +30,8 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<7 { if question.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(question.isHittable); saveScreenshot(app, name: "Today-and-needs-you"); question.tap()
         XCTAssertTrue(app.buttons["Afternoon"].waitForExistence(timeout: 5)); app.buttons["Afternoon"].tap()
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "question-answer").firstMatch.value as? String, "Afternoon")
+        XCTAssertTrue(app.buttons["Answer and continue"].isEnabled)
         app.buttons["Answer and continue"].tap()
         let reviewAppeared = app.staticTexts["Save event?"].waitForExistence(timeout: 10)
         if !reviewAppeared { saveScreenshot(app, name: "Daily-workflow-review-missing"); print(app.debugDescription) }

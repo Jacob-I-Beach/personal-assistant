@@ -145,6 +145,10 @@ jobs:
   simulator-tests:
     if: inputs.validate_simulator
     needs: ios
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [workflows, reading, files]
     runs-on: xcode-27
     timeout-minutes: 20
     steps:
@@ -171,8 +175,24 @@ jobs:
           xcrun simctl bootstatus "$simulator_id" -b
           bundle=$(find DerivedData/Build/Products -maxdepth 1 -name '*.xctestrun' -print -quit)
           test -n "$bundle"
+          test_options=()
+          case "${{ matrix.suite }}" in
+            workflows)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests")
+              scenarios="testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent testGroupedHistoryReadableDetailsRetryAndNoStaleContinueCard testForegroundReturnContinuesWithoutAnotherUserMessage testSavedRouteMemoryUndoAndResumeStayInTheApp testOrderedProgressWebAndReadableCalculation"
+              ;;
+            reading)
+              scenarios="testKeyboardAndDisclosurePreserveReadingPosition testStreamingFollowsDetachesAndReturnsToFollowing testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords testDarkAndLargeTextControlsRemainUsable testWelcomeCatalogAndSettings"
+              ;;
+            files)
+              scenarios="testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testConnectedFolderAndFilesOutputs testRichConversationArtifactAndHistory testFreshLaunchSidebarFoldersAndAttachmentActions testSourcesThinkingAndPhotoPicker"
+              ;;
+          esac
+          for scenario in $scenarios; do
+            test_options+=("-only-testing:PersonalAssistantUITests/AssistantUITests/$scenario")
+          done
           set -o pipefail
-          xcodebuild test-without-building -xctestrun "$bundle" -destination "platform=iOS Simulator,id=$simulator_id" -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 CODE_SIGNING_ALLOWED=NO 2>&1 | tee .build/ui-tests.log
+          xcodebuild test-without-building -xctestrun "$bundle" -destination "platform=iOS Simulator,id=$simulator_id" -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 "${test_options[@]}" CODE_SIGNING_ALLOWED=NO 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots
         if: always()
         run: |
@@ -183,7 +203,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: native-test-results
+          name: native-test-results-${{ matrix.suite }}
           include-hidden-files: true
           path: |
             .build/ui-tests.log

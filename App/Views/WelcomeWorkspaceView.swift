@@ -48,10 +48,11 @@ struct WelcomeWorkspaceView: View {
                 entry("Make something", subtitle: "Start with your idea", icon: "square.and.pencil", action: create)
                 entry("Talk it through", subtitle: "Dictate a thought", icon: "waveform", action: voice)
             }
-            if !model.unfinishedReplies.isEmpty {
+            let resumable = model.unfinishedReplies.filter { work in !model.pendingQuestions.contains { $0.turnID == work.id } }
+            if !resumable.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Ready to continue").font(.subheadline.weight(.semibold))
-                    ForEach(model.unfinishedReplies.filter { work in !model.pendingQuestions.contains { $0.turnID == work.id } }.prefix(2)) { SavedWorkCard(work: $0) }
+                    ForEach(resumable.prefix(2)) { SavedWorkCard(work: $0) }
                 }
             }
             TodayOverviewView(planning: model.planning)

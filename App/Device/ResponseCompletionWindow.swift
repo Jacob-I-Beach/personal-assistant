@@ -9,13 +9,17 @@ final class ResponseCompletionWindow {
     private var continued: BGContinuedProcessingTask?
     private var requestID: String?
     private var expiration: (@MainActor (Bool) -> Void)?
-    private var registered = false
+    private let supportsContinued: Bool
     private var units: Int64 = 0
     private var lastUpdate = Date.distantPast
     private var prefix: String { (Bundle.main.bundleIdentifier ?? "dev.jacob.personalassistant") + ".reply." }
     init(registerContinued: Bool = false) {
-        guard registerContinued else { return }
-        registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: prefix + "*", using: .main) { [weak self] task in
+        supportsContinued = registerContinued
+    }
+    private func register(_ id: String) -> Bool {
+        // Continued-processing handlers are registered for each concrete request immediately
+        // before submission; the Info.plist wildcard permits the family, not a literal * job.
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: id, using: .main) { [weak self] task in
             MainActor.assumeIsolated {
                 guard let self, let task = task as? BGContinuedProcessingTask, self.requestID == task.identifier else {
                     task.setTaskCompleted(success: false); return
@@ -44,11 +48,12 @@ final class ResponseCompletionWindow {
                 let handler = self.expiration; self.end(success: false); handler?(false)
             }
         }
-        guard allowContinued, registered, UIApplication.shared.applicationState == .active else { return }
+        guard allowContinued, supportsContinued, UIApplication.shared.applicationState == .active else { return }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--ui-") }) { return }
         #endif
         let id = prefix + UUID().uuidString
+        guard register(id) else { return }
         requestID = id
         let request = BGContinuedProcessingTaskRequest(identifier: id, title: "Personal Assistant", subtitle: "Working on your request")
         request.strategy = .fail

@@ -16,6 +16,9 @@ struct AppleModelBackend: ModelBackend {
     var contextLimits: ContextLimits { ContextLimits(maximumTextBytes: location == .device ? 10_000 : 48_000, maximumImages: 0) }
 
     static func readiness(_ location: Location) -> AppleModelReadiness {
+        #if targetEnvironment(simulator)
+        return .init(title: location == .device ? "Apple on this iPhone" : "Apple Private Cloud Compute", isAvailable: false, detail: "Apple model inference requires a supported physical device. Simulator tests use synthetic backends.")
+        #else
         if location == .device {
             let model = SystemLanguageModel.default
             let title = model.variant.displayName
@@ -35,6 +38,7 @@ struct AppleModelBackend: ModelBackend {
         case .available: return .init(title: "Apple Private Cloud Compute", isAvailable: true, detail: "Apple cloud · subject to your available quota")
         default: return .init(title: "Apple Private Cloud Compute", isAvailable: false, detail: "Apple cloud intelligence is not ready for this app.")
         }
+        #endif
     }
 
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {

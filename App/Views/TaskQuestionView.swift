@@ -22,7 +22,7 @@ struct TaskQuestionView: View {
                         Text(question.title).font(.title2.weight(.semibold))
                         if !question.detail.isEmpty { Text(question.detail).foregroundStyle(.secondary) }
                         ForEach(question.choices, id: \.self) { choice in
-                            Button { answer = choice } label: { HStack { Text(choice); Spacer(); Image(systemName: answer == choice ? "checkmark.circle.fill" : "circle") }.padding(12).frame(maxWidth: .infinity, alignment: .leading) }
+                            Button { answer = choice } label: { HStack { Text(choice); Spacer(); Image(systemName: answer == choice ? "checkmark.circle.fill" : "circle").accessibilityHidden(true) }.padding(12).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle()) }
                                 .buttonStyle(.plain).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
                         }
                         TextField(question.kind == .measurement ? "Your measurement, including units" : "Your answer", text: $answer, axis: .vertical).lineLimit(2...6).textFieldStyle(.roundedBorder).accessibilityIdentifier("question-answer")
