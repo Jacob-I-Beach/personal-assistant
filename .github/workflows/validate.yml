@@ -21,7 +21,7 @@ jobs:
   ios:
     # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
     runs-on: xcode-27
-    timeout-minutes: ${{ inputs.validation_scope == 'planning-repair' && 15 || (inputs.build_device && 20 || 12) }}
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -89,6 +89,53 @@ jobs:
           path: .build/SimulatorProducts.zip
           include-hidden-files: true
           retention-days: 1
+      - name: Preserve build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          include-hidden-files: true
+          path: |
+            .build/ios-build.log
+            .build/core-tests.log
+            .build/fixture.log
+            .build/ui-tests.log
+            .build/ui-build.log
+            .build/intent-metadata
+            .build/ui-attachments
+            .build/device-build.log
+            PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Require successful shared-core tests
+        if: always() && steps.core.outcome != 'success'
+        run: exit 1
+
+  device-package:
+    if: inputs.build_device
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Select Xcode 27
+        run: |
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' -print | sort | head -n 1)
+          test -n "$selected"
+          sudo xcode-select --switch "$selected/Contents/Developer"
+          xcodebuild -version
+      - name: Install Apple's Metal compiler
+        run: |
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun metal --version
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+          mkdir -p .build PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          cp Dependencies/Package.resolved PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
       - name: Build an unsigned physical-iPhone package
         if: inputs.build_device
         run: |
@@ -124,27 +171,16 @@ jobs:
             .build/device/SHA256SUMS.txt
           include-hidden-files: true
           retention-days: 1
-      - name: Preserve build diagnostics
+      - name: Preserve device build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-diagnostics
-          include-hidden-files: true
+          name: device-build-diagnostics
           path: |
-            .build/ios-build.log
-            .build/core-tests.log
-            .build/fixture.log
-            .build/ui-tests.log
-            .build/ui-build.log
-            .build/intent-metadata
-            .build/ui-attachments
             .build/device-build.log
             PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-          if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
-      - name: Require successful shared-core tests
-        if: always() && steps.core.outcome != 'success'
-        run: exit 1
 
   simulator-tests:
     if: inputs.validate_simulator && inputs.validation_scope != 'planning-repair'
