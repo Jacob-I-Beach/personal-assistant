@@ -58,7 +58,7 @@ final class AssistantUITests: XCTestCase {
         let activity = app.staticTexts["Activity"].firstMatch
         for _ in 0..<5 { if activity.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(activity.isHittable); activity.tap()
-        let history = app.staticTexts["Earlier conversations & files Ãƒâ€šÃ‚Â· 5"]
+        let history = app.staticTexts["Earlier conversations & files ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 5"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
         let receipt = app.staticTexts["Read saved context"].firstMatch
         XCTAssertTrue(receipt.waitForExistence(timeout: 5)); receipt.tap()
@@ -89,7 +89,7 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "In-chat-route-and-saved-progress")
         for _ in 0..<4 { if app.buttons["Continue reply"].isHittable { break }; app.swipeUp() }
         app.buttons["Continue reply"].tap()
-        XCTAssertTrue(app.staticTexts["The saved route is ready. Open it when youÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢re ready."].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["The saved route is ready. Open it when youÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢re ready."].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Continue reply"].exists)
         XCTAssertEqual(app.staticTexts.matching(identifier: "Prepare an example walking route").count, 1)
         app.buttons["Add to message"].tap(); app.buttons["Library"].tap()
@@ -222,7 +222,7 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<5 { if app.buttons["Connections"].isHittable { break }; app.swipeUp() }
         app.buttons["Connections"].tap()
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Location & weather")).firstMatch.tap()
-        XCTAssertTrue(app.switches["Use location while IÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢m here"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Use location while IÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢m here"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Use my approximate location"].exists)
         saveScreenshot(app, name: "Home-context-controls")
         app.navigationBars["Home context"].buttons["Done"].tap()
@@ -380,8 +380,8 @@ final class AssistantUITests: XCTestCase {
         // A restored chat may initially scroll to the last answer.
         for _ in 0..<4 { app.swipeDown() }
         XCTAssertTrue(app.staticTexts["Searched the web"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["IÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ll check the reference values, then calculate the circumference."].exists)
-        XCTAssertTrue(app.staticTexts["No observations were supplied, so IÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ll use an illustrative example."].exists)
+        XCTAssertTrue(app.staticTexts["IÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ll check the reference values, then calculate the circumference."].exists)
+        XCTAssertTrue(app.staticTexts["No observations were supplied, so IÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ll use an illustrative example."].exists)
         XCTAssertFalse(app.buttons["Read response aloud"].isHittable)
         saveScreenshot(app, name: "Response-progress-and-web")
         app.staticTexts["Searched the web"].tap()
@@ -657,7 +657,7 @@ final class AssistantUITests: XCTestCase {
         let menu = app.buttons["Assistant menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 15))
         expectation(for: NSPredicate(format: "enabled == true AND hittable == true"), evaluatedWith: menu)
-        waitForExpectations(timeout: 15); menu.tap(); app.buttons["Connections"].tap()
+        waitForExpectations(timeout: 15); menu.tap(); app.collectionViews.buttons["Connections"].firstMatch.tap()
         let health = app.staticTexts["Health"].firstMatch
         XCTAssertTrue(health.waitForExistence(timeout: 5)); health.tap()
         let data = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Connected data")).firstMatch
