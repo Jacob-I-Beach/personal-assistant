@@ -132,10 +132,10 @@ final class HealthDataReader {
             for value in values.statistics().sorted(by: { $0.startDate < $1.startDate }) where value.startDate < query.end && value.endDate > query.start {
                 guard let number = cumulative ? value.sumQuantity() : value.averageQuantity() else { continue }
                 var row: [String: JSONValue] = ["start": date(value.startDate), "end": date(value.endDate), "unit": .string(unit.unitString),
-                    cumulative ? "total" : "average": .number(number.doubleValue(for: unit))]
+                    cumulative ? "total" : "average": .number(Self.readableValue(number, unit: unit))]
                 if !cumulative {
-                    row["minimum"] = value.minimumQuantity().map { .number($0.doubleValue(for: unit)) }
-                    row["maximum"] = value.maximumQuantity().map { .number($0.doubleValue(for: unit)) }
+                    row["minimum"] = value.minimumQuantity().map { .number(Self.readableValue($0, unit: unit)) }
+                    row["maximum"] = value.maximumQuantity().map { .number(Self.readableValue($0, unit: unit)) }
                 }
                 rows.append(.object(row))
             }
@@ -185,7 +185,8 @@ final class HealthDataReader {
     private func record(_ sample: HKSample, unit: HKUnit?) async throws -> JSONValue {
         var row: [String: JSONValue] = ["start": date(sample.startDate), "end": date(sample.endDate), "source": .string(sample.sourceRevision.source.name)]
         if let value = sample as? HKQuantitySample {
-            if let unit, value.quantity.is(compatibleWith: unit) { row["value"] = .number(value.quantity.doubleValue(for: unit)); row["unit"] = .string(unit.unitString) }
+            let unit = unit ?? (value.quantity.is(compatibleWith: HKUnit.percent()) ? HKUnit.percent() : nil)
+            if let unit, value.quantity.is(compatibleWith: unit) { row["value"] = .number(Self.readableValue(value.quantity, unit: unit)); row["unit"] = .string(unit.unitString) }
             else { row["quantity"] = .string(value.quantity.description) }
         } else if let value = sample as? HKCategorySample {
             row["category_value"] = .number(Double(value.value)); row["duration_seconds"] = .number(value.endDate.timeIntervalSince(value.startDate))
@@ -229,13 +230,15 @@ final class HealthDataReader {
             row["schedule_type"] = .number(Double(value.scheduleType.rawValue)); row["scheduled_date"] = value.scheduledDate.map(date)
         } else if let value = sample as? HKScoredAssessment {
             row["score"] = .number(Double(value.score))
+            if let value = value as? HKGAD7Assessment { row["answer_codes"] = .array(value.answers.map { .number(Double($0.rawValue)) }) }
+            if let value = value as? HKPHQ9Assessment { row["answer_codes"] = .array(value.answers.map { .number(Double($0.rawValue)) }) }
         } else if let value = sample as? HKVisionPrescription {
             row["issued"] = date(value.dateIssued); row["expires"] = value.expirationDate.map(date)
             if let glasses = value as? HKGlassesPrescription {
                 row["left_eye"] = glasses.leftEye.map(lens); row["right_eye"] = glasses.rightEye.map(lens)
             } else if let contacts = value as? HKContactsPrescription {
                 row["left_eye"] = contacts.leftEye.map(lens); row["right_eye"] = contacts.rightEye.map(lens)
-                row["brand"] = contacts.brand.map(JSONValue.string)
+                row["brands"] = .array(contacts.brand.map(JSONValue.string))
             }
         } else if let value = sample as? HKClinicalRecord {
             row["display_name"] = .string(value.displayName)
@@ -268,5 +271,11 @@ final class HealthDataReader {
     }
     private static func locations(_ value: CLLocation) -> [CLLocation] { [value] }
     private static func locations(_ value: [CLLocation]) -> [CLLocation] { value }
+    static func readableValue(_ quantity: HKQuantity, unit: HKUnit) -> Double {
+        let value = quantity.doubleValue(for: unit)
+        // HealthKit's percent unit is a fraction; JSON percentages use the
+        // familiar 0–100 representation alongside the percent unit label.
+        return unit.isEqual(HKUnit.percent()) ? value * 100 : value
+    }
     private func date(_ value: Date) -> JSONValue { .string(ISO8601DateFormatter().string(from: value)) }
 }

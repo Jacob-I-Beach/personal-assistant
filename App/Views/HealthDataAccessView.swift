@@ -26,14 +26,14 @@ struct HealthDataAccessView: View {
                     Task {
                         defer { busy = false }
                         do {
-                            try await HealthDataReader().requestAccess(selected)
-                            var settings = model.settings; settings.healthTypeIDs = selected.intersection(supported); settings.healthToolsEnabled = true
+                            if !selected.isEmpty { try await HealthDataReader().requestAccess(selected) }
+                            var settings = model.settings; settings.healthTypeIDs = selected.intersection(supported); settings.healthToolsEnabled = !selected.isEmpty
                             try model.saveSettings(settings); AppFeedback.play(.saved)
-                            notice = "Your selection is saved. Health controls which read records are shared."
+                            notice = selected.isEmpty ? "Assistant Health reads are off. Existing Health permissions can be managed in iPhone Settings." : "Your selection is saved. Health controls which read records are shared."
                         } catch { notice = "Health access could not be updated. " + error.localizedDescription }
                     }
-                } label: { Text(busy ? "Connecting…" : "Connect selected data").frame(maxWidth: .infinity).foregroundStyle(Color(uiColor: .systemBackground)) }
-                    .buttonStyle(.borderedProminent).tint(.primary).disabled(busy || selected.isEmpty || !HealthOverviewService.isEnabledInThisBuild || model.isRunning)
+                } label: { Text(busy ? "Saving…" : selected.isEmpty ? "Turn off Health reads" : "Connect selected data").frame(maxWidth: .infinity).foregroundStyle(Color(uiColor: .systemBackground)) }
+                    .buttonStyle(.borderedProminent).tint(.primary).disabled(busy || !HealthOverviewService.isEnabledInThisBuild || model.isRunning)
                 if let notice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
                 if !HealthOverviewService.isEnabledInThisBuild { Text(HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary) }
             }

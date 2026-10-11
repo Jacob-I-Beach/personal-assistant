@@ -43,7 +43,7 @@ struct SettingsView: View {
                     Toggle("Allow workspace search", isOn: preference(\.workspaceSearchEnabled))
                     Text("Lets the selected model search other chats in this app and files you marked for workspace access. Connected models cannot search archived, on-device-only, or Health chats. This does not import your history from the ChatGPT app.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow assistant Health reads", isOn: preference(\.healthToolsEnabled)).disabled(!HealthOverviewService.isEnabledInThisBuild)
-                    Text(HealthOverviewService.isEnabledInThisBuild ? "Controls new Health overview queries. Review the shared data types in Health overview. Existing conversation records are kept until you remove them." : HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary)
+                    Text(HealthOverviewService.isEnabledInThisBuild ? "Controls relevant reads of your selected Health data. Choose the types in Connections → Health → Connected data. Existing conversation records are kept until you remove them." : HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary)
                     Toggle("Work only on this device", isOn: preference(\.localOnly))
                     Text("Blocks connected models and account-model refreshes. Turn this off temporarily when downloading model files.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Include user data in device backups", isOn: preference(\.includeInDeviceBackup)).disabled(model.libraryContainsHealthData)

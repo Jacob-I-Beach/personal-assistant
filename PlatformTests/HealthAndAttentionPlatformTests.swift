@@ -1,9 +1,14 @@
 import AssistantCore
+import HealthKit
 import XCTest
 @testable import PersonalAssistant
 
 @MainActor
 final class HealthAndAttentionPlatformTests: XCTestCase {
+    func testHealthPercentagesAreNotReportedAsFractionsWithPercentLabels() {
+        XCTAssertEqual(HealthDataReader.readableValue(HKQuantity(unit: .percent(), doubleValue: 0.98), unit: .percent()), 98, accuracy: 0.0001)
+        XCTAssertEqual(HealthDataReader.readableValue(HKQuantity(unit: .count(), doubleValue: 3000), unit: .count()), 3000)
+    }
     func testHealthCatalogResolvesSDKTypesAndDoesNotClaimClinicalEntitlements() throws {
         let available = HealthDataCatalog.entries.filter { HealthDataReader.objectType($0) != nil }
         XCTAssertGreaterThan(available.count, 190)

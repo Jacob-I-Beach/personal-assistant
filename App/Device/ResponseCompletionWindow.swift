@@ -134,7 +134,6 @@ final class ResponseCompletionWindow {
             if success { task.progress.totalUnitCount = units + 1; task.progress.completedUnitCount = units + 1 }
             task.setTaskCompleted(success: success)
         } else if let oldID { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: oldID) }
-        if let oldID { BGTaskScheduler.shared.unregisterForTask(withIdentifier: oldID) }
         endShortWindow()
     }
     private func record(_ state: String) {
