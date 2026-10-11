@@ -1,0 +1,116 @@
+{
+  "run": "38131578620",
+  "source": "287f4b2e18d9e5a14a724f8e27bf23afc9f6bf15",
+  "reviewed": true,
+  "data": "Synthetic UI fixtures only.",
+  "baseline_run": "38129297431",
+  "baseline_source": "bfc5a5eb6a478f52370d6471a8105e26362b111a",
+  "inspected": [
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-library/ui-attachments/FC7E9CB7-2DEA-4F75-9831-E85C3C8F6FDB.png",
+      "sha256": "7185fb246b9e78ba87730c822f5a3308ef4d0f7f666d6315372292059a7088a3",
+      "observation": "Library attachment returns to the conversation; sample.csv chip is visible above the full-width composer."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-library/ui-attachments/128C5C37-945D-48F8-91FF-06692D7F29FE.png",
+      "sha256": "a161ea00d2b30dd93d44e9c45586fc571161e2861457bbd44913d348ac1846a7",
+      "observation": "Shared Library presents files, connected folders, outputs, captures and memory with readable native rows."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-reading/ui-attachments/F6808E07-D1D8-4EA8-98E7-C1A3AF48FC7D.png",
+      "sha256": "bccf06a3e0005391cb8c5b66c5e822116b37415148c725d86c6fecdf1e26592e",
+      "observation": "Large-text Home wraps labels and uses a vertical card layout; composer and top controls stay separate."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-workflows/ui-attachments/E02802AE-4047-4389-91DC-07B859EC2C78.png",
+      "sha256": "8ad6c2f30189513e6af1410c0589a8041a9d51ca7b7db7f16cf51e18de11f59c",
+      "observation": "Tool groups use a card, indentation and leading rules; result title and prose have readable primary contrast."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-reading/ui-attachments/1335000F-2208-432A-B875-7BC57E7542ED.png",
+      "sha256": "48e723c58b1546dea95533bfaf3b0a300484779a1d4a3ae63093caa685c84191",
+      "observation": "Web heading before expansion is visible beneath the public update."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-reading/ui-attachments/F00D5FB1-DEB5-48B6-9868-E8539ABB1A73.png",
+      "sha256": "e3acc591fdee2a2da0c221afee5e810a7b5e1841f0aa8dd3cb60c750c72bb13f",
+      "observation": "Expanded web content appears below the heading without moving the heading; query and source labels are legible."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-reading/ui-attachments/5FC2BE08-8BA0-459F-862A-7316F2E371F1.png",
+      "sha256": "1ac7449a616f725bf5a87076799e65bcee030fb00e178bf5b523c88d3e7112e7",
+      "observation": "Collapse restores the original visible content with the heading in the same position."
+    },
+    {
+      "run": "38129297431",
+      "artifact": "native-test-results-workflows/ui-attachments/097ED218-D0CC-42B0-A30A-DAFC57F934B2.png",
+      "sha256": "273e8f5e3a59c8f2044fe94dbc4ecee520803b0b56066ae88840f69923534ba5",
+      "observation": "Question sheet distinguishes prompt, explanation, selectable answers, free text and defer/skip actions."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/C927650C-4573-4BAA-BBCE-677F197F6526.png",
+      "sha256": "dd4c6631e465a4eeec7994c05110b5cc6ee6b82d4a28b45ae66150ba08079d22",
+      "observation": "Working context shows 1,000,000 selected and the 1,050,000 total window. Remaining limits are scrollable below the viewport."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/EEDBEE31-8116-4148-9C6B-C360F02EA3B7.png",
+      "sha256": "7b04a74ee02bc3993f67bc023f8e2e7bda96120920f15c6c686eaeb616aa06c7",
+      "observation": "Copy confirmation is a visible checkmark without obscuring reply text."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/111FA4FF-9BC2-4598-B986-5EDC26B37A88.png",
+      "sha256": "3842f0749ddbbf6f0ba024a19da8efd5765a85bba89417e5a79fb7461a835e8b",
+      "observation": "Multiline draft uses full available width above a separate control row and keyboard."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/B6A10097-8FC8-4057-9C9B-E5903E87610A.png",
+      "sha256": "3227916244735436459fa1ec11fde3ea097b9fa32aa80bf1afd1313e09915e9e",
+      "observation": "Nested tool result has a readable heading, body and clear grouping."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/F8FA5B3E-A0A7-492C-A3E3-00DE5E007217.png",
+      "sha256": "702f9a2f01765624fa7f355848c9dcdcce09fa90fafc09e546cbeaeaed6eb707",
+      "observation": "Jump places the latest answer and actions completely above the composer."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/7A20CC88-7E57-4DDA-80D2-FE28AF8390AC.png",
+      "sha256": "a6db0b97e94f60fb9480948e3ecb2e74d567b02062d17af193a7a47cfe23122e",
+      "observation": "Home action presents the actual native document picker with Recents and Browse."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/7C2857B7-299F-48B4-BDCD-05C2D715E154.png",
+      "sha256": "6492d1081232173e7dfe7e2f9d9413c46f4feece49cb3f2d11ac5055ee16b299",
+      "observation": "Chat menu contains Library, Connections, Task activity and Inbox; New chat and Settings are absent."
+    },
+    {
+      "run": "38131578620",
+      "artifact": "native-test-results-release/ui-attachments/A6F77B21-E0A6-4B30-A00B-E8BDED47770C.jpeg",
+      "sha256": "772487ad575cc90f94cef1c5cd8561632a9fc5f429036479b458a567a20dd78e",
+      "observation": "Failure evidence: folder test tapped while Preparing your workspace overlay was visible and controls disabled; the test readiness wait was corrected but not rerun."
+    }
+  ],
+  "pending": [
+    "Connected-folder and file-export UI workflow after the test readiness correction; physical checks."
+  ],
+  "physical_limits": [
+    "Haptic feel",
+    "System background allocation and Dynamic Island interactions",
+    "Actual Health provisioning and authorization"
+  ],
+  "reviewed_at": "2026-10-11T11:00:10.243789+00:00",
+  "decision": "Proceed with the built candidate for user-operated installation after the user asked whether additional testing was necessary. No claim of a fully passing simulator suite."
+}

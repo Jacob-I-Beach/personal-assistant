@@ -321,8 +321,13 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo", "--ui-workspace", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
-        app.buttons["Add to message"].tap()
+        let addToMessage = app.buttons["Add to message"]
+        XCTAssertTrue(addToMessage.waitForExistence(timeout: 15))
+        // Fixture content becomes visible before folder setup finishes. The
+        // loading overlay intentionally disables controls until it is ready.
+        expectation(for: NSPredicate(format: "enabled == true AND hittable == true"), evaluatedWith: addToMessage)
+        waitForExpectations(timeout: 20)
+        addToMessage.tap()
         let connectedFolders = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Connected folders")).firstMatch
         XCTAssertTrue(connectedFolders.waitForExistence(timeout: 5))
         connectedFolders.tap()

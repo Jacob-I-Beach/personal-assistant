@@ -1,0 +1,119 @@
+{
+  "version": "0.8.0",
+  "build": "9",
+  "validation_run": "38131578620",
+  "build_run": "38131578620",
+  "validation_source": "287f4b2e18d9e5a14a724f8e27bf23afc9f6bf15",
+  "source": "287f4b2e18d9e5a14a724f8e27bf23afc9f6bf15",
+  "core_tests": 173,
+  "native_eventkit_tests": 8,
+  "platform_tests": 33,
+  "ui_tests": 3,
+  "ui_scenarios": [
+    "testFullWidthComposerContextAndImmediateConnectedSend",
+    "testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords",
+    "testToolExpansionAndLatestButtonPreserveIntentionalPosition"
+  ],
+  "ui_scenarios_covered": 16,
+  "baseline_ui_evidence": [
+    {
+      "run": "38129297431",
+      "source": "bfc5a5eb6a478f52370d6471a8105e26362b111a",
+      "retained_ui_scenarios": [
+        "testAttachmentPreviewWorkingSurfacesAndActualMessageEdit",
+        "testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent",
+        "testDarkAndLargeTextControlsRemainUsable",
+        "testForegroundReturnContinuesWithoutAnotherUserMessage",
+        "testFreshLaunchSidebarFoldersAndAttachmentActions",
+        "testGroupedHistoryReadableDetailsRetryAndNoStaleContinueCard",
+        "testKeyboardAndDisclosurePreserveReadingPosition",
+        "testOrderedProgressWebAndReadableCalculation",
+        "testRichConversationArtifactAndHistory",
+        "testSavedRouteMemoryUndoAndResumeStayInTheApp",
+        "testSourcesThinkingAndPhotoPicker",
+        "testStreamingFollowsDetachesAndReturnsToFollowing",
+        "testWelcomeCatalogAndSettings"
+      ],
+      "production_changes_since_baseline": [
+        "App/Models/ContextWindowSettings.swift",
+        "App/Views/AppFeedback.swift"
+      ],
+      "reason": "Final pass rechecks the two changed UI components and two corrected system-control selectors. Other production code is unchanged."
+    }
+  ],
+  "dependency_pins_verified": 20,
+  "packages": {
+    "unsigned": {
+      "file": "PersonalAssistant-unsigned.ipa",
+      "sha256": "10b2943c4bad1a9cb5e804cc452f939cb6a3eb247eba4ecc4fdaf89b8a3cf0b1",
+      "bytes": 21048476,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "0.8.0",
+      "build": "9",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "0.8.0",
+          "build": "9"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "iPhone-only": {
+      "file": "PersonalAssistant-iPhone-only.ipa",
+      "sha256": "1aa3571d7cceb59116aed20fbd180db3cf64ecd4064092dfea4a21cee0e8c715",
+      "bytes": 20952413,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "0.8.0",
+      "build": "9",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [],
+      "requested_entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "HealthKit": {
+      "file": "PersonalAssistant-HealthKit.ipa",
+      "sha256": "d9ed6fcc7690115ba4b431f1c31c3518ef22db92db46e42c9229acd30fd96777",
+      "bytes": 20952415,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "0.8.0",
+      "build": "9",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [],
+      "requested_entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "health_enabled_in_app": true,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "physical_device_validation": "pending",
+  "health_provisioning": "Pending user signing; a Health-enabled input is not an Apple-granted capability.",
+  "background_physical_validation": "pending",
+  "new_compute_policy": "Verified public repository, standard xcode-27 runner; compute is free, storage separate.",
+  "ui_scenarios_pending": [
+    "testConnectedFolderAndFilesOutputs"
+  ],
+  "native_run_conclusion": "failure",
+  "pending_explanation": "The file workflow test tapped Add to message while the Preparing your workspace overlay disabled controls. The captured screenshot establishes the timing error. A test-only readiness wait was corrected locally but not rerun after the user asked whether more testing was necessary. This workflow remains pending; the iPhone release build succeeded and production code is unchanged."
+}
