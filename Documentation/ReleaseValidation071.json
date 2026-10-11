@@ -1,0 +1,37 @@
+{
+  "version": "0.7.1",
+  "build": "8",
+  "run": "38115961045",
+  "source": "7f76edb3ead452167ebd1e3702cb8d329ef38193",
+  "matching_source_scope": [
+    "App",
+    "Sources",
+    "Tests",
+    "PlatformTests",
+    "UITests",
+    "project.yml",
+    "Package.swift",
+    "Dependencies/Package.resolved",
+    "scripts",
+    ".github/workflows/validate.yml"
+  ],
+  "core_tests": 161,
+  "native_eventkit_tests": 8,
+  "native_eventkit_scenarios": [
+    "testReminderCompletionCanReturnOnEventKitBackgroundQueue",
+    "testOverlappingLaunchAndSaveFetchesFinishIndependently",
+    "testMissingFetchResultReturnsAnErrorWithoutCrashing",
+    "testIncompleteReminderReturnsAnErrorFromBackgroundQueue",
+    "testReminderSnapshotsKeepDueDatesAndFilterCompletedItems",
+    "testUndatedReminderAndCompletionArePreservedWhenRequested",
+    "testIncompleteEventsRejectWithoutClaimingAvailability",
+    "testValidEventSnapshotPreservesVersionAndBusyState"
+  ],
+  "simulator_tests_repeated": 0,
+  "physical_device_validation": "pending",
+  "diagnosis": "Eight 0.7.0 device reports confirm MainActor assertion in the Reminders callback on the EventKit background queue.",
+  "sha256": "af8d2567181ccb26cfed578b3198fe23aa39908b32671a17b50f6dba40e277c1",
+  "bytes": 20846311,
+  "dependency_pins_verified": 20,
+  "debug_models_excluded": true
+}

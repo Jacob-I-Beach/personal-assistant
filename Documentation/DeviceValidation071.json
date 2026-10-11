@@ -1,0 +1,14 @@
+{
+  "version": "0.7.1",
+  "build": "8",
+  "source": "7f76edb3ead452167ebd1e3702cb8d329ef38193",
+  "run": "38115961045",
+  "installation": "pending_user_update",
+  "retained_chats": "pending_user_confirmation",
+  "calendar_reminders_save": "pending_real_account_check",
+  "cold_relaunch": "pending_two_reopens",
+  "new_crash_reports": "pending_after_install",
+  "automated_native_eventkit_tests": 8,
+  "prior_phone_failure": "Eight 0.7.0 build 7 reports, MainActor assertion on EventKit reminders queue",
+  "workaround_confirmed": "Phone opens with Calendar and Reminders OS permissions disabled"
+}

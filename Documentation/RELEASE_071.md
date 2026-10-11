@@ -20,3 +20,7 @@ Physical acceptance: install over the current app, verify About 0.7.1 build 8, r
 Raw crash reports remain outside the repository. This record contains only the failure signature and app version.
 
 References: [Apple EventKit fetch API](https://developer.apple.com/documentation/eventkit/ekeventstore/fetchreminders(matching:completion:)), [Swift dynamic actor isolation](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0423-dynamic-actor-isolation.md).
+
+## Completed build evidence
+
+[Run 38115961045](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38115961045), source `7f76edb3ead452167ebd1e3702cb8d329ef38193`, passed 161 core and eight EventKit tests and built the physical Release archive. The staged 0.7.1 build 8 package has SHA-256 `af8d2567181ccb26cfed578b3198fe23aa39908b32671a17b50f6dba40e277c1`. Estimated repair compute: USD 0.620; remaining allowance: USD 0.404. Installation and real-account relaunch checks are still pending.

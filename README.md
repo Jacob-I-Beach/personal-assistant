@@ -2,11 +2,15 @@
 
 A private native iPhone application for Jacob's iPhone on iOS 27. The app owns conversations, observations, and tool execution independently of the selected local or connected model. There is no separate Windows phone UI.
 
-Private source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
+Source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
 
 Jacob confirms that **0.5.0 build 5 opens on his iPhone and preserves his previous chats** (October 10, 2026). ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
-## Current source: 0.7
+## Current source: 0.7.1 crash repair
+
+[0.7.1 build 8](Documentation/RELEASE_071.md) repairs the confirmed Reminders callback crash after Save and on relaunch. [Native run 38115961045](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38115961045) passes 161 core and eight EventKit regression tests and builds the iPhone update. Install in place with the same signing account; physical repair confirmation is pending. See [STATUS](STATUS.md).
+
+## 0.7 feature batch
 
 The [0.7 update](Documentation/RELEASE_07.md) is built and verified for personal signing. 0.7 adds bounded working context, readable grouped activity, visible connection retries, correct saved-task cards, continued background CPU/network requests and local attention notifications. The expanded batch adds selected Calendar/Reminders sources, availability checks and reviewed version-checked writes, durable question cards with photo/measurement inputs, routed Inbox capture through the app and Siri/Shortcuts, and Today/Needs-you/Continue/recent outputs on Home.
 
