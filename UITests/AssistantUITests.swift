@@ -31,7 +31,7 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<7 { if question.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(question.isHittable); saveScreenshot(app, name: "Today-and-needs-you"); question.tap()
         XCTAssertTrue(app.buttons["Afternoon"].waitForExistence(timeout: 5)); app.buttons["Afternoon"].tap()
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "question-answer").firstMatch.value as? String, "Afternoon")
+        XCTAssertNotEqual(app.descendants(matching: .any).matching(identifier: "question-answer").firstMatch.value as? String, "Afternoon")
         XCTAssertTrue(app.buttons["Answer and continue"].isEnabled)
         app.buttons["Answer and continue"].tap()
         let reviewAppeared = app.staticTexts["Save event?"].waitForExistence(timeout: 10)
@@ -58,7 +58,7 @@ final class AssistantUITests: XCTestCase {
         let activity = app.staticTexts["Activity"].firstMatch
         for _ in 0..<5 { if activity.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(activity.isHittable); activity.tap()
-        let history = app.staticTexts["Earlier conversations & files · 5"]
+        let history = app.staticTexts["Earlier conversations & files Ãƒâ€šÃ‚Â· 5"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
         let receipt = app.staticTexts["Read saved context"].firstMatch
         XCTAssertTrue(receipt.waitForExistence(timeout: 5)); receipt.tap()
@@ -89,10 +89,10 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "In-chat-route-and-saved-progress")
         for _ in 0..<4 { if app.buttons["Continue reply"].isHittable { break }; app.swipeUp() }
         app.buttons["Continue reply"].tap()
-        XCTAssertTrue(app.staticTexts["The saved route is ready. Open it when you’re ready."].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["The saved route is ready. Open it when youÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢re ready."].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Continue reply"].exists)
         XCTAssertEqual(app.staticTexts.matching(identifier: "Prepare an example walking route").count, 1)
-        app.buttons["Assistant menu"].tap(); app.buttons["Library"].tap()
+        app.buttons["Add to message"].tap(); app.buttons["Library"].tap()
         app.buttons["Saved memory"].tap()
         app.buttons["History and undo"].tap()
         XCTAssertTrue(app.navigationBars["Memory history"].waitForExistence(timeout: 5))
@@ -222,7 +222,7 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<5 { if app.buttons["Connections"].isHittable { break }; app.swipeUp() }
         app.buttons["Connections"].tap()
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Location & weather")).firstMatch.tap()
-        XCTAssertTrue(app.switches["Use location while I’m here"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Use location while IÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢m here"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Use my approximate location"].exists)
         saveScreenshot(app, name: "Home-context-controls")
         app.navigationBars["Home context"].buttons["Done"].tap()
@@ -289,7 +289,7 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo", "--ui-workspace", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        let thinking = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Thinking effort,")).firstMatch
+        let thinking = app.buttons["Response settings"]
         XCTAssertTrue(thinking.waitForExistence(timeout: 15)); thinking.tap()
         for title in ["Low", "Medium", "High", "Extra High", "Max"] {
             if !app.staticTexts[title].exists { app.swipeUp() }
@@ -297,7 +297,8 @@ final class AssistantUITests: XCTestCase {
         }
         saveScreenshot(app, name: "Thinking-effort")
         app.staticTexts["High"].tap()
-        XCTAssertTrue(app.buttons["Thinking effort, High"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 5))
         for _ in 0..<3 { if app.staticTexts["4 sources"].isHittable { break }; app.swipeUp() }
         XCTAssertTrue(app.staticTexts["4 sources"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["[1] Reference 1"].exists)
@@ -342,7 +343,7 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Connected-file")
         for _ in 0..<3 { app.navigationBars.buttons.element(boundBy: 0).tap() }
         app.buttons["Done"].tap()
-        app.buttons["Assistant menu"].tap(); app.buttons["Library"].tap()
+        app.buttons["Add to message"].tap(); app.buttons["Library"].tap()
         app.buttons["Outputs in Files"].tap()
         XCTAssertTrue(app.staticTexts["verified-total.csv"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Files-outputs")
@@ -379,8 +380,8 @@ final class AssistantUITests: XCTestCase {
         // A restored chat may initially scroll to the last answer.
         for _ in 0..<4 { app.swipeDown() }
         XCTAssertTrue(app.staticTexts["Searched the web"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["I’ll check the reference values, then calculate the circumference."].exists)
-        XCTAssertTrue(app.staticTexts["No observations were supplied, so I’ll use an illustrative example."].exists)
+        XCTAssertTrue(app.staticTexts["IÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ll check the reference values, then calculate the circumference."].exists)
+        XCTAssertTrue(app.staticTexts["No observations were supplied, so IÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ll use an illustrative example."].exists)
         XCTAssertFalse(app.buttons["Read response aloud"].isHittable)
         saveScreenshot(app, name: "Response-progress-and-web")
         app.staticTexts["Searched the web"].tap()
@@ -501,7 +502,7 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "After-library-attachment")
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "File-attachment")
-        app.buttons["Assistant menu"].tap()
+        app.buttons["Add to message"].tap()
         app.buttons["Library"].tap()
         XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Library-files")
@@ -543,6 +544,8 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["New chat"].exists)
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        expectation(for: NSPredicate(format: "enabled == true AND hittable == true"), evaluatedWith: composer)
+        waitForExpectations(timeout: 15)
         composer.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         composer.typeText("A synthetic message long enough to wrap naturally across the full width of the input.")
@@ -555,17 +558,24 @@ final class AssistantUITests: XCTestCase {
         copy.tap()
         XCTAssertTrue(app.buttons["Copied"].waitForExistence(timeout: 2))
         saveScreenshot(app, name: "Copied-confirmation")
-        app.buttons["Choose model"].tap(); app.buttons["Working context"].tap()
-        for _ in 0..<4 { if app.buttons["1,000,000 tokens"].isHittable { break }; app.swipeUp() }
+        app.buttons["Response settings"].tap()
+        for _ in 0..<5 { if app.buttons["1,000,000 tokens"].isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(app.buttons["1,000,000 tokens"].isHittable)
         app.buttons["1,000,000 tokens"].tap()
-        saveScreenshot(app, name: "Model-context-million")
-        app.buttons["Save"].tap(); app.buttons["Done"].tap()
-        app.buttons["Choose model"].tap(); app.buttons["Working context"].tap()
-        XCTAssertTrue(app.navigationBars["Working context"].waitForExistence(timeout: 5))
-        app.buttons["Cancel"].tap(); app.buttons["Done"].tap()
+        saveScreenshot(app, name: "Brain-context-million")
+        app.buttons["Done"].tap()
+        app.buttons["Choose model"].tap()
+        XCTAssertFalse(app.buttons["Working context"].exists)
+        app.buttons["Limited context model"].tap()
+        app.buttons["Response settings"].tap()
+        for _ in 0..<4 { if app.buttons["252,000 tokens"].isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(app.buttons["252,000 tokens"].exists)
+        XCTAssertFalse(app.buttons["1,000,000 tokens"].exists)
+        saveScreenshot(app, name: "Brain-context-smaller-model")
+        app.buttons["252,000 tokens"].tap(); app.buttons["Done"].tap()
         XCTAssertFalse(app.alerts["Could not finish"].exists)
         app.buttons["Assistant menu"].tap()
-        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists)
+        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists); XCTAssertFalse(app.buttons["Library"].exists)
         saveScreenshot(app, name: "Focused-chat-menu")
     }
 
@@ -594,6 +604,70 @@ final class AssistantUITests: XCTestCase {
         print("After jump: \(String(describing: scroll.value)); scroll frame: \(scroll.frame); last text: \(app.staticTexts["The current request is complete."].frame)")
         saveScreenshot(app, name: "Jump-to-latest-visible")
         XCTAssertTrue(app.staticTexts["The current request is complete."].isHittable)
+    }
+
+    func testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-daily-work", "--ui-question-only", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let send = app.buttons["Send message"]
+        XCTAssertTrue(send.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "enabled == true AND hittable == true"), evaluatedWith: send)
+        waitForExpectations(timeout: 15); send.tap()
+        XCTAssertTrue(app.buttons["Morning"].waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(app.navigationBars["Needs you"].frame.minY, app.frame.height * 0.3)
+        app.buttons["Morning"].tap()
+        let custom = app.descendants(matching: .any).matching(identifier: "question-answer").firstMatch
+        XCTAssertNotEqual(custom.value as? String, "Morning")
+        XCTAssertTrue(app.buttons["Answer and continue"].isEnabled)
+        saveScreenshot(app, name: "Compact-question-selected-choice")
+        app.buttons["Answer and continue"].tap()
+        XCTAssertTrue(app.staticTexts["Your answer is saved in the conversation."].waitForExistence(timeout: 10))
+        let question = app.staticTexts["When should we work on it?"].firstMatch
+        let answer = app.staticTexts["Morning"].firstMatch
+        XCTAssertTrue(question.exists); XCTAssertTrue(answer.exists)
+        XCTAssertLessThan(question.frame.minY, answer.frame.minY)
+        saveScreenshot(app, name: "Question-and-answer-inline")
+    }
+    func testColdReturnKeepsManualContinueAfterEarlierRecoveryLimit() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-recovery09", "--ui-recovery09-seed", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 15))
+        let ready = NSPredicate { _, _ in app.buttons["History"].isEnabled }
+        expectation(for: ready, evaluatedWith: app); waitForExpectations(timeout: 15)
+        app.terminate(); app.launchArguments.removeAll { $0 == "--ui-recovery09-seed" }; app.launch()
+        XCTAssertTrue(app.staticTexts["The earlier work stays saved."].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["home-greeting"].exists)
+        let resume = app.buttons["Continue reply"]
+        XCTAssertTrue(resume.isHittable)
+        saveScreenshot(app, name: "Returned-task-with-continue")
+        resume.tap()
+        XCTAssertTrue(app.staticTexts["Your saved work continued."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Continue reply"].exists)
+        saveScreenshot(app, name: "Manual-fourth-continuation-complete")
+    }
+    func testHealthCatalogShowsBroaderTypesWithoutRequestingPersonalData() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-empty", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let menu = app.buttons["Assistant menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "enabled == true AND hittable == true"), evaluatedWith: menu)
+        waitForExpectations(timeout: 15); menu.tap(); app.buttons["Connections"].tap()
+        let health = app.staticTexts["Health"].firstMatch
+        XCTAssertTrue(health.waitForExistence(timeout: 5)); health.tap()
+        let data = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Connected data")).firstMatch
+        XCTAssertTrue(data.waitForExistence(timeout: 5)); data.tap()
+        XCTAssertTrue(app.buttons["Select all available"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Health-data-connections")
+        let search = app.searchFields.firstMatch
+        search.tap(); search.typeText("blood pressure")
+        XCTAssertTrue(app.switches.matching(NSPredicate(format: "label CONTAINS[c] %@", "systolic")).firstMatch.waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Health-type-search")
     }
 
     private func saveScreenshot(_ app: XCUIApplication, name: String) {

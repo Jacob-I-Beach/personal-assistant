@@ -4,12 +4,16 @@
   "source": "287f4b2e18d9e5a14a724f8e27bf23afc9f6bf15",
   "validation_run": "38131578620",
   "recorded_at": "2026-10-11T11:00:12.049120+00:00",
-  "installation": "pending user-operated update",
+  "installation": "User reports using the 0.8 update; USB verification unavailable this turn",
   "retained_chats": "pending",
-  "background_and_island": "pending physical check",
+  "background_and_island": "Partial: notification delivery and question recovery confirmed; intermittent interruption and return-to-Home behavior reported. Cause not established.",
   "health_entitlement": "pending signed-install query",
-  "health_overview": "pending user permission and confirmation; no health values requested",
-  "scroll_and_disclosures": "pending phone check; native UI pass",
-  "composer_library_feedback": "pending phone check; native UI pass",
-  "haptic_feel": "pending physical review"
+  "health_overview": "User requests all available Health data types; exact existing read coverage not independently reported",
+  "scroll_and_disclosures": "User confirmed improved behavior",
+  "composer_library_feedback": "User confirmed prior improvements; requests removal of menu Library shortcut",
+  "haptic_feel": "User includes prior feedback improvements in general acceptance",
+  "user_feedback_date": "2026-10-11",
+  "general_acceptance": "User confirms prior-pass features work except the listed new findings.",
+  "context": "All models display about 250k; catalog default/max distinction under repair",
+  "questions": "New defects: primary label contrast, option copied into custom field, full-screen presentation, Q hidden in activity"
 }

@@ -18,7 +18,7 @@ public enum ChatTimeline {
             let visible = !message.text.isEmpty || !message.captureIDs.isEmpty || !message.fileIDs.isEmpty || !message.displayParts.isEmpty || message.role == .tool || message.state == .failed || message.state == .interrupted
             guard visible else { continue }
             let name = names[message.toolCallID ?? ""] ?? "tool"
-            let activity = message.role == .tool && !["prepare_route", "present_surface", "update_plan"].contains(name)
+            let activity = message.role == .tool && !["prepare_route", "present_surface", "update_plan", "request_input"].contains(name)
             if activity, result.last?.isActivity == true {
                 result[result.count - 1].messages.append(message)
             } else { result.append(ChatTimelineItem(id: message.id, messages: [message], isActivity: activity)) }
@@ -33,6 +33,7 @@ public enum ChatTimeline {
         case "run_javascript": "Calculations"
         case "read_task", "update_plan": "Task progress"
         case "request_input": "Your answers"
+        case "list_health_types", "read_health_data", "read_health_overview": "Health"
         case "read_inbox": "Saved captures"
         case "list_planning_sources", "read_schedule", "find_available_time", "read_reminders", "save_calendar_event", "save_reminder", "complete_reminder": "Calendar & Reminders"
         case "create_artifact", "create_pdf", "create_file", "read_file", "list_files", "search_files", "export_artifact", "apply_file_edit", "propose_file_edit": "Files"

@@ -11,6 +11,7 @@ extension AppModel {
     }
 }
 struct UIDailyWorkflowBackend: ModelBackend {
+    var questionOnly = false
     var id: String { "synthetic-daily-workflow" }
     var networkDestination: String? { nil }
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
@@ -18,7 +19,8 @@ struct UIDailyWorkflowBackend: ModelBackend {
             let ids = Set(request.messages.filter { $0.message.role == .tool }.compactMap { $0.message.toolCallID })
             if !ids.contains("example-question") {
                 output.yield(.toolCall(.init(id: "example-question", name: "request_input", arguments: .object(["question": .string("When should we work on it?"), "why": .string("Choose a time for the example session."), "kind": .string("choice"), "choices_json": .string("[\"Morning\",\"Afternoon\"]")]))))
-            } else if !ids.contains("example-save") {
+            } else if questionOnly { output.yield(.textDelta("Your answer is saved in the conversation.")) }
+            else if !ids.contains("example-save") {
                 let start = Calendar.current.date(bySettingHour: 14, minute: 0, second: 0, of: Date())!
                 output.yield(.toolCall(.init(id: "example-save", name: "save_calendar_event", arguments: .object(["item_id": .string(""), "version": .string(""), "source_id": .string("fixture-calendar"), "title": .string("Example work session"), "start": .string(ISO8601DateFormatter().string(from: start)), "end": .string(ISO8601DateFormatter().string(from: start.addingTimeInterval(2700))), "location": .string(""), "notes": .string("Synthetic workflow rehearsal")]))))
             } else { output.yield(.textDelta("Your example session is saved.")) }

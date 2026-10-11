@@ -60,6 +60,8 @@ struct WorkReceiptView: View {
         case "list_conversations": return "Browsed recent chats"
         case "read_conversation": return "Read an earlier conversation"
         case "read_task": return "Checked saved progress"
+        case "list_health_types": return "Checked connected Health data"
+        case "read_health_data", "read_health_overview": return "Read relevant Health data"
         case "read_inbox": return "Read saved captures"
         case "request_input": return output?["status"] == .string("skipped") ? "Question skipped" : "Received your answer"
         case "list_planning_sources": return "Checked planning connections"
@@ -75,7 +77,13 @@ struct WorkReceiptView: View {
         }
     }
     var body: some View {
-        if toolName == "prepare_route", let raw = output?["route_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
+        if toolName == "request_input", let question = output?["question"]?.stringValue ?? arguments?["question"]?.stringValue, message.toolFailureDescription == nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Question", systemImage: "bubble.left").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Text(question).font(.body).textSelection(.enabled)
+                if output?["status"] == .string("skipped") { Text("You skipped this question.").font(.caption).foregroundStyle(.secondary) }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)
+        } else if toolName == "prepare_route", let raw = output?["route_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
             RouteCard(id: id)
         } else if toolName == "present_surface", let raw = output?["surface_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
             WorkingSurfaceView(id: id)

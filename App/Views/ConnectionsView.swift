@@ -17,7 +17,7 @@ struct ConnectionsView: View {
                 Section("Your day") {
                     connection("Calendar & Reminders", detail: "Check your schedule, find time and save reviewed plans.", state: model.settings.calendarSourceIDs.isEmpty && model.settings.reminderSourceIDs.isEmpty ? "Choose sources" : "Sources selected", icon: "calendar", destination: .planning)
                     connection("Location & weather", detail: "Use your area for relevant requests and the Home greeting.", state: model.settings.locationContextEnabled ? "Context enabled" : "Choose access", icon: "location", destination: .context)
-                    connection("Health", detail: "Review your week in steps, sleep and workouts.", state: HealthOverviewService.isEnabledInThisBuild ? "Review Health access" : "Signing setup needed", icon: "heart", destination: .health)
+                    connection("Health", detail: "Connect measurements and records for relevant questions.", state: HealthOverviewService.isEnabledInThisBuild ? "Review Health access" : "Signing setup needed", icon: "heart", destination: .health)
                 }
                 Section("Your work") {
                     connection("Folders & files", detail: "Read selected folders and review edits in place.", state: "Manage selected folders", icon: "folder", destination: .folders)

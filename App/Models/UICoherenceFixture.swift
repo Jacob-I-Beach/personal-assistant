@@ -9,7 +9,7 @@ extension AppModel {
         settings.automaticChatTitles = false; settings.confirmNewConnectedChats = false; settings.localOnly = false
         settings.continueInBackground = false; settings.taskNotifications = false
         accounts = [.init(id: "synthetic-account", label: "Synthetic test account", isConnected: true)]
-        chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":1050000}]}"#.utf8))) ?? []
+        chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":272000,"max_context_window":1050000},{"slug":"limited-context-fixture","display_name":"Limited context model","visibility":"list","context_window":128000,"max_context_window":268384}]}"#.utf8))) ?? []
         conversation = Conversation(title: "Coherent interaction fixture")
         conversation.messages = [Message(role: .user, text: "An earlier synthetic question"), Message(role: .assistant, text: "An earlier synthetic answer.")]
         try? await store.save(conversation)

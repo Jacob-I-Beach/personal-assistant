@@ -40,6 +40,7 @@ final class ResponseCompletionWindow {
                 }
                 self.continued = task
                 self.record("accepted")
+                task.updateTitle("Personal Assistant", subtitle: self.latestStatus)
                 task.progress.totalUnitCount = -1 // Unknown length; never invent a percentage or ETA.
                 task.progress.completedUnitCount = self.units
                 let identifier = task.identifier
@@ -109,15 +110,31 @@ final class ResponseCompletionWindow {
         guard latestStatus != text else { return }; latestStatus = text
         continued?.updateTitle("Personal Assistant", subtitle: String(text.prefix(90)))
     }
+    func waitingForAttention(question: Bool) {
+        let message = question ? "Your answer is needed" : "Ready for your review"
+        continued?.updateTitle("Personal Assistant", subtitle: message)
+        record(question ? "waiting_for_answer" : "waiting_for_review")
+        // Finishing this processing segment is successful. The saved user task
+        // remains waiting; holding a CPU task open would make iOS report failure.
+        end(success: true, recordEnd: false)
+    }
+    func recordFailure(_ error: any Error) {
+        if let error = error as? URLError {
+            diagnosticCode = error.code.rawValue
+            record(error.code == .timedOut ? "network_timeout" : "network_interrupted")
+        }
+    }
     func end(success: Bool = true, recordEnd: Bool = true) {
         progressFlush?.cancel(); progressFlush = nil
-        if recordEnd, requestID != nil || shortWindow != .invalid { record(success ? "completed" : "interrupted") }
+        if recordEnd, requestID != nil || shortWindow != .invalid,
+           success || !["network_timeout", "network_interrupted"].contains(diagnosticState) { record(success ? "completed" : "interrupted") }
         let oldID = requestID; requestID = nil; expiration = nil
         if let task = continued {
             continued = nil
             if success { task.progress.totalUnitCount = units + 1; task.progress.completedUnitCount = units + 1 }
             task.setTaskCompleted(success: success)
         } else if let oldID { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: oldID) }
+        if let oldID { BGTaskScheduler.shared.unregisterForTask(withIdentifier: oldID) }
         endShortWindow()
     }
     private func record(_ state: String) {

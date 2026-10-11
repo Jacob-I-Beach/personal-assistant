@@ -18,3 +18,7 @@ Local.xcconfig
 TestData.private/
 __pycache__/
 *.pyc
+
+# SwiftPM's Windows resource staging copies these generated files to the root.
+/HealthDataCatalog.json
+/Info.plist

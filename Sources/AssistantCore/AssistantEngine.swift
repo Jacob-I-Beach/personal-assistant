@@ -32,7 +32,7 @@ public actor AssistantEngine {
                 do {
                     try await self.run(conversation: conversation, text: text, captureIDs: captureIDs,
                                        backend: backend, containsHealthData: containsHealthData, fileIDs: fileIDs, imageSelections: imageSelections, workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
-                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, configuration: configuration, appContext: appContext, output: continuation)
+                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, automaticResume: false, configuration: configuration, appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
                     await self.recordInterruption(turnID, error: error)
@@ -44,13 +44,13 @@ public actor AssistantEngine {
     }
 
     public nonisolated func resume(conversation: Conversation, turnID: UUID, backend: any ModelBackend, workspaceEnabled: Bool = false, automaticMemory: Bool = false,
-                                   additionalTools: [ToolDefinition] = [], additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil, appContext: AssistantAppContext? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
+                                   additionalTools: [ToolDefinition] = [], additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil, appContext: AssistantAppContext? = nil, automatic: Bool = false) -> AsyncThrowingStream<AssistantEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: "", captureIDs: [], backend: backend, containsHealthData: conversation.containsHealthData,
                                        fileIDs: [], imageSelections: [:], workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
-                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, configuration: .object([:]), appContext: appContext, output: continuation)
+                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, automaticResume: automatic, configuration: .object([:]), appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
                     await self.recordInterruption(turnID, error: error)
@@ -62,14 +62,25 @@ public actor AssistantEngine {
     }
     private func recordInterruption(_ id: UUID, error: any Error) async {
         guard var work = try? await store.workTurn(id), work.phase == .running else { return }
-        if let failure = error as? AssistantError, case .contextCapacity = failure { work.needsChangedRequest = true; try? await store.saveWorkTurn(work) }
+        if let failure = error as? AssistantError {
+            switch failure {
+            case .contextCapacity: work.needsChangedRequest = true; work.interruptionKind = "context_limit"
+            case .outputCapacity: work.interruptionKind = "output_limit"
+            case .workBudgetReached: work.interruptionKind = "work_limit"
+            case .incompleteResponse: work.interruptionKind = "stream_ended"
+            default: break
+            }
+        }
+        let network = error as NSError
+        if network.domain == NSURLErrorDomain, network.code == NSURLErrorTimedOut { work.interruptionKind = "network_timeout" }
+        try? await store.saveWorkTurn(work)
         try? await store.finishWork(id, phase: Task.isCancelled || error is CancellationError ? .cancelled : .interrupted, reason: error.localizedDescription)
     }
 
     private func run(conversation original: Conversation, text: String, captureIDs: [UUID],
                      backend: any ModelBackend, containsHealthData: Bool, fileIDs: [UUID], imageSelections: [String: [ImagePoint]], workspaceEnabled: Bool, automaticMemory: Bool, additionalTools: [ToolDefinition],
                      additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?,
-                     turnID: UUID, resuming: Bool, configuration: JSONValue, appContext: AssistantAppContext?,
+                     turnID: UUID, resuming: Bool, automaticResume: Bool, configuration: JSONValue, appContext: AssistantAppContext?,
                      output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
         guard activeRun == nil else { throw AssistantError.busy }
         let runID = UUID(); activeRun = runID
@@ -105,13 +116,17 @@ public actor AssistantEngine {
         var work: WorkTurn
         if resuming {
             guard var saved = try await store.workTurn(turnID), saved.conversationID == conversation.id, saved.backendID == backend.id, saved.destination == backend.networkDestination,
-                  saved.phase == .interrupted || saved.phase == .running, saved.resumes < 3,
+                  saved.phase == .interrupted || saved.phase == .running,
                   let last = conversation.messages.last(where: \.isRequest), last.id == saved.userMessageID,
                   backend.networkDestination == nil || !last.containsLocalOnlyContext else {
                 throw AssistantError.invalidTool("This reply cannot resume automatically. Open its chat and choose how to continue.")
             }
+            guard !automaticResume || saved.automaticResumeCount < 3 else {
+                throw AssistantError.invalidTool("Automatic recovery has paused. Use Continue reply to deliberately resume the saved task.")
+            }
             guard saved.permitsContextRetry(maximumTextBytes: backend.contextLimits.maximumTextBytes) else { throw AssistantError.contextCapacity }
-            saved.phase = .running; saved.resumes += 1; saved.reason = nil; saved.needsChangedRequest = false
+            saved.automaticResumes = automaticResume ? saved.automaticResumeCount + 1 : 0
+            saved.phase = .running; saved.resumes += 1; saved.reason = nil; saved.interruptionKind = nil; saved.needsChangedRequest = false
             work = saved; user = last
         } else {
             var message = Message(id: turnID, role: .user, text: text, captureIDs: captureIDs, fileIDs: fileIDs, containsHealthData: containsHealthData,
@@ -168,6 +183,7 @@ public actor AssistantEngine {
         let turnStart = conversation.messages.firstIndex(where: { $0.id == user.id })!
         let turnMessages = Array(conversation.messages[turnStart...])
         var executedCallIDs = Set(turnMessages.filter { $0.role == .tool }.compactMap(\.toolCallID))
+        let priorExecutionCount = executedCallIDs.count
         let calls = turnMessages.filter { $0.state == .complete }.flatMap(\.toolCalls)
         if resuming {
             if let lastScript = turnMessages.last(where: { message in
@@ -176,7 +192,7 @@ public actor AssistantEngine {
             }) { await broker.restoreCalculationStatus(succeeded: lastScript.toolFailureDescription == nil) }
             for call in calls where !executedCallIDs.contains(call.id) {
                 try Task.checkCancellation()
-                guard executedCallIDs.count < 24 else { throw AssistantError.invalidTool("This task reached its total tool-call limit. Its saved results are available.") }
+                guard executedCallIDs.count - priorExecutionCount < 24 else { throw AssistantError.workBudgetReached }
                 output.yield(.toolStarted(call))
                 let result = try await broker.execute(call)
                 localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
@@ -193,7 +209,6 @@ public actor AssistantEngine {
         for _ in 0..<12 {
             try Task.checkCancellation()
             work = try await store.workTurn(turnID) ?? work
-            guard work.rounds < 12 else { throw AssistantError.invalidTool("This task reached its total response-round limit. Its work remains saved.") }
             work.rounds += 1; try await store.saveWorkTurn(work)
             var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs, appContext: appContext)
             request.instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())); local time zone: \(TimeZone.current.identifier). Current saved task ID: \(turnID.uuidString). update_plan persists its public plan; read_task inspects recorded action outcomes."
@@ -219,7 +234,9 @@ public actor AssistantEngine {
                 for try await event in backend.stream(request) {
                     try Task.checkCancellation()
                     switch event {
-                    case .transportProgress(let bytes): output.yield(.transportProgress(bytes))
+                    case .transportProgress(let bytes):
+                        output.yield(.transportProgress(bytes))
+                        continue // Byte/heartbeat activity did not change the transcript.
                     case .retrying(let attempt, let maximum):
                         try await store.recordNetworkRetry(turnID)
                         output.yield(.activity("Retrying \(attempt)/\(maximum)"))
@@ -239,7 +256,7 @@ public actor AssistantEngine {
                         localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
                         try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
                         guard result.callID == call.id, result.name == call.name,
-                              executedCallIDs.insert(call.id).inserted, executedCallIDs.count <= 24 else {
+                              executedCallIDs.insert(call.id).inserted, executedCallIDs.count - priorExecutionCount <= 24 else {
                             throw AssistantError.invalidTool("The native model returned an invalid tool receipt.")
                         }
                         assistant.toolCalls.append(call); assistant.state = .complete
@@ -285,9 +302,10 @@ public actor AssistantEngine {
             if assistant.toolCalls.isEmpty { try await store.finishWork(turnID, phase: .completed); output.yield(.finished); return }
             for call in assistant.toolCalls {
                 try Task.checkCancellation()
-                guard executedCallIDs.insert(call.id).inserted, executedCallIDs.count <= 24 else {
+                guard executedCallIDs.insert(call.id).inserted else {
                     throw AssistantError.invalidTool("The model repeated a tool-call identifier. Execution was stopped.")
                 }
+                guard executedCallIDs.count - priorExecutionCount <= 24 else { throw AssistantError.workBudgetReached }
                 output.yield(.toolStarted(call))
                 let result = try await broker.execute(call)
                 localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
@@ -299,7 +317,7 @@ public actor AssistantEngine {
                 try Task.checkCancellation()
             }
         }
-        throw AssistantError.invalidTool("The model reached the tool-round limit. All completed results were saved.")
+        throw AssistantError.workBudgetReached
     }
 
     private func appendUserResponse(_ result: ToolResult, turnID: UUID, destination: String?, conversation: inout Conversation) async throws {

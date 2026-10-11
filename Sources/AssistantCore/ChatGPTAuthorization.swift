@@ -108,9 +108,10 @@ public struct ChatGPTModel: Codable, Identifiable, Equatable, Sendable {
     public var visibility: String
     public var supportedReasoningEfforts: [ReasoningEffort]?
     public var contextWindow: Int? = nil
+    public var maximumContextWindow: Int? = nil
     public var id: String { slug }
     public var reasoningEfforts: [ReasoningEffort] { supportedReasoningEfforts ?? ReasoningEffort.documented(for: slug) }
-    enum CodingKeys: String, CodingKey { case slug, displayName = "display_name", visibility, supportedReasoningEfforts, contextWindow }
+    enum CodingKeys: String, CodingKey { case slug, displayName = "display_name", visibility, supportedReasoningEfforts, contextWindow, maximumContextWindow }
     public static func catalog(from data: Data) throws -> [Self] {
         guard data.count <= 2 * 1024 * 1024 else { throw ChatGPTAuthorizationError.invalidResponse }
         let response = try JSONDecoder().decode(JSONValue.self, from: data)
@@ -122,9 +123,11 @@ public struct ChatGPTModel: Codable, Identifiable, Equatable, Sendable {
             let supported = item["supported_reasoning_levels"]?.arrayValue.map { values in
                 ReasoningEffort.allCases.filter { effort in values.contains { ($0["effort"]?.stringValue ?? $0.stringValue) == effort.rawValue } }
             }
-            let rawWindow = item["context_window"]?.numberValue ?? item["context_length"]?.numberValue ?? item["max_context_tokens"]?.numberValue
+            let rawWindow = item["context_window"]?.numberValue ?? item["context_length"]?.numberValue
             let window = rawWindow.flatMap { $0.isFinite && (8192...10_000_000).contains($0) ? Int($0) : nil }
-            return ChatGPTModel(slug: slug, displayName: title, visibility: "list", supportedReasoningEfforts: supported, contextWindow: window)
+            let rawMaximum = item["max_context_window"]?.numberValue ?? item["max_context_tokens"]?.numberValue
+            let maximum = rawMaximum.flatMap { $0.isFinite && (8192...10_000_000).contains($0) ? Int($0) : nil }
+            return ChatGPTModel(slug: slug, displayName: title, visibility: "list", supportedReasoningEfforts: supported, contextWindow: window, maximumContextWindow: maximum)
         }
     }
 }

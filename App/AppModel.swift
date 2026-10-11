@@ -24,6 +24,7 @@ final class AppModel: ObservableObject {
     @Published var libraryContainsHealthData = false
     @Published var isRunning = false
     @Published private(set) var isInitialized = false
+    @Published private(set) var isRestoringBackgroundRoute = false
     @Published var isDownloading = false
     @Published var isConnecting = false
     @Published var isManagingAccount = false
@@ -52,6 +53,9 @@ final class AppModel: ObservableObject {
     var routedInboxID: UUID?
     let planning = PlanningService()
     private var pausedForInput = false
+    private var pausedForWorkBudget = false
+    private var responseAwaitingAttention = false
+    private var attentionDestination: UUID?
     @Published var contextRefresh = 0
     @Published var nativeAction: NativeActionRequest?
     var nativeReviewVisible = false
@@ -140,6 +144,8 @@ final class AppModel: ObservableObject {
             rebuildLocalBackend()
             watch.onRequest = { [weak self] request in await self?.receiveWatchRequest(request) }
             watch.activate()
+            let backgroundDestination = ReplyReturnRoute.take()
+            isRestoringBackgroundRoute = backgroundDestination != nil
             Task {
                 try? await store.recoverWatchRequests()
                 #if DEBUG
@@ -153,6 +159,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { await installLongTaskFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { await installDailyWorkflowFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { await installCoherenceFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-recovery09") { await installRecovery09Fixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -162,6 +169,10 @@ final class AppModel: ObservableObject {
                 if let last = conversation.messages.last { requiresManualResume = last.role != .assistant || last.state != .complete }
                 finishInitialization()
                 await taskAttention.openQueued()
+                if attentionDestination == nil, let destination = backgroundDestination {
+                    await openTaskAttention(destination)
+                }
+                if attentionDestination == nil { isRestoringBackgroundRoute = false }
                 await refreshAccounts()
                 await processNextWatchRequest()
             }
@@ -195,6 +206,7 @@ final class AppModel: ObservableObject {
         contextRefresh += 1
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
         Task {
+            do { try await waitUntilReady() } catch { return }
             await planning.refreshHome(settings: settings)
             await presentDeferredReview()
             if !isRunning { await continueInterruptedReplyIfEligible() }
@@ -206,6 +218,7 @@ final class AppModel: ObservableObject {
         titleTask?.cancel()
         guard isRunning else { return }
         responseWasBackgrounded = true
+        ReplyReturnRoute.remember(conversation.id)
         if let request = deferredNativeAction ?? nativeAction { Task { await notifyReview(request) } }
         guard settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
         pauseResponseForBackground()
@@ -240,6 +253,7 @@ final class AppModel: ObservableObject {
     }
     func newConversation(folderID: UUID? = nil) {
         guard !isRunning else { return }; cancelEditing(); detachWatchRequest(); draftTask?.cancel(); flushDraft()
+        ReplyReturnRoute.clear()
         if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) {
             let savedDraft = conversation
             Task {
@@ -420,16 +434,16 @@ final class AppModel: ObservableObject {
         conversation.requiresNetworkReview = true
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
     }
-    func stop() { userRequestedStop = true; responseWasBackgrounded = false; responseTask?.cancel() }
+    func stop() { userRequestedStop = true; responseWasBackgrounded = false; ReplyReturnRoute.clear(); responseTask?.cancel() }
     func deferQuestion() { pausedForInput = true; responseTask?.cancel() }
     private func pauseResponseForBackground() {
         guard isRunning, !userRequestedStop else { return }
         responseWasBackgrounded = true; responseTask?.cancel()
     }
     private func continueInterruptedReplyIfEligible() async {
-        guard !isRunning, !userRequestedStop, !pausedForInput, !systemEndedBackgroundWork, responseWasBackgrounded, UIApplication.shared.applicationState == .active,
+        guard !isRunning, !userRequestedStop, !pausedForInput, !pausedForWorkBudget, !systemEndedBackgroundWork, responseWasBackgrounded, UIApplication.shared.applicationState == .active,
               let work = try? await store?.unfinishedWork().first(where: { $0.conversationID == conversation.id }),
-              work.resumes < 3, work.needsChangedRequest != true, Date().timeIntervalSince(work.updatedAt) < 86_400 else { return }
+              work.automaticResumeCount < 3, work.needsChangedRequest != true, Date().timeIntervalSince(work.updatedAt) < 86_400 else { return }
         await resumeReply(work, automatic: true)
     }
     func resumeReply(_ work: WorkTurn, automatic: Bool = false) async {
@@ -451,7 +465,7 @@ final class AppModel: ObservableObject {
             guard !settings.localOnly || selected.networkDestination == nil else { throw AssistantError.networkNotAuthorized }
             guard conversation.id == work.conversationID, !isRunning, settings == selectedSettings, !automatic || !userRequestedStop else { return }
             conversation = restored
-            startResponse("", resuming: work)
+            startResponse("", resuming: work, automaticResume: automatic)
         } catch {
             if automatic { noticeMessage = "The saved reply needs your attention. Open it and choose Continue when ready." }
             else { errorMessage = error.localizedDescription }
@@ -469,20 +483,16 @@ final class AppModel: ObservableObject {
         if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections }
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
-    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil) {
+    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false) {
         guard let engine else { return }
         let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
         let previousIDs = Set(original.messages.map(\.id))
         draftTask?.cancel()
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
-        responseWasBackgrounded = false; userRequestedStop = false; pausedForInput = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
+        responseWasBackgrounded = false; userRequestedStop = false; pausedForInput = false; pausedForWorkBudget = false; responseAwaitingAttention = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
         taskAttention.clear(conversation.id)
-        let continued = selection.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(selection.choice)
-        completionWindow.begin(allowContinued: continued) { [weak self] cancelledBySystem in
-            self?.systemEndedBackgroundWork = cancelledBySystem
-            self?.pauseResponseForBackground()
-        }
+        beginResponseWindow()
         requiresManualResume = false
         let previousTitleTask = titleTask
         previousTitleTask?.cancel(); titleTask = nil
@@ -505,7 +515,7 @@ final class AppModel: ObservableObject {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
-                let extras = NativeTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request] + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
+                let extras = NativeTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request] + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selection.networkDestination
                 let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
                     planningSharedWithModel: selection.planningConnectedAccess, locationEnabled: selection.locationContextEnabled,
@@ -517,7 +527,7 @@ final class AppModel: ObservableObject {
                 let events: AsyncThrowingStream<AssistantEvent, any Error>
                 if let savedWork {
                     events = engine.resume(conversation: current, turnID: savedWork.id, backend: selectedBackend,
-                        workspaceEnabled: selection.workspaceSearchEnabled, automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute, appContext: appContext)
+                        workspaceEnabled: selection.workspaceSearchEnabled, automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute, appContext: appContext, automatic: automaticResume)
                     activity = "Continuing from saved work"
                 } else {
                     events = engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
@@ -557,6 +567,9 @@ final class AppModel: ObservableObject {
                     }
                 }
             } catch {
+                completionWindow.recordFailure(error)
+                if let failure = error as? AssistantError, case .workBudgetReached = failure { pausedForWorkBudget = true; completionWindow.status("Progress saved · Ready to continue") }
+                if let failure = error as? AssistantError, case .outputCapacity = failure { pausedForWorkBudget = true; completionWindow.status("Progress saved · Reply allowance reached") }
                 if !Task.isCancelled && !(error is CancellationError) {
                     if activeTurnID == nil { noticeMessage = error.localizedDescription }
                 }
@@ -567,14 +580,15 @@ final class AppModel: ObservableObject {
             if let id = activeTurnID, let work = try? await store?.workTurn(id) {
                 completedTurn = work.phase == .completed
                 if !completedTurn {
-                    if userRequestedStop { try? await store?.finishWork(id, phase: .cancelled, reason: "Stopped by the user") }
-                    else if pausedForInput { try? await store?.finishWork(id, phase: .interrupted, reason: "Waiting for your answer") }
-                    else if responseWasBackgrounded { try? await store?.finishWork(id, phase: .interrupted, reason: "Interrupted while the app was away") }
+                    if userRequestedStop { try? await store?.finishWork(id, phase: .cancelled, reason: "Stopped by the user", kind: "cancelled") }
+                    else if pausedForInput || responseAwaitingAttention { try? await store?.finishWork(id, phase: .interrupted, reason: "Waiting for your answer or review", kind: "waiting_for_input") }
+                    else if responseWasBackgrounded && (systemEndedBackgroundWork || work.phase == .cancelled) { try? await store?.finishWork(id, phase: .interrupted, reason: "Background processing ended or was cancelled. Your progress is saved.", kind: "system_ended") }
                 }
             }
             requiresManualResume = !completedTurn
             isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
-            completionWindow.end(success: completedTurn)
+            completionWindow.end(success: completedTurn || pausedForInput || pausedForWorkBudget || responseAwaitingAttention)
+            if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear() }
             if responseWasBackgrounded, !userRequestedStop, selection.taskNotifications, UIApplication.shared.applicationState != .active {
                 await taskAttention.notify(conversationID: current.id, title: completedTurn ? "Your reply is ready" : "Your task needs attention",
                     explanation: completedTurn ? "Open Personal Assistant to see the answer and saved results." : "Progress is saved. Open the task to review what remains and continue.")
@@ -621,7 +635,8 @@ final class AppModel: ObservableObject {
         if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { return UIContinuityBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-background") { return UIBackgroundBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { return UILongTaskBackend() }
-        if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { return UIDailyWorkflowBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { return UIDailyWorkflowBackend(questionOnly: ProcessInfo.processInfo.arguments.contains("--ui-question-only")) }
+        if ProcessInfo.processInfo.arguments.contains("--ui-recovery09") { return UIRecovery09Backend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return UICoherenceBackend() }
         #endif
         switch selection.choice {
@@ -860,21 +875,47 @@ final class AppModel: ObservableObject {
         default: break
         }
         guard isRunning, conversation.id == conversationID, settings.healthToolsEnabled,
-              call.name == HealthOverviewService.tool.name, call.arguments["days"]?.stringValue == "7" else {
+              [HealthOverviewService.tool.name, "list_health_types", "read_health_data"].contains(call.name) else {
             throw AssistantError.invalidTool("The requested Health context is unavailable.")
         }
+        if call.name == "list_health_types" {
+            return nativeResult(HealthDataReader.catalog(query: call.arguments["query"]?.stringValue ?? "", selected: settings.healthTypeIDs))
+        }
+        let query: HealthDataQuery?
+        let readDescription: String
+        if call.name == "read_health_data" {
+            guard let ids = try JSONValue.parse(call.arguments["types_json"]?.stringValue ?? "[]").arrayValue,
+                  ids.allSatisfy({ $0.stringValue != nil }) else { throw AssistantError.invalidTool("Use a list of Health type IDs.") }
+            let value = try HealthDataQuery(typeIDs: ids.compactMap(\.stringValue), start: call.arguments["start"]?.stringValue ?? "", end: call.arguments["end"]?.stringValue ?? "",
+                mode: call.arguments["mode"]?.stringValue ?? "", limit: Int(call.arguments["limit"]?.stringValue ?? "") ?? 0)
+            guard Set(value.typeIDs).isSubset(of: settings.healthTypeIDs) else { throw AssistantError.invalidTool("Connect these data types in Connections → Health → Connected data first.") }
+            query = value
+            let names = HealthDataCatalog.entries.filter { value.typeIDs.contains($0.id) }.map(\.name).joined(separator: ", ")
+            readDescription = "Read \(names), from \(value.start.formatted(date: .abbreviated, time: .omitted)) through \(value.end.formatted(date: .abbreviated, time: .omitted))."
+        } else {
+            guard call.arguments["days"]?.stringValue == "7" else { throw AssistantError.invalidTool("The overview covers seven days.") }
+            query = nil; readDescription = "Read the connected steps, sleep and workout data for your seven-day overview."
+        }
         if let destination, !conversation.allowedHealthDestinations.contains(destination) {
-            throw AssistantError.invalidTool("This conversation has not been allowed to share Health data. Open Health overview and discuss a selected summary to establish that permission, or use an on-device model.")
+            let review = try await reviewNativeAction(.init(kind: .approval, title: "Use Health in this conversation?",
+                detail: readDescription + " Share the result with \(modelTitle) for this conversation.", arguments: call.arguments))
+            guard review == "approved" else { throw AssistantError.networkNotAuthorized }
+            conversation.allowedHealthDestinations.insert(destination)
         }
         libraryContainsHealthData = true
         settings.includeInDeviceBackup = false
         if let root { try PrivatePaths.configureBackup(root: root, includeUserData: false) }
         if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
-        let report = try await healthService.overview()
+        let healthOutput: JSONValue
+        if let query {
+            healthOutput = try await HealthDataReader().read(query, selected: settings.healthTypeIDs)
+        } else {
+            let report = try await healthService.overview(selected: settings.healthTypeIDs)
+            healthOutput = .object(["summary": .string(try report.discussionText()), "source": .string("Apple HealthKit"), "read_at": .string(ISO8601DateFormatter().string(from: report.rangeEnd))])
+        }
         try Task.checkCancellation()
         var result = ToolResult(callID: call.id, name: call.name, succeeded: true,
-            output: .object(["summary": .string(try report.discussionText()), "source": .string("Apple HealthKit"),
-                             "read_at": .string(ISO8601DateFormatter().string(from: report.rangeEnd))]))
+            output: healthOutput)
         result.containsHealthData = true; result.authorizedHealthDestination = destination
         return result
     }
@@ -889,9 +930,18 @@ final class AppModel: ObservableObject {
             try Task.checkCancellation()
             let result: String = try await withCheckedThrowingContinuation { continuation in
                 nativeActionWaiter = continuation; nativeActionWaiterID = request.id; activity = "Waiting for your review"
-                completionWindow.status(request.kind == .question ? "Waiting for your answer" : "Waiting for your review")
+                responseAwaitingAttention = true
+                completionWindow.status(request.kind == .question ? "Your answer is needed" : "Ready for your review")
                 deferredNativeAction = request; deferredReviewIdentity = identity
-                Task { await presentDeferredReview(); await notifyReview(request) }
+                Task {
+                    await presentDeferredReview()
+                    await notifyReview(request)
+                    // Persist and schedule attention before releasing the CPU
+                    // grant; otherwise suspension can prevent notification delivery.
+                    if isPendingNativeAction(request.id), responseAwaitingAttention {
+                        completionWindow.waitingForAttention(question: request.kind == .question)
+                    }
+                }
             }
             try Task.checkCancellation()
             return result
@@ -904,6 +954,11 @@ final class AppModel: ObservableObject {
         if let requestID, nativeActionWaiterID != requestID { return }
         let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeActionWaiterID = nil; nativeAction = nil; deferredNativeAction = nil; deferredReviewIdentity = nil
         taskAttention.clear(conversation.id)
+        if waiter != nil, responseAwaitingAttention, status != "interrupted", !userRequestedStop,
+           UIApplication.shared.applicationState == .active {
+            responseAwaitingAttention = false
+            beginResponseWindow()
+        }
         waiter?.resume(returning: status)
     }
     func isPendingNativeAction(_ id: UUID) -> Bool { nativeActionWaiterID == id && nativeActionWaiter != nil }
@@ -932,24 +987,37 @@ final class AppModel: ObservableObject {
     }
     private func notifyReview(_ request: NativeActionRequest) async {
         guard settings.taskNotifications, UIApplication.shared.applicationState != .active, isPendingNativeAction(request.id) else { return }
-        await taskAttention.notify(conversationID: conversation.id, title: "Your review is needed",
-            explanation: request.kind == .message ? "A message draft is ready. Open the app to review it before sending." : request.kind == .calendar ? "An event is ready. Open the app to review it before saving." : "Your task is waiting for a choice or approval. Open the app to review the next step.")
+        await taskAttention.notify(conversationID: conversation.id, title: request.kind == .question ? "Your answer is needed" : "Your review is needed",
+            explanation: request.kind == .question ? String(request.detail.prefix(200)) : request.kind == .message ? "A message draft is ready. Open the app to review it before sending." : request.kind == .calendar ? "An event is ready. Open the app to review it before saving." : "Your task is waiting for a choice or approval. Open the app to review the next step.")
     }
     private func openTaskAttention(_ id: UUID) async {
+        attentionDestination = id
+        if !isInitialized { isRestoringBackgroundRoute = true }
+        defer { if attentionDestination == id { attentionDestination = nil; isRestoringBackgroundRoute = false } }
         do { try await waitUntilReady() } catch { return }
+        guard attentionDestination == id else { return }
         if isRunning {
-            if conversation.id == id { await presentDeferredReview() }
+            if conversation.id == id { ReplyReturnRoute.clear(); await presentDeferredReview() }
             else { noticeMessage = "Another task is running. Its progress is saved in the sidebar." }
             return
         }
         await refresh()
         guard let summary = histories.first(where: { $0.id == id }) else { return }
         await selectConversation(summary)
+        ReplyReturnRoute.clear()
         if let work = unfinishedReplies.first(where: { $0.conversationID == id }),
            let evidence = try? await store?.workEvidence(work.id, conversationID: id, remote: settings.networkDestination != nil, workspaceEnabled: settings.workspaceSearchEnabled),
            evidence["actions"]?.arrayValue?.contains(where: { $0["status"] == .string("awaiting_review") }) == true {
             await resumeReply(work)
         }
+    }
+    private func beginResponseWindow() {
+        let continued = settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
+        completionWindow.begin(allowContinued: continued) { [weak self] cancelledBySystem in
+            self?.systemEndedBackgroundWork = cancelledBySystem
+            self?.pauseResponseForBackground()
+        }
+        if let activeTurnID { completionWindow.identifyTurn(activeTurnID) }
     }
     func refreshAccounts() async {
         #if DEBUG

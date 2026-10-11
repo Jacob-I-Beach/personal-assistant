@@ -13,8 +13,10 @@ public struct URLSessionStreamingTransport: HTTPStreamingTransport {
         AsyncThrowingStream { continuation in
             let delegate = StreamDelegate(continuation: continuation)
             let configuration = URLSessionConfiguration.ephemeral
-            configuration.timeoutIntervalForRequest = 120
-            configuration.timeoutIntervalForResource = 900
+            // A reasoning model can legitimately produce no bytes for several
+            // minutes. Keep idle and overall bounds separate from iOS execution.
+            configuration.timeoutIntervalForRequest = 900
+            configuration.timeoutIntervalForResource = 3600
             configuration.httpCookieStorage = nil
             configuration.urlCache = nil
             let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)

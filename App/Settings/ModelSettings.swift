@@ -30,6 +30,7 @@ struct ModelSettings: Codable, Equatable {
     var includeInDeviceBackup = false
     var localOnly = false
     var healthToolsEnabled = false
+    var healthTypeIDs: Set<String> = HealthDataCatalog.initialSelection
     var chatGPTWebSearch = true
     var workspaceSearchEnabled = false
     var automaticMemory = true
@@ -54,6 +55,7 @@ struct ModelSettings: Codable, Equatable {
         case workspaceSearchEnabled, automaticMemory, continueInBackground, taskNotifications, locationContextEnabled, weatherFollowsLocation, weatherPlace, speakReplies, automaticChatTitles, reasoningByModel
         case calendarSourceIDs, reminderSourceIDs, planningConnectedAccess
         case hapticsEnabled, confirmNewConnectedChats, contextTokensByModel
+        case healthTypeIDs
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -71,6 +73,7 @@ struct ModelSettings: Codable, Equatable {
         includeInDeviceBackup = try values.decodeIfPresent(Bool.self, forKey: .includeInDeviceBackup) ?? false
         localOnly = try values.decodeIfPresent(Bool.self, forKey: .localOnly) ?? false
         healthToolsEnabled = try values.decodeIfPresent(Bool.self, forKey: .healthToolsEnabled) ?? false
+        healthTypeIDs = try values.decodeIfPresent(Set<String>.self, forKey: .healthTypeIDs) ?? HealthDataCatalog.initialSelection
         chatGPTWebSearch = try values.decodeIfPresent(Bool.self, forKey: .chatGPTWebSearch) ?? true
         workspaceSearchEnabled = try values.decodeIfPresent(Bool.self, forKey: .workspaceSearchEnabled) ?? false
         automaticMemory = try values.decodeIfPresent(Bool.self, forKey: .automaticMemory) ?? true
@@ -132,6 +135,7 @@ enum PrivatePaths {
         if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { folder = "PersonalAssistant-UITests-LongTask" }
         if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { folder = "PersonalAssistant-UITests-DailyWork" }
         if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { folder = "PersonalAssistant-UITests-Coherence" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-recovery09") { folder = "PersonalAssistant-UITests-Recovery09" }
         #endif
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)

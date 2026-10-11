@@ -271,12 +271,14 @@ public struct CaptureObservation: Codable, Equatable, Sendable, Identifiable {
 
 public enum AssistantError: Error, LocalizedError, Sendable {
     case invalidCapture(String), invalidEndpoint(String), malformedStream(String), provider(String)
-    case incompleteResponse, contextCapacity, networkNotAuthorized, invalidTool(String), unsupportedSchema(Int), busy
+    case incompleteResponse, contextCapacity, outputCapacity, workBudgetReached, networkNotAuthorized, invalidTool(String), unsupportedSchema(Int), busy
     public var errorDescription: String? {
         switch self {
         case .invalidCapture(let s), .invalidEndpoint(let s), .malformedStream(let s), .provider(let s), .invalidTool(let s): s
         case .incompleteResponse: "The model stream ended without a completed response. The partial answer was saved."
         case .contextCapacity: "This request is still too large after reducing saved tool results. Your full chat is safe. Send a shorter request or select a model with more working space."
+        case .workBudgetReached: "This work session reached its limit. Use Continue reply to keep working from the saved results."
+        case .outputCapacity: "The model used its response allowance before finishing. Earlier work is saved. Continue from it, or choose a smaller working context to leave more room for reasoning and the reply."
         case .networkNotAuthorized: "Allow this conversation to use the selected network destination before sending."
         case .unsupportedSchema(let version): "This data uses unsupported schema version \(version). It was not overwritten."
         case .busy: "A response is already running. Stop it before starting another."

@@ -41,7 +41,6 @@ struct RootView: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            Button("Library", systemImage: "square.stack") { voice.stopAll(); chatNavigation.showLibrary = true }
                             Button("Connections", systemImage: "point.3.connected.trianglepath.dotted") { chatNavigation.showConnections = true }
                             Button("Task activity", systemImage: "list.bullet.rectangle") { showTaskActivity = true }
                             Button("Assistant inbox", systemImage: "tray") { model.showInbox = true }
@@ -49,10 +48,14 @@ struct RootView: View {
                     }
                 }
         }
-        .disabled(!model.isInitialized)
+        .disabled(!model.isInitialized || model.isRestoringBackgroundRoute)
         .allowsHitTesting(!showHistory)
         .accessibilityHidden(showHistory)
-        .overlay { if !model.isInitialized { ProgressView("Preparing your workspace").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14)) } }
+        .overlay {
+            if model.isRestoringBackgroundRoute {
+                ZStack { Color(uiColor: .systemBackground).ignoresSafeArea(); ProgressView("Opening your task…") }
+            } else if !model.isInitialized { ProgressView("Preparing your workspace").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14)) }
+        }
         .overlay(alignment: .leading) {
             if showHistory {
                 GeometryReader { geometry in
@@ -341,8 +344,8 @@ struct ChatView: View {
                     }
                 } label: { Image(systemName: voice.isRecording ? "mic.fill" : "mic").font(.title3).frame(width: 44, height: 44) }
                     .accessibilityLabel(voice.isRecording ? "Stop voice input" : "Dictate message").disabled(voice.isPreparing)
-                if let effort = model.selectedReasoningEffort {
-                    ThinkingLevelButton(effort: effort) { showReasoningEffort = true }.disabled(model.isRunning)
+                if model.selectedReasoningEffort != nil || model.contextBudget(for: model.settings) != nil {
+                    ThinkingLevelButton(effort: model.selectedReasoningEffort) { showReasoningEffort = true }.disabled(model.isRunning)
                 }
                 if model.isRunning {
                     Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 13, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle()) }.accessibilityLabel("Stop response")

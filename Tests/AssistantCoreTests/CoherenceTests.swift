@@ -10,9 +10,9 @@ final class CoherenceTests: XCTestCase, @unchecked Sendable {
         let large = ModelContextBudget(model: "gpt-6.1-sol", requestedInputTokens: 1_000_000)
         XCTAssertEqual(large.selectedInputTokens, 1_000_000)
         XCTAssertLessThanOrEqual(large.selectedInputTokens + large.outputReserve, large.modelWindow)
-        XCTAssertEqual(large.limitSource, "Published model limit")
-        let account = ModelContextBudget(model: "gpt-6.1-sol", advertisedWindow: 200_000, requestedInputTokens: 1_000_000)
-        XCTAssertEqual(account.limitSource, "Your model catalog")
+        XCTAssertTrue(large.limitSource.contains("Published"))
+        let account = ModelContextBudget(model: "gpt-6.1-sol", advertisedMaximumWindow: 200_000, requestedInputTokens: 1_000_000)
+        XCTAssertEqual(account.modelWindow, 200_000)
         XCTAssertEqual(account.selectedInputTokens, 183_616)
         XCTAssertFalse(account.presets.contains(1_000_000))
     }

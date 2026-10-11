@@ -321,7 +321,8 @@ public struct ModelWireDecoder: Sendable {
             if ["server_error", "rate_limit_exceeded"].contains(code ?? "") { throw ModelHTTPError(status: code == "server_error" ? 503 : 429) }
             throw AssistantError.provider(payload["response"]?["error"]?["message"]?.stringValue ?? payload["message"]?.stringValue ?? "The model request failed.")
         case "response.incomplete":
-            if let reason = payload["response"]?["incomplete_details"]?["reason"]?.stringValue, ["max_output_tokens", "content_filter"].contains(reason) {
+            if payload["response"]?["incomplete_details"]?["reason"] == .string("max_output_tokens") { throw AssistantError.outputCapacity }
+            if payload["response"]?["incomplete_details"]?["reason"] == .string("content_filter") {
                 throw AssistantError.provider("The model stopped before finishing this reply. The partial answer is saved. Send a narrower follow-up to continue.")
             }
             throw AssistantError.incompleteResponse

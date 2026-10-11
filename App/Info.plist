@@ -20,7 +20,8 @@
     <key>NSLocationWhenInUseUsageDescription</key><string>Read one current location when you approve an assistant request. The app shows which model will receive the location and does not track it in the background.</string>
     <key>NSMicrophoneUsageDescription</key><string>Transcribe your voice into an editable message when you tap the microphone.</string>
     <key>NSSpeechRecognitionUsageDescription</key><string>Turn speech into an editable draft. Voice input is enabled only when on-device recognition is available.</string>
-    <key>NSHealthShareUsageDescription</key><string>Create a sleep, steps, and workout overview from the Health data you choose to share. You decide whether to discuss a selected summary with a connected model.</string>
+    <key>NSHealthShareUsageDescription</key><string>Read the measurements, activity, symptoms, medication and other Health records you select when they are relevant to your request. You choose what Health shares and whether a connected model can use the result.</string>
+    <key>NSHealthClinicalHealthRecordsShareUsageDescription</key><string>Read clinical records you select to help you understand and organize your own health information.</string>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to a model server on your own computer when you select a LAN endpoint.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>

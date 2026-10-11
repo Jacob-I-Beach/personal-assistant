@@ -8,7 +8,6 @@ struct ModelLibraryView: View {
     @State private var importEntry: LocalModelCatalogEntry?
     @State private var showImport = false
     @State private var availableMemory: UInt64 = 0
-    @State private var showContextWindow = false
     var body: some View {
         NavigationStack {
             List {
@@ -19,7 +18,6 @@ struct ModelLibraryView: View {
                     }.padding(.vertical, 8)
                 }
                 Section("ChatGPT") {
-                    Button("Working context", systemImage: "text.alignleft") { showContextWindow = true }.disabled(model.isRunning)
                     if model.accounts.contains(where: \.isConnected) {
                         Menu {
                             ForEach(model.accounts.filter(\.isConnected)) { account in
@@ -99,7 +97,6 @@ struct ModelLibraryView: View {
                 }
             }
             .navigationTitle("Models")
-            .sheet(isPresented: $showContextWindow) { ContextWindowView() }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads() }
             .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in

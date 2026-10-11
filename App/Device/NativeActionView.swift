@@ -44,7 +44,7 @@ struct NativeActionView: View {
                         }
                     }.navigationTitle(request.title).navigationBarTitleDisplayMode(.inline)
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.resolveNativeAction("cancelled", for: request.id) } } }
-                }
+                }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
             case .approval:
                 NavigationStack {
                     ScrollView {

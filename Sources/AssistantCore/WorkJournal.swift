@@ -23,6 +23,9 @@ public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public var updatedAt: Date = Date()
     public var rounds = 0
     public var resumes = 0
+    public var automaticResumes: Int? = nil
+    public var interruptionKind: String? = nil
+    public var automaticResumeCount: Int { automaticResumes ?? resumes }
     public var configuration: JSONValue = .object([:])
     public var plan: [JSONValue] = []
     public func permitsContextRetry(maximumTextBytes: Int) -> Bool {
@@ -57,7 +60,8 @@ extension LocalStore {
     public func saveWorkTurn(_ value: WorkTurn) throws {
         try ensureWorkJournal()
         var value = value; value.updatedAt = Date()
-        guard value.goal.utf8.count <= 1600, value.rounds <= 12, value.resumes <= 3, try value.configuration.jsonString().utf8.count <= 16_384 else { throw AssistantError.invalidTool("The saved task exceeds its supported limits.") }
+        guard value.goal.utf8.count <= 1600, (0...100_000).contains(value.rounds), (0...10_000).contains(value.resumes),
+              (0...3).contains(value.automaticResumes ?? 0), try value.configuration.jsonString().utf8.count <= 16_384 else { throw AssistantError.invalidTool("The saved task exceeds its supported limits.") }
         try database.execute("INSERT INTO work_turns(id,conversation_id,updated_at,payload) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload", [.text(value.id.uuidString), .text(value.conversationID.uuidString), .real(value.updatedAt.timeIntervalSince1970), .blob(try Self.encode(value))])
     }
     public func workTurn(_ id: UUID) throws -> WorkTurn? {
@@ -78,9 +82,10 @@ extension LocalStore {
             """)
             .map { try Self.decode(WorkTurn.self, $0[0].data!) }
     }
-    public func finishWork(_ id: UUID, phase: WorkPhase, reason: String? = nil) throws {
+    public func finishWork(_ id: UUID, phase: WorkPhase, reason: String? = nil, kind: String? = nil) throws {
         guard var work = try workTurn(id) else { return }
         work.phase = phase; work.reason = reason.map { String($0.prefix(700)) }
+        if let kind { work.interruptionKind = kind }
         try saveWorkTurn(work)
     }
     public func supersedeWork(in conversationID: UUID, except turnID: UUID) throws {
@@ -113,6 +118,8 @@ extension LocalStore {
             "report_version": .number(1), "phase": .string(work.phase.rawValue),
             "updated_at": .string(ISO8601DateFormatter().string(from: work.updatedAt)),
             "response_rounds": .number(Double(work.rounds)), "manual_or_foreground_resumes": .number(Double(work.resumes)),
+            "automatic_resumes": .number(Double(work.automaticResumeCount)),
+            "interruption": .string(["work_limit":"Work session limit reached", "context_limit":"Working context was too small", "output_limit":"Model response allowance reached", "stream_ended":"Connection ended before a complete response", "network_timeout":"Network request timed out", "waiting_for_input":"Waiting for your answer or review", "system_ended":"Background processing ended or was cancelled", "cancelled":"Stopped by you"][work.interruptionKind ?? ""] ?? "No specific interruption category recorded"),
             "network_retries": .number(Double(work.networkRetries ?? 0)), "request_needs_revision": .bool(work.needsChangedRequest == true),
             "saved_tool_results": .number(Double(messages.filter { $0.role == .tool }.count)),
             "partial_replies": .number(Double(messages.filter { $0.role == .assistant && $0.state != .complete }.count)),

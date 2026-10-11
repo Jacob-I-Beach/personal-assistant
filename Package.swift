@@ -14,7 +14,7 @@ let package = Package(
                             .define("_CRT_SECURE_NO_WARNINGS"), .define("_CRT_NONSTDC_NO_DEPRECATE")]),
         .target(name: "CSQLite", cSettings: [.define("SQLITE_THREADSAFE", to: "1"),
                     .define("SQLITE_OMIT_LOAD_EXTENSION"), .define("SQLITE_ENABLE_FTS5")]),
-        .target(name: "AssistantCore", dependencies: ["CQuickJS", "CSQLite"]),
+        .target(name: "AssistantCore", dependencies: ["CQuickJS", "CSQLite"], resources: [.process("Resources")]),
         .executableTarget(name: "CaptureReplay", dependencies: ["AssistantCore"]),
         .testTarget(name: "AssistantCoreTests", dependencies: ["AssistantCore"]),
     ],
