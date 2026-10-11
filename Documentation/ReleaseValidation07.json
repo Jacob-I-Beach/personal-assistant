@@ -1,0 +1,56 @@
+{
+  "version": "0.7.0",
+  "build": "7",
+  "validation_run": "38113083813",
+  "build_run": "38113083813",
+  "validation_source": "cc5f8c432bfeb3226db6f041285e853370af9422",
+  "source": "cc5f8c432bfeb3226db6f041285e853370af9422",
+  "matching_source_scope": [
+    "App",
+    "Sources",
+    "Tests",
+    "PlatformTests",
+    "UITests",
+    "project.yml",
+    "Package.swift",
+    "Dependencies/Package.resolved"
+  ],
+  "core_tests": 161,
+  "platform_tests": 22,
+  "ui_tests": 1,
+  "ui_scenarios": [
+    "testStreamingFollowsDetachesAndReturnsToFollowing"
+  ],
+  "ui_scenarios_covered": 15,
+  "baseline_ui_evidence": [
+    {
+      "run": "38111714194",
+      "source": "549fa2132e33ce83848c206c99ae2ecb504bfa93",
+      "retained_passing_scenarios": [
+        "testAttachmentPreviewWorkingSurfacesAndActualMessageEdit",
+        "testConnectedFolderAndFilesOutputs",
+        "testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent",
+        "testDarkAndLargeTextControlsRemainUsable",
+        "testForegroundReturnContinuesWithoutAnotherUserMessage",
+        "testFreshLaunchSidebarFoldersAndAttachmentActions",
+        "testGroupedHistoryReadableDetailsRetryAndNoStaleContinueCard",
+        "testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords",
+        "testKeyboardAndDisclosurePreserveReadingPosition",
+        "testOrderedProgressWebAndReadableCalculation",
+        "testRichConversationArtifactAndHistory",
+        "testSavedRouteMemoryUndoAndResumeStayInTheApp",
+        "testSourcesThinkingAndPhotoPicker",
+        "testWelcomeCatalogAndSettings"
+      ],
+      "platform_tests": 22,
+      "source_changes_since_that_run": [
+        "App/Models/UIStreamingFixture.swift"
+      ]
+    }
+  ],
+  "sha256": "67a19714a6f654aee9dffd9cf36a3d46754fd8fd1949140f0aed161fcb1077eb",
+  "bytes": 20845970,
+  "debug_models_excluded": true,
+  "dependency_pins_verified": 20,
+  "physical_device_validation": "pending"
+}

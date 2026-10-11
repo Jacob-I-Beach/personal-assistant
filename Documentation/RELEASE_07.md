@@ -1,6 +1,6 @@
 # 0.7 — finishing longer tasks
 
-Source candidate, not a verified iPhone package. The 0.6 IPA and installed data are preserved. New user evidence is five phone screenshots plus design suggestions; the screenshots do not show About, so they do not independently confirm the installed version.
+**Verified 0.7.0 build 7 package ready for personal signing.** The 0.6 IPA and installed data are preserved. New user evidence is five phone screenshots plus design suggestions; the screenshots do not show About, so they do not independently confirm the installed version.
 
 ## Authorized expansion
 
@@ -64,4 +64,12 @@ Synthetic tests cover context pressure, recursive history, stale task cards, vis
 
 ## Release gate
 
-Windows core tests and syntax parsing are separate from an Xcode typecheck, native interaction test and device archive. Mac runs remain capped at 20 minutes. Jacob authorized USD 12.68 remaining from the recorded USD 19.902 estimate. Every new hosted job must fit that incremental allowance. The source checkpoint passes 161 core tests; 22 native platform tests and 15 interface scenarios await execution. No 0.7 IPA is claimed until native validation and archive inspection succeed.
+Windows core tests and syntax parsing are separate from an Xcode typecheck, native interaction test and device archive. Mac runs remain capped at 20 minutes. Jacob authorized USD 12.68 remaining from the recorded USD 19.902 estimate. Every new hosted job must fit that incremental allowance. The source checkpoint passed 161 core tests. Final native coverage is recorded below: 22 platform checks and all 15 interface scenarios across the exact revisions described. Native validation and archive inspection have now succeeded; the verified IPA is ready for personal signing.
+
+## Final release evidence
+
+The final [native validation](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38113083813) passed 161 core tests and the streaming interaction check. [Baseline run 38111714194](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38111714194) passed all 22 platform checks and the other 14 interface scenarios on identical production app code. Only a DEBUG-only streaming fixture timing changed. All 15 UI scenarios have passing coverage; this is not a claim that one final run repeated all 15. The [Release device build](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38113083813) matches source `cc5f8c432bfeb3226db6f041285e853370af9422`.
+
+New hosted validation uses an estimated **USD 11.656**, leaving **USD 1.024** of the USD 12.68 allowance Jacob provided. Every job remains capped at 20 minutes; recorded rounded job durations include failures and cancellations. This is a compute estimate, not an invoice.
+
+Real Calendar/Reminders permissions and synchronization, Siri routing, background resource grants and notification delivery still require phone evidence. Native workflow rehearsals use synthetic data and are excluded from Release. Recurring/attendee/all-day event changes and custom reminder alert changes remain in their native apps. Save-only capture invokes no model. User Stop prevents automatic continuation; uncertain external actions are not blindly repeated. A full Share extension, future model scheduler and background GPU execution are outside this batch.

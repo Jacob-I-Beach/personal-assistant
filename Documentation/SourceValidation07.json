@@ -2,7 +2,7 @@
   "version": "0.7.0",
   "build": "7",
   "recorded_at_utc": "2026-10-11T02:28:00+00:00",
-  "scope": "expanded source candidate, Windows validation only",
+  "scope": "historical Windows source checkpoint, superseded by ReleaseValidation07.json",
   "core_tests": 161,
   "core_failures": 0,
   "transport": "synthetic localhost",
@@ -16,5 +16,6 @@
   "native_ui_scenarios_pending": 15,
   "iphone_archive": "not_built",
   "incremental_validation_allowance_usd": 12.68,
-  "baseline_compute_estimate_usd": 19.902
+  "baseline_compute_estimate_usd": 19.902,
+  "native_release_evidence": "ReleaseValidation07.json"
 }

@@ -1,0 +1,25 @@
+{
+  "run": "38113083813",
+  "reviewed": true,
+  "scope": "Final streaming screenshots plus unchanged production UI baseline38111714194",
+  "baseline": "38111714194",
+  "screens": [
+    "Streaming-follow-resumed",
+    "Streaming-reader-detached",
+    "Today-with-created-event",
+    "Reviewed-calendar-change",
+    "Task-question-with-choices",
+    "Inbox-save-only"
+  ],
+  "findings": [
+    "Manual reading offset3425 and anchor-3187 stayed fixed while bottom grew4416->4489",
+    "Manual swipes reattached to following while generation remained active; offset5687 bottom5688",
+    "Calendar review content and action buttons are readable within a scrollable sheet",
+    "Question choices and typed alternative fit without clipping",
+    "Home shows actual fixture schedule and new event; screenshots contain synthetic data only"
+  ],
+  "limitations": [
+    "No real phone installation or Calendar sync claim",
+    "Siri runtime routing, notification delivery and OS background grants require phone evidence"
+  ]
+}
