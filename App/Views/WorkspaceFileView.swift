@@ -38,7 +38,11 @@ struct WorkspaceFileView: View {
                             ShareLink(item: url) { Label("Share original", systemImage: "square.and.arrow.up") }
                             ExportDocumentButton(url: url)
                         }
-                        Button("Attach to current chat", systemImage: "paperclip") { model.attachFile(id); AppFeedback.play(.selection); navigation.showLibrary = false; dismiss() }.disabled(model.isRunning || (file.containsHealthData && file.conversationID != model.conversation.id))
+                        Button("Attach to current chat", systemImage: "paperclip") {
+                            model.attachFile(id); AppFeedback.play(.selection)
+                            if navigation.showLibrary { navigation.showLibrary = false }
+                            else { dismiss() }
+                        }.disabled(model.isRunning || (file.containsHealthData && file.conversationID != model.conversation.id))
                     }
                     Section("What the assistant can read") {
                         Text(file.extractionNote).font(.footnote).foregroundStyle(.secondary)

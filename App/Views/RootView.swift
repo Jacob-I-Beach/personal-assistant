@@ -147,8 +147,10 @@ struct ChatView: View {
     @State private var photoImportTask: Task<Void, Never>?
     @StateObject private var viewport = ChatViewport()
     @State private var visibleMessageCount = 100
+    @ScaledMetric(relativeTo: .caption) private var attachmentRowHeight: CGFloat = 52
     @FocusState private var composerFocused: Bool
     var body: some View {
+        VStack(spacing: 0) {
         StableChatScrollView(conversationID: model.conversation.id, isStreaming: model.isRunning, hasMessages: !model.conversation.messages.isEmpty, composerFocused: composerFocused, dismissKeyboard: { composerFocused = false }, viewport: viewport) {
                 VStack(alignment: .leading, spacing: 18) {
                     if model.conversation.messages.isEmpty { welcome }
@@ -198,6 +200,7 @@ struct ChatView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .environmentObject(model).environmentObject(voice).environmentObject(chatNavigation).environment(\.chatViewport, viewport)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottomTrailing) {
             if !viewport.nearBottom && !model.conversation.messages.isEmpty {
                 Button { AppFeedback.play(.selection); viewport.jumpToLatest() } label: {
@@ -205,7 +208,8 @@ struct ChatView: View {
                 }.padding().accessibilityLabel("Jump to latest message")
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        composer
+        }
         .onChange(of: model.conversation.id) { _, _ in
             photoImportTask?.cancel(); voice.stopAll(); voicePrefix = ""; visibleMessageCount = 100
         }
@@ -296,7 +300,7 @@ struct ChatView: View {
                             }.padding(10).background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
                         }
                     }
-                }.scrollIndicators(.hidden)
+                }.scrollIndicators(.hidden).frame(height: attachmentRowHeight)
             }
             if !model.attachedCaptureIDs.isEmpty {
                 ScrollView(.horizontal) {
@@ -309,7 +313,7 @@ struct ChatView: View {
                             }.padding(7).background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
                         }
                     }
-                }.scrollIndicators(.hidden)
+                }.scrollIndicators(.hidden).frame(height: attachmentRowHeight)
             }
             VStack(alignment: .leading, spacing: 2) {
                 TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
@@ -323,6 +327,7 @@ struct ChatView: View {
                     Button("Library", systemImage: "square.stack") { composerFocused = false; chatNavigation.showLibrary = true }
                     Button("Connected folders", systemImage: "folder") { model.showConnectedFolders = true }
                 } label: { Image(systemName: "plus").font(.title3).frame(width: 44, height: 44) }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Add to message").disabled(importing || model.isImportingFiles || model.isRunning)
                 Spacer(minLength: 16)
                 Button {

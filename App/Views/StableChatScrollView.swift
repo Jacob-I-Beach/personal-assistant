@@ -103,7 +103,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     func update(_ content: AnyView, conversationID: UUID, streaming: Bool, hasMessages: Bool) {
         loadViewIfNeeded()
         if self.conversationID != conversationID {
-            self.conversationID = conversationID; anchor = nil; disclosureAnchor = nil; lastOffset = 0; pendingJump = true; follow.followLatest()
+            self.conversationID = conversationID; anchor = nil; disclosureAnchor = nil; scroll.contentInset.bottom = 0; lastOffset = 0; pendingJump = true; follow.followLatest()
         }
         self.streaming = streaming
         self.hasMessages = hasMessages
@@ -119,6 +119,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     func jumpToLatest() {
         loadViewIfNeeded()
         disclosureAnchor = nil; follow.followLatest(); pendingJump = true
+        scroll.contentInset.bottom = 0
         // Stop an existing deceleration and perform the jump now, even when no
         // new token or size change would otherwise schedule a layout callback.
         scroll.setContentOffset(scroll.contentOffset, animated: false)
@@ -138,7 +139,8 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         if composerFocused && gesture.state == .changed && gesture.translation(in: scroll).y > 12 { dismissKeyboard?() }
     }
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
-    private var maximumOffset: CGFloat { max(0, scroll.contentSize.height - scroll.bounds.height) }
+    private var naturalMaximumOffset: CGFloat { max(0, scroll.contentSize.height - scroll.bounds.height) }
+    private var maximumOffset: CGFloat { max(0, scroll.contentSize.height + scroll.contentInset.bottom - scroll.bounds.height) }
     private var nearBottom: Bool { maximumOffset - scroll.contentOffset.y < 80 }
 
     private func reconcileLayout() {
@@ -153,6 +155,10 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
             if pendingJump { target = hasMessages ? maximumOffset : 0 }
             else if let pinned = disclosureAnchor, let marker = scroll.markers[pinned.id]?.value {
                 target = marker.convert(.zero, to: scroll).y - pinned.offset
+                // A collapsed section can shorten the content below this offset.
+                // Keep temporary space below it instead of clamping the reader
+                // upward. Explicit latest-following or scrolling back releases it.
+                scroll.contentInset.bottom = max(0, target - naturalMaximumOffset)
             }
             else if streaming && follow.isFollowing && !viewportChanged {
                 startFollowingFrames()
@@ -230,6 +236,9 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard !reconciling else { return }
         if scrollView.isDragging || scrollView.isDecelerating {
+            if disclosureAnchor == nil && scroll.contentInset.bottom > 0 && scroll.contentOffset.y <= naturalMaximumOffset {
+                scroll.contentInset.bottom = 0
+            }
             if maximumOffset - scroll.contentOffset.y <= 6 { reachedBottomDuringGesture = true }
             else if scrollView.isDragging && scrollView.panGestureRecognizer.velocity(in: scrollView).y > 0 { reachedBottomDuringGesture = false }
             rememberPosition()
@@ -239,6 +248,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private func readerSettled() {
         if reachedBottomDuringGesture { follow.followLatest() }
         else { follow.userReached(distanceFromBottom: Double(maximumOffset - scroll.contentOffset.y)) }
+        if follow.isFollowing { scroll.contentInset.bottom = 0 }
         rememberPosition(); publishPosition()
         if streaming && follow.isFollowing { startFollowingFrames() }
     }

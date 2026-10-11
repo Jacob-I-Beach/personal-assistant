@@ -14,8 +14,12 @@ struct SavedWorkCard: View {
             if work.resumes >= 3 || work.rounds >= 12 {
                 Text("Send your next request below. The completed work stays in this chat.").font(.subheadline)
             } else if work.needsChangedRequest == true && !canRetryContext {
-                Button("Adjust working context", systemImage: "text.alignleft") { showContext = true }.font(.subheadline)
-                Text("Use a larger supported context, then continue here, or send a shorter request.").font(.caption).foregroundStyle(.secondary)
+                if model.contextBudget(for: model.settings) != nil {
+                    Button("Adjust working context", systemImage: "text.alignleft") { showContext = true }.font(.subheadline)
+                    Text("Use a larger supported context, then continue here, or send a shorter request.").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("This runtime cannot enlarge its context here. Send a shorter request below; the completed work stays saved.").font(.caption).foregroundStyle(.secondary)
+                }
             } else {
                 Button { Task { await model.resumeReply(work) } } label: {
                     Label("Continue reply", systemImage: "arrow.right").font(.subheadline.weight(.medium))

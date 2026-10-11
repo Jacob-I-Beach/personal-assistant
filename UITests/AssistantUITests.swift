@@ -63,7 +63,7 @@ final class AssistantUITests: XCTestCase {
         let receipt = app.staticTexts["Read saved context"].firstMatch
         XCTAssertTrue(receipt.waitForExistence(timeout: 5)); receipt.tap()
         XCTAssertFalse(app.staticTexts["Technical details"].exists)
-        XCTAssertTrue(app.staticTexts["Found"].firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Project decision 1"].firstMatch.exists)
         saveScreenshot(app, name: "Grouped-history-and-readable-details")
         activity.tap()
         app.buttons["Send message"].tap()
@@ -216,8 +216,8 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.switches["Use location while I’m here"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Use my approximate location"].exists)
         saveScreenshot(app, name: "Home-context-controls")
-        app.buttons["Done"].tap()
-        app.buttons["Done"].tap()
+        app.navigationBars["Home context"].buttons["Done"].tap()
+        app.navigationBars["Connections"].buttons["Done"].tap()
         for _ in 0..<4 { if app.buttons["Work with files"].isHittable { break }; app.swipeDown() }
         app.buttons["Work with files"].tap()
         let picker = NSPredicate { _, _ in app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].exists || (app.navigationBars["Recents"].exists && app.buttons["Browse"].exists) }
@@ -518,11 +518,10 @@ final class AssistantUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["New chat"].exists)
-        app.buttons["Assistant menu"].tap()
-        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).tap()
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
-        composer.tap(); composer.typeText("A synthetic message long enough to wrap naturally across the full width of the input.")
+        composer.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        composer.typeText("A synthetic message long enough to wrap naturally across the full width of the input.")
         XCTAssertGreaterThan(composer.frame.width, app.frame.width * 0.78)
         saveScreenshot(app, name: "Full-width-composer")
         app.buttons["Send message"].tap()
@@ -541,6 +540,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Working context"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap(); app.buttons["Done"].tap()
         XCTAssertFalse(app.alerts["Could not finish"].exists)
+        app.buttons["Assistant menu"].tap()
+        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists)
+        saveScreenshot(app, name: "Focused-chat-menu")
     }
 
     func testToolExpansionAndLatestButtonPreserveIntentionalPosition() {
@@ -564,6 +566,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(jump.isHittable); jump.tap()
         let atBottom = NSPredicate { _, _ in !app.buttons["Jump to latest message"].exists }
         expectation(for: atBottom, evaluatedWith: app); waitForExpectations(timeout: 5)
+        let scroll = app.scrollViews["conversation-scroll"]
+        print("After jump: \(String(describing: scroll.value)); scroll frame: \(scroll.frame); last text: \(app.staticTexts["The current request is complete."].frame)")
+        saveScreenshot(app, name: "Jump-to-latest-visible")
         XCTAssertTrue(app.staticTexts["The current request is complete."].isHittable)
     }
 

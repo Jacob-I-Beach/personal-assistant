@@ -22,7 +22,11 @@ public enum ReceiptDetails {
     public static func nodes(_ value: JSONValue, path: String = "result", depth: Int = 0) -> [ReceiptDetail] {
         guard depth < 5 else { return [.init(id: path, title: "More detail", value: "Available in the diagnostic record.", children: [])] }
         if let fields = value.objectValue {
-            return fields.keys.sorted().filter { key in
+            let priority = ["title": 0, "filename": 1, "name": 2, "status": 3, "summary": 4, "description": 5, "text": 6, "excerpt": 7, "content": 8]
+            return fields.keys.sorted { left, right in
+                let a = priority[left] ?? 20, b = priority[right] ?? 20
+                return a == b ? left < right : a < b
+            }.filter { key in
                 !internalKeys.contains(key) && !key.hasSuffix("_id") && !key.hasSuffix("ID") && !["id", "createdAt", "updatedAt", "code", "input_json"].contains(key)
             }.prefix(24).compactMap { key in
                 guard let field = fields[key], field != .null, field != .string("") else { return nil }

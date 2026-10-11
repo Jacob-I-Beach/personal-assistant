@@ -15,11 +15,11 @@ final class AuthorizationPlatformTests: XCTestCase {
         do {
             try await service.requestAccess()
             XCTFail("The unprovisioned build must not ask for Health access.")
-        } catch { XCTAssertTrue(error.localizedDescription.contains("HealthKit capability")) }
+        } catch { XCTAssertEqual(error.localizedDescription, HealthOverviewService.signingMessage) }
         do {
             _ = try await service.overview()
             XCTFail("The unprovisioned build must not query Health.")
-        } catch { XCTAssertTrue(error.localizedDescription.contains("HealthKit capability")) }
+        } catch { XCTAssertEqual(error.localizedDescription, HealthOverviewService.signingMessage) }
     }
     func testBundledModelCatalogHasRealSizesAndWeightDigests() throws {
         XCTAssertNotNil(UIImage(named: "AssistantMark"))

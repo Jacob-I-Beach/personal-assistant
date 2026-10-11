@@ -8,7 +8,13 @@ enum AppFeedback {
     private static var last = Date.distantPast
     private static var questionTask: Task<Void, Never>?
     static func play(_ event: Event) {
-        guard enabled, UIApplication.shared.applicationState == .active, Date().timeIntervalSince(last) > 0.09 else { return }
+        guard enabled, UIApplication.shared.applicationState == .active else { return }
+        // A question can follow the first reply chunk immediately. Its distinct
+        // three-tap cue must take priority over the ordinary tap debounce.
+        switch event {
+        case .question: break
+        default: guard Date().timeIntervalSince(last) > 0.09 else { return }
+        }
         last = Date()
         switch event {
         case .selection: UISelectionFeedbackGenerator().selectionChanged()

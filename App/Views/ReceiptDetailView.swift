@@ -17,9 +17,10 @@ struct ReceiptDetailView: View {
                     }.tint(.secondary)
                 } else {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(node.title).font(.caption).foregroundStyle(.secondary)
+                        if !["Title", "Name", "Filename"].contains(node.title) { Text(node.title).font(.caption).foregroundStyle(.secondary) }
                         if let value = node.value {
-                            if node.isProse { AssistantMarkdown(text: value).font(.subheadline).textSelection(.enabled) }
+                            if ["Title", "Name", "Filename"].contains(node.title) { Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(.primary) }
+                            else if node.isProse { AssistantMarkdown(text: value).font(.subheadline).foregroundStyle(.primary).textSelection(.enabled) }
                             else { Text(value).font(.subheadline).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
                         }
                     }
