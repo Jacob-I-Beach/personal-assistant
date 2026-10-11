@@ -10,8 +10,12 @@ The candidate unifies Library entry points and connection navigation, gives the 
 
 - Health input: `../PersonalAssistant-iPhone/0.8.0/PersonalAssistant-HealthKit.ipa`, SHA-256 `d9ed6fcc7690115ba4b431f1c31c3518ef22db92db46e42c9229acd30fd96777`.
 - Normal input: `../PersonalAssistant-iPhone/0.8.0/PersonalAssistant-iPhone-only.ipa`, SHA-256 `1aa3571d7cceb59116aed20fbd180db3cf64ecd4064092dfea4a21cee0e8c715`.
-- Local helper: `../Tools/iLoader-Assistant-Health/iLoader-Assistant-Health.exe`; source patch and provenance are alongside it.
+- Local helper: `../Tools/iLoader-Assistant-Health/r2/iLoader-Assistant-Health.exe`; source patch and provenance are alongside it.
 
 ## Validation cost policy
 
 Jacob explicitly chose public source for free standard-runner development. Visibility and the standard `xcode-27` label were checked. New standard public compute is free under GitHub policy; storage is separate and artifacts have short retention. Historical fully-billable estimates in BuildValidation.json are not net account charges. Private billing data stays outside Git. Recheck visibility and runner class before future dispatches.
+
+## Loader correction and scope audit
+
+The original Windows helper attempted to load a development server because it lacked Tauri production asset handling. Revision 2 uses the production build path and includes a focused embedded-interface check. The user confirmed the normal loader interface opens. Apple provisioning and phone Health access remain pending. See [the complete request-to-implementation audit](Documentation/REQUEST_AUDIT_08.md) for implemented, partial, deferred and unverified work.
