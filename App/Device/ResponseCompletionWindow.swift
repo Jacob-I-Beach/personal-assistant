@@ -31,7 +31,9 @@ final class ResponseCompletionWindow {
     private func register(_ id: String) -> Bool {
         // Continued-processing handlers are registered for each concrete request immediately
         // before submission; the Info.plist wildcard permits the family, not a literal * job.
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: id, using: .main) { @Sendable [weak self] task in
+        // This callback is explicitly delivered on .main. Keep its main-actor
+        // isolation; the BGTask object must not be transferred between actors.
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: id, using: .main) { [weak self] task in
             MainActor.assumeIsolated {
                 guard let self, let task = task as? BGContinuedProcessingTask, self.requestID == task.identifier else {
                     task.setTaskCompleted(success: false); return
