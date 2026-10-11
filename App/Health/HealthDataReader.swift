@@ -238,7 +238,7 @@ final class HealthDataReader {
                 row["left_eye"] = glasses.leftEye.map(lens); row["right_eye"] = glasses.rightEye.map(lens)
             } else if let contacts = value as? HKContactsPrescription {
                 row["left_eye"] = contacts.leftEye.map(lens); row["right_eye"] = contacts.rightEye.map(lens)
-                row["brands"] = .array(contacts.brand.map(JSONValue.string))
+                row["brand"] = .string(contacts.brand)
             }
         } else if let value = sample as? HKClinicalRecord {
             row["display_name"] = .string(value.displayName)

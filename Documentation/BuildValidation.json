@@ -997,11 +997,43 @@
       "rounded_minutes": 0,
       "runner_started": false,
       "note": "No runner execution occurred for this skipped or rejected job."
+    },
+    {
+      "run_id": 38146075485,
+      "attempt": 1,
+      "job_id": 114489597344,
+      "source_revision": "f356eef34314c52f4ea1610779b6ad09b3fd0ffb",
+      "completed_at": "2026-10-11T14:20:32Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-11T14:10:11Z",
+      "status": "completed",
+      "rounded_minutes": 11,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38146075485,
+      "attempt": 1,
+      "job_id": 114491702203,
+      "source_revision": "f356eef34314c52f4ea1610779b6ad09b3fd0ffb",
+      "completed_at": "2026-10-11T14:20:32Z",
+      "conclusion": "skipped",
+      "name": "simulator-tests",
+      "started_at": "2026-10-11T14:20:32Z",
+      "status": "completed",
+      "rounded_minutes": 0,
+      "runner_started": false,
+      "note": "No runner execution occurred for this skipped or rejected job."
     }
   ],
-  "rounded_runner_minutes": 777,
+  "rounded_runner_minutes": 788,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 48.174,
+  "estimated_compute_usd_if_fully_billable": 48.856,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",
@@ -1029,5 +1061,5 @@
       "https://docs.github.com/en/actions/reference/runners/github-hosted-runners"
     ]
   },
-  "verified_free_public_runner_minutes": 258
+  "verified_free_public_runner_minutes": 269
 }
