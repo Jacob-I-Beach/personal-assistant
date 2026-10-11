@@ -6,9 +6,9 @@ Source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I
 
 Jacob confirms that **0.7.1 build 8 opens, preserves his previous chats, and saves Calendar/Reminders access without crashing** (October 11, 2026). ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
-## Current source: 0.8
+## Current source: 0.9
 
-[0.8.0 build 9](Documentation/RELEASE_08.md) is packaged for phone validation. It focuses on coherent interaction, context and connection access, and real background progress. [Native run 38131578620](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38131578620) passed the device build, 173 core, eight EventKit and 33 platform tests. 16 of 17 UI scenarios have passing coverage: three passed in the latest run and 13 retain evidence from unchanged production paths. The remaining file-workflow test tapped a disabled button during fixture initialization. Its readiness wait is corrected but was not rerun after the user asked whether additional testing was needed; that workflow remains pending. A separately marked Health signing input and local capability-aware iLoader helper are prepared. Phone installation, Health authorization and background/haptic checks are pending. See [STATUS](STATUS.md).
+[0.9.0 build 10](Documentation/RELEASE_09.md) is packaged for phone validation. [Native evidence](Documentation/ReleaseValidation09.json) covers 177 core, eight EventKit, 36 platform and four focused UI checks across the final and baseline runs, retaining only checks whose production paths are unchanged. It updates response controls, question presentation, continuation and broader selected Health reads. Real background/lock and Health authorization remain device checks. See [STATUS](STATUS.md).
 
 ## 0.7 feature batch
 

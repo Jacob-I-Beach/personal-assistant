@@ -1,6 +1,6 @@
 # 0.9.0 build 10 — response controls, questions and Health
 
-Source candidate. Native validation and installation are pending. User reports confirm the prior 0.8 interactions generally work, with the specific new exceptions below; see DeviceValidation08.json. Personal screenshots and records remain outside Git.
+Packaged candidate from `6a681c168a11743fb4d28276a2598b6d245b7f81`. Focused native validation is complete; phone installation is pending. User reports confirm the prior 0.8 interactions generally work, with the specific new exceptions below; see DeviceValidation08.json. Personal screenshots and records remain outside Git.
 
 ## Added
 
@@ -20,6 +20,7 @@ Source candidate. Native validation and installation are pending. User reports c
 - Network idle allowance rises from two to fifteen minutes, with a separate one-hour resource bound. This fixes a confirmed client setting, not a proven diagnosis of the user's intermittent failure. Raw byte activity no longer emits redundant full transcript updates.
 - Background-return routing waits for initialization and keeps a task-opening view in front of the fresh Home view. Question notifications carry the question text. Normal fresh starts without a saved background destination remain fresh conversations.
 - The weekly Health overview respects the types selected in the broader connection. Connected-model Health reads can request a concrete conversation-sharing review when needed.
+- Health search collapses the introduction while filtering, keeping matching categories above the keyboard and retaining the selection count and save action.
 
 ## Removed
 
@@ -31,7 +32,7 @@ Source candidate. Native validation and installation are pending. User reports c
 
 ## Still pending and physical limits
 
-- Native typecheck, focused platform/UI checks, screenshot review and a matching iPhone archive are pending for this candidate.
+- Native typecheck, screenshot review and the matching archive passed. Passed 177 core and eight EventKit checks in [the final run](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38152677219). The four focused interface scenarios have passing coverage: 1 in the final run, with three previously passing scenarios and 36 platform checks retained from [run 38149397041](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38149397041) against unchanged production paths for those checks. The final run covers the Health selection view, including results visible above the keyboard. Physical results remain pending.
 - The exact cause of each observed background failure is unconfirmed. The old implementation had several independent limits: catalog-derived context/reply budgets, a two-minute client idle timeout, bounded rounds/resumes and iOS processing grants. The updated diagnostics preserve these distinctions. Do not label the user's experience a crash or timeout without evidence.
 - Long quiet reasoning and lock-screen continuation remain subject to iOS execution grants. The existing system continued-processing activity supplies the system presentation; no fake progress, silent audio mode or remote worker is introduced. A fully powered-off phone cannot run local work.
 - The ChatGPT plan authentication route requires streaming requests with `store:false`; server-stored background Responses are not silently substituted. Any different execution host would be a separate change.

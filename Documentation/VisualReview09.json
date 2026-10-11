@@ -1,0 +1,75 @@
+{
+  "run": "38152677219",
+  "reviewed": true,
+  "baseline_run": "38149397041",
+  "baseline_source": "6737c483eccb7f02f44e21ac3ea2d42cd1857303",
+  "data": "Synthetic fixtures; no personal Health records",
+  "inspected": [
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-response-controls/ui-attachments/3C8653E8-1904-4921-BD38-A2A6D5A66072.png",
+      "sha256": "c103407a292413a7c269ad9580c5a3e025fd902cc59d5de1bde4f9f6a3280edf",
+      "observation": "Medium-height question sheet; selected Morning remains separate from Something else; primary label has clear contrast. Lower content is scrollable behind a persistent footer."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-response-controls/ui-attachments/FDF93A17-DBA0-45B9-AB10-3CC091609A7A.png",
+      "sha256": "73ec4f50daba72f700a16114e94735ecb4c16dab7577bc1ef4b5d1fe486a308d",
+      "observation": "The question is visible directly above the user answer and following response."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-response-controls/ui-attachments/0C7728F2-2D79-4E4A-B00F-8BBE5BB3A0A6.png",
+      "sha256": "4d64d92bd01e105500aad646bdd29d27e53be2c0defb8478aedc185957fd2a43",
+      "observation": "Million-token option selected, 1,050,000 capacity and 50,000 reply reserve visible."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-health-recovery/ui-attachments/F1087395-AFE6-40FE-986E-BB50EEE7E9E7.png",
+      "sha256": "d333f4e7c04cc70181f93dd20f9e31d54ba695f5bb3917a3dc0759f0daaccbc7",
+      "observation": "Cold return opens the saved chat and displays Continue after three earlier resumptions."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-response-controls/ui-attachments/BF3798FA-2DE0-4EFF-A903-6E7ED1F55D58.png",
+      "sha256": "aecf81943e1d47a8d749402668cad85283bc24853e58a7cd635e0783ddb5ecd1",
+      "observation": "Brain symbol shows a partially colored lower area next to the microphone and Send; input remains full width."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-response-controls/ui-attachments/F692EDA1-F344-4EFB-B139-61FDBE242F3A.png",
+      "sha256": "177b543ececf74435c01e0358722b0e1833e8a95ce783bb6dc0d278ee3cff7b1",
+      "observation": "The smaller model exposes 252,000 and no million-token choice."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-response-controls/ui-attachments/E6AEF027-6462-4A52-9AEB-4253BB9F2B6A.png",
+      "sha256": "9652a3036154133e051ee918283410bcf22acccb0995649036b581c3d2db084f",
+      "observation": "Chat menu contains Connections, Task activity and Inbox; Library is absent."
+    },
+    {
+      "run": "38149397041",
+      "artifact": "native-test-results-health-recovery/ui-attachments/23C31572-CD98-4FD3-A0AC-610192618D72.png",
+      "sha256": "191401fef7ab633b8867807178630b7bb4b35b2084ee8b54013ad718bca791cf",
+      "observation": "A fourth manual continuation finishes and removes the pending Continue card."
+    },
+    {
+      "run": "38152677219",
+      "artifact": "native-test-results-health-review/ui-attachments/DAB156DF-503F-458E-8625-F93CD9AE4637.png",
+      "sha256": "cfb0b2484df9e7a9d89c53fe8606bc1083fbad4a3ddbfa540faa8247f5f112ef",
+      "observation": "Health categories, selected/available count and select-all control are readable. The authorization button is disabled in this unsigned simulator build as intended."
+    },
+    {
+      "run": "38152677219",
+      "artifact": "native-test-results-health-review/ui-attachments/7FD653E8-2B1C-4D7B-819E-B8BDE261A78E.png",
+      "sha256": "ba2e25ddb5f084edaee1f232b8a078c10082316d59da970b8f75b436b3cdfb6c",
+      "observation": "Blood-pressure search shows the grouped, diastolic and systolic rows above the keyboard. The introduction collapses while selection count and save action stay visible."
+    }
+  ],
+  "pending": [],
+  "physical_limits": [
+    "Actual Health grants/data coverage",
+    "Live account context capacity",
+    "Long background and locked-screen resource grants/system activity behavior"
+  ]
+}

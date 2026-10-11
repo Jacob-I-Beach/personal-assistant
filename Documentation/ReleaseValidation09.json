@@ -1,0 +1,106 @@
+{
+  "version": "0.9.0",
+  "build": "10",
+  "source": "6a681c168a11743fb4d28276a2598b6d245b7f81",
+  "validation_source": "6a681c168a11743fb4d28276a2598b6d245b7f81",
+  "validation_run": "38152677219",
+  "build_run": "38152677219",
+  "core_tests": 177,
+  "native_eventkit_tests": 8,
+  "platform_tests": 36,
+  "ui_tests": 4,
+  "ui_scenarios": [
+    "testColdReturnKeepsManualContinueAfterEarlierRecoveryLimit",
+    "testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory",
+    "testFullWidthComposerContextAndImmediateConnectedSend",
+    "testHealthCatalogShowsBroaderTypesWithoutRequestingPersonalData"
+  ],
+  "ui_tests_in_final_run": 1,
+  "baseline_evidence": [
+    {
+      "run": "38149397041",
+      "source": "6737c483eccb7f02f44e21ac3ea2d42cd1857303",
+      "platform_tests": 36,
+      "retained_ui_scenarios": [
+        "testColdReturnKeepsManualContinueAfterEarlierRecoveryLimit",
+        "testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory",
+        "testFullWidthComposerContextAndImmediateConnectedSend"
+      ],
+      "changed_production_paths": [
+        "App/Views/HealthDataAccessView.swift"
+      ],
+      "reason": "The retained response/recovery scenarios and platform logic are unchanged. The only changed production path is the Health selection view, covered by the final run."
+    }
+  ],
+  "ui_scope": "Focused changed-path scenarios; the complete legacy interface suite was not repeated.",
+  "dependency_pins_verified": 20,
+  "health_catalog_types": 219,
+  "packages": {
+    "unsigned": {
+      "file": "PersonalAssistant-unsigned.ipa",
+      "sha256": "bd52125bf2ed285dea2e83394910963392836cb5dbf05e9e8f2780ec86e26814",
+      "bytes": 21185018,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "0.9.0",
+      "build": "10",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "0.9.0",
+          "build": "10"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "iPhone-only": {
+      "file": "PersonalAssistant-iPhone-only.ipa",
+      "sha256": "b5805c096bcc75c718f90cc9c9d7d835da07b63a12e12ac13e1d0bb1901d1397",
+      "bytes": 21089663,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "0.9.0",
+      "build": "10",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [],
+      "requested_entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "HealthKit": {
+      "file": "PersonalAssistant-HealthKit.ipa",
+      "sha256": "1fe2ff173d87349d33963411414b31b0af2a46df20c030dec96bd699647b7f0b",
+      "bytes": 21089663,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "0.9.0",
+      "build": "10",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [],
+      "requested_entitlements": {
+        "com.apple.developer.healthkit": true
+      },
+      "health_enabled_in_app": true,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "physical_validation": "pending user-operated installation and observations",
+  "background_cause": "Unconfirmed. Distinguish system expiration/cancellation, network timeout, reply allowance and work-session limits.",
+  "health_scope": "Selected available HealthKit types, bounded reads, actual OS authorization and clinical-profile capability where applicable."
+}

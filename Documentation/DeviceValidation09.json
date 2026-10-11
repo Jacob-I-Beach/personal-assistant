@@ -1,0 +1,15 @@
+{
+  "version": "0.9.0",
+  "build": "10",
+  "source": "6a681c168a11743fb4d28276a2598b6d245b7f81",
+  "validation_run": "38152677219",
+  "recorded_at": "2026-10-11T16:08:50.849969+00:00",
+  "installation": "pending user-operated in-place update",
+  "retained_chats": "pending confirmation",
+  "brain_context": "native checks passed; live account capacity pending phone observation",
+  "compact_question_inline_answer": "native checks passed; phone observation pending",
+  "notification_handoff_return": "lifecycle checks passed; actual system activity behavior pending",
+  "manual_continue": "core and native checks passed including fourth continuation",
+  "health": "catalog and units validated without personal data; actual authorization and records pending",
+  "background_lock": "pending; no guaranteed unlimited background execution claim"
+}
