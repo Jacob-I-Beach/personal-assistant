@@ -75,6 +75,7 @@ final class AppModel: ObservableObject {
     private var localBackend: MLXLocalBackend?
     private var responseTask: Task<Void, Never>?
     private let completionWindow = ResponseCompletionWindow.shared
+    private let replyActivity = ReplyLiveActivity()
     private let taskAttention = TaskAttentionService.shared
     private var systemEndedBackgroundWork = false
     private var responseWasBackgrounded = false
@@ -114,7 +115,7 @@ final class AppModel: ObservableObject {
     var modelLocation: String {
         switch settings.choice {
         case .localMLX, .appleOnDevice: "On this iPhone"
-        case .chatGPT: settings.chatGPTAccountID == nil ? "Connect your account" : "Using your ChatGPT plan"
+        case .chatGPT: settings.useComputer && settings.companion != nil ? "ChatGPT · on your computer" : settings.chatGPTAccountID == nil ? "Connect your account" : "Using your ChatGPT plan"
         case .appleCloud: "Apple Private Cloud Compute"
         case .openAI: "OpenAI API"
         case .compatibleServer: "Connected computer"
@@ -434,7 +435,22 @@ final class AppModel: ObservableObject {
         conversation.requiresNetworkReview = true
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
     }
-    func stop() { userRequestedStop = true; responseWasBackgrounded = false; ReplyReturnRoute.clear(); responseTask?.cancel() }
+    func stop() {
+        userRequestedStop = true; responseWasBackgrounded = false; ReplyReturnRoute.clear()
+        let turn = activeTurnID, connection = settings.companion, store = store
+        responseTask?.cancel()
+        if let turn, let connection, let store {
+            Task {
+                guard var saved = try? await store.companionRun(turn) else { return }
+                saved.stopRequested = true; try? await store.saveCompanionRun(saved)
+                guard let id = saved.jobID else { return }
+                do {
+                    let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
+                    _ = try await client.json("/v1/jobs/" + id + "/cancel", method: "POST", body: .object([:]))
+                } catch { noticeMessage = "Stop is saved on this iPhone. The computer could not be reached; it may still be working until the stop request reconnects." }
+            }
+        }
+    }
     func deferQuestion() { pausedForInput = true; responseTask?.cancel() }
     private func pauseResponseForBackground() {
         guard isRunning, !userRequestedStop else { return }
@@ -493,6 +509,7 @@ final class AppModel: ObservableObject {
         responseWasBackgrounded = false; userRequestedStop = false; pausedForInput = false; pausedForWorkBudget = false; responseAwaitingAttention = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
         taskAttention.clear(conversation.id)
         beginResponseWindow()
+        replyActivity.begin(conversationID: original.id, computer: selection.choice == .chatGPT && selection.useComputer && selection.companion != nil)
         requiresManualResume = false
         let previousTitleTask = titleTask
         previousTitleTask?.cancel(); titleTask = nil
@@ -509,13 +526,13 @@ final class AppModel: ObservableObject {
                 if selection.taskNotifications { await taskAttention.requestPermission() }
                 try Task.checkCancellation()
                 let selectedBackend = try await backend(for: selection)
-                titleBackend = selectedBackend
+                titleBackend = selectedBackend is any RemoteTaskBackend ? nil : selectedBackend
                 try Task.checkCancellation()
                 if savedWork == nil, let editID, let store {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
-                let extras = NativeTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request] + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
+                let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request] + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selection.networkDestination
                 let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
                     planningSharedWithModel: selection.planningConnectedAccess, locationEnabled: selection.locationContextEnabled,
@@ -561,8 +578,8 @@ final class AppModel: ObservableObject {
                     case .toolResult(let result):
                         completionWindow.received(bytes: (try? result.output.jsonString().utf8.count) ?? 0)
                         activeToolCall = nil; await refresh(); activity = "Preparing the result"
-                    case .toolStarted(let call): activeToolCall = call; activity = nil; completionWindow.status(ToolResultPresentation.activeTitle(call))
-                    case .activity(let value): activeToolCall = nil; activity = value; completionWindow.status(value)
+                    case .toolStarted(let call): activeToolCall = call; activity = nil; completionWindow.status(ToolResultPresentation.activeTitle(call)); replyActivity.update(ToolResultPresentation.activeTitle(call))
+                    case .activity(let value): activeToolCall = nil; activity = value; completionWindow.status(value); replyActivity.update(value, waiting: value.localizedCaseInsensitiveContains("waiting"))
                     case .finished: break
                     }
                 }
@@ -582,14 +599,19 @@ final class AppModel: ObservableObject {
                 if !completedTurn {
                     if userRequestedStop { try? await store?.finishWork(id, phase: .cancelled, reason: "Stopped by the user", kind: "cancelled") }
                     else if pausedForInput || responseAwaitingAttention { try? await store?.finishWork(id, phase: .interrupted, reason: "Waiting for your answer or review", kind: "waiting_for_input") }
+                    else if selection.useComputer && selection.choice == .chatGPT && selection.companion != nil {
+                        try? await store?.finishWork(id, phase: .interrupted, reason: "Reconnect to your computer to view the same saved task.", kind: "computer_detached")
+                    }
                     else if responseWasBackgrounded && (systemEndedBackgroundWork || work.phase == .cancelled) { try? await store?.finishWork(id, phase: .interrupted, reason: "Background processing ended or was cancelled. Your progress is saved.", kind: "system_ended") }
                 }
             }
             requiresManualResume = !completedTurn
             isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
             completionWindow.end(success: completedTurn || pausedForInput || pausedForWorkBudget || responseAwaitingAttention)
+            replyActivity.finish(completed: completedTurn, detached: !completedTurn && !userRequestedStop && selection.useComputer && selection.companion != nil)
             if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear() }
-            if responseWasBackgrounded, !userRequestedStop, selection.taskNotifications, UIApplication.shared.applicationState != .active {
+            if responseWasBackgrounded, !userRequestedStop, selection.taskNotifications, UIApplication.shared.applicationState != .active,
+               completedTurn || !selection.useComputer || pausedForInput || responseAwaitingAttention {
                 await taskAttention.notify(conversationID: current.id, title: completedTurn ? "Your reply is ready" : "Your task needs attention",
                     explanation: completedTurn ? "Open Personal Assistant to see the answer and saved results." : "Progress is saved. Open the task to review what remains and continue.")
             }
@@ -645,6 +667,14 @@ final class AppModel: ObservableObject {
         case .appleOnDevice: return AppleModelBackend(location: .device)
         case .appleCloud: return AppleModelBackend(location: .privateCloud)
         case .chatGPT:
+            if selection.useComputer, let connection = selection.companion, let store {
+                let token = try CredentialStore.read(account: connection.credentialAccount)
+                guard !token.isEmpty else { throw AssistantError.provider("Reconnect your computer in Connections.") }
+                let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: token)
+                let wire = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel, wireProtocol: .responses,
+                    chatGPTAccountID: connection.profileID, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort, contextBudget: contextBudget(for: selection))
+                return CompanionModelBackend(connection: connection, client: client, wire: wire, store: store)
+            }
             guard let account = selection.chatGPTAccountID, let accountService, !selection.chatGPTModel.isEmpty else { throw AccountConnectionError.signInRequired }
             let access = try await accountService.accessToken(for: account)
             return try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel,
@@ -797,6 +827,7 @@ final class AppModel: ObservableObject {
         if PlanningTools.names.contains(call.name) { return try await executePlanningTool(call, destination: destination) }
         if call.name == QuestionTools.request.name { return try await executeQuestionTool(call, conversationID: conversationID) }
         if WorkspaceTools.names.contains(call.name) { return try await executeWorkspaceTool(call, conversationID: conversationID, destination: destination) }
+        if CommunicationTools.names.contains(call.name) { return try await executeCommunicationTool(call, conversationID: conversationID) }
         func nativeResult(_ value: JSONValue) -> ToolResult {
             ToolResult(callID: call.id, name: call.name, succeeded: !["failed", "outcome_unknown", "interrupted"].contains(value["status"]?.stringValue ?? ""), output: value)
         }
@@ -990,7 +1021,7 @@ final class AppModel: ObservableObject {
         await taskAttention.notify(conversationID: conversation.id, title: request.kind == .question ? "Your answer is needed" : "Your review is needed",
             explanation: request.kind == .question ? String(request.detail.prefix(200)) : request.kind == .message ? "A message draft is ready. Open the app to review it before sending." : request.kind == .calendar ? "An event is ready. Open the app to review it before saving." : "Your task is waiting for a choice or approval. Open the app to review the next step.")
     }
-    private func openTaskAttention(_ id: UUID) async {
+    func openTaskAttention(_ id: UUID) async {
         attentionDestination = id
         if !isInitialized { isRestoringBackgroundRoute = true }
         defer { if attentionDestination == id { attentionDestination = nil; isRestoringBackgroundRoute = false } }
@@ -1006,15 +1037,20 @@ final class AppModel: ObservableObject {
         await selectConversation(summary)
         ReplyReturnRoute.clear()
         if let work = unfinishedReplies.first(where: { $0.conversationID == id }),
+           let record = try? await store?.companionRun(work.id), !record.stopRequested {
+            await resumeReply(work); return
+        }
+        if let work = unfinishedReplies.first(where: { $0.conversationID == id }),
            let evidence = try? await store?.workEvidence(work.id, conversationID: id, remote: settings.networkDestination != nil, workspaceEnabled: settings.workspaceSearchEnabled),
            evidence["actions"]?.arrayValue?.contains(where: { $0["status"] == .string("awaiting_review") }) == true {
             await resumeReply(work)
         }
     }
     private func beginResponseWindow() {
-        let continued = settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
+        let computerOwned = settings.choice == .chatGPT && settings.useComputer && settings.companion != nil
+        let continued = !computerOwned && settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
         completionWindow.begin(allowContinued: continued) { [weak self] cancelledBySystem in
-            self?.systemEndedBackgroundWork = cancelledBySystem
+            self?.systemEndedBackgroundWork = !computerOwned && cancelledBySystem
             self?.pauseResponseForBackground()
         }
         if let activeTurnID { completionWindow.identifyTurn(activeTurnID) }

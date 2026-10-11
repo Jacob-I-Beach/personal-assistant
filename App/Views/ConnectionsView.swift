@@ -4,7 +4,7 @@ struct ConnectionsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var destination: Destination?
-    private enum Destination: String, Identifiable { case planning, context, health, folders, models, watch; var id: String { rawValue } }
+    private enum Destination: String, Identifiable { case planning, context, health, folders, models, watch, computer, contacts; var id: String { rawValue } }
     var body: some View {
         NavigationStack {
             List {
@@ -15,11 +15,13 @@ struct ConnectionsView: View {
                     }.padding(.vertical, 8)
                 }
                 Section("Your day") {
+                    connection("Contacts", detail: "Find the right person for a reviewed message, email or call.", state: model.settings.contactsConnected && ContactsConnection.allowed ? "Connected" : "Choose access", icon: "person.crop.circle", destination: .contacts)
                     connection("Calendar & Reminders", detail: "Check your schedule, find time and save reviewed plans.", state: model.settings.calendarSourceIDs.isEmpty && model.settings.reminderSourceIDs.isEmpty ? "Choose sources" : "Sources selected", icon: "calendar", destination: .planning)
                     connection("Location & weather", detail: "Use your area for relevant requests and the Home greeting.", state: model.settings.locationContextEnabled ? "Context enabled" : "Choose access", icon: "location", destination: .context)
                     connection("Health", detail: "Connect measurements and records for relevant questions.", state: HealthOverviewService.isEnabledInThisBuild ? "Review Health access" : "Signing setup needed", icon: "heart", destination: .health)
                 }
                 Section("Your work") {
+                    connection("Computer", detail: "Continue long tasks, run Python and create rich documents.", state: model.settings.companion == nil ? "Connect your PC" : model.settings.useComputer ? "Computer tasks enabled" : "Connected · tasks on iPhone", icon: "desktopcomputer", destination: .computer)
                     connection("Folders & files", detail: "Read selected folders and review edits in place.", state: "Manage selected folders", icon: "folder", destination: .folders)
                     connection("Models", detail: "Choose connected intelligence or an on-device model.", state: model.modelTitle, icon: "sparkles", destination: .models)
                     connection("Apple Watch", detail: "See requests handed to your iPhone.", state: "Open requests", icon: "applewatch", destination: .watch)
@@ -41,6 +43,8 @@ struct ConnectionsView: View {
                     case .folders: NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { self.destination = nil } } } }
                     case .models: ModelLibraryView()
                     case .watch: WatchRequestsView()
+                    case .computer: ComputerConnectionView()
+                    case .contacts: ContactsConnectionView()
                     }
                 }
         }

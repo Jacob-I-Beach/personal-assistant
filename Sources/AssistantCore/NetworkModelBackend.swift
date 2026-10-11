@@ -104,7 +104,7 @@ public struct NetworkModelBackend: ModelBackend {
         return .object(["type": .string("image_url"), "image_url": .object(["url": .string(url)])])
     }
 
-    private func responsesBody(_ input: ModelRequest) throws -> JSONValue {
+    public func responsesBody(_ input: ModelRequest) throws -> JSONValue {
         let webSearchEnabled = self.webSearchEnabled && !input.isMetadata
         var items: [JSONValue] = []
         for entry in input.messages {

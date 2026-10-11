@@ -41,7 +41,7 @@ public struct AssistantTools: Sendable {
     public var definitions: [ToolDefinition] {
         compactCatalog ? [Self.capabilities, Self.discover, Self.invoke] : availableDefinitions
     }
-    private var availableDefinitions: [ToolDefinition] {
+    public var availableDefinitions: [ToolDefinition] {
         (captureIDs.isEmpty && !additionalDefinitions.contains(where: { $0.name == "request_input" }) ? [] : [CaptureToolBroker.definition, DepthInspection.tool]) + [Self.capabilities, Self.search, Self.read, Self.script, Self.artifact, Self.workspaceSearch, Self.workspaceRead, Self.plan, Self.memory]
         + [Self.listConversations, Self.readConversation, Self.readTask, Self.readInbox] + (automaticMemory ? AutomaticMemoryTools.definitions : []) + SurfaceTools.definitions + additionalDefinitions
     }

@@ -48,6 +48,9 @@ struct ModelSettings: Codable, Equatable {
     var speakReplies = false
     var automaticChatTitles = true
     var reasoningByModel: [String: String] = [:]
+    var companion: CompanionConnection?
+    var useComputer = false
+    var contactsConnected = false
 
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
@@ -56,6 +59,8 @@ struct ModelSettings: Codable, Equatable {
         case calendarSourceIDs, reminderSourceIDs, planningConnectedAccess
         case hapticsEnabled, confirmNewConnectedChats, contextTokensByModel
         case healthTypeIDs
+        case companion, useComputer
+        case contactsConnected
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -91,6 +96,9 @@ struct ModelSettings: Codable, Equatable {
         speakReplies = try values.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? false
         automaticChatTitles = try values.decodeIfPresent(Bool.self, forKey: .automaticChatTitles) ?? true
         reasoningByModel = try values.decodeIfPresent([String: String].self, forKey: .reasoningByModel) ?? [:]
+        companion = try values.decodeIfPresent(CompanionConnection.self, forKey: .companion)
+        useComputer = try values.decodeIfPresent(Bool.self, forKey: .useComputer) ?? false
+        contactsConnected = try values.decodeIfPresent(Bool.self, forKey: .contactsConnected) ?? false
     }
 
     var endpoint: URL? {
@@ -103,7 +111,10 @@ struct ModelSettings: Codable, Equatable {
     var credentialAccount: String? { [.openAI, .compatibleServer].contains(choice) ? endpoint.map { "model-server:" + $0.absoluteString } : nil }
     var networkDestination: String? {
         if choice == .appleCloud { return "apple-private-cloud-compute" }
-        if choice == .chatGPT { return chatGPTAccountID.map { "chatgpt-account:" + $0 } }
+        if choice == .chatGPT {
+            if useComputer, let companion { return companion.destination }
+            return chatGPTAccountID.map { "chatgpt-account:" + $0 }
+        }
         return endpoint?.absoluteString
     }
 }

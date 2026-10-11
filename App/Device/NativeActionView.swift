@@ -3,9 +3,10 @@ import EventKit
 import EventKitUI
 import MessageUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NativeActionRequest: Identifiable, Sendable {
-    enum Kind: Sendable, Equatable { case approval, calendar, message, folder, exportFile, fileEdit, placeSelection, planningConnection, question }
+    enum Kind: Sendable, Equatable { case approval, calendar, message, email, share, folder, exportFile, fileEdit, placeSelection, planningConnection, question }
     let id = UUID()
     var kind: Kind
     var title: String
@@ -15,6 +16,7 @@ struct NativeActionRequest: Identifiable, Sendable {
     var proposal: FileEditProposal?
     var places: [RoutePlace] = []
     var questionID: UUID?
+    var attachments: [URL] = []
 }
 
 struct NativeActionView: View {
@@ -65,7 +67,11 @@ struct NativeActionView: View {
             case .calendar:
                 CalendarEventEditor(arguments: request.arguments) { model.resolveNativeAction($0, for: request.id) }
             case .message:
-                TextMessageEditor(arguments: request.arguments) { model.resolveNativeAction($0, for: request.id) }
+                TextMessageEditor(arguments: request.arguments, attachments: request.attachments) { model.resolveNativeAction($0, for: request.id) }
+            case .email:
+                EmailEditor(arguments: request.arguments, attachments: request.attachments) { model.resolveNativeAction($0, for: request.id) }
+            case .share:
+                FileShareEditor(urls: request.attachments) { model.resolveNativeAction($0, for: request.id) }
             case .folder:
                 FolderPicker { url in
                     guard model.isPendingNativeAction(request.id) else { return }
@@ -112,12 +118,16 @@ private struct CalendarEventEditor: UIViewControllerRepresentable {
 
 private struct TextMessageEditor: UIViewControllerRepresentable {
     let arguments: JSONValue
+    var attachments: [URL] = []
     let complete: (String) -> Void
     func makeCoordinator() -> Coordinator { Coordinator(complete) }
     func makeUIViewController(context: Context) -> MFMessageComposeViewController {
         let controller = MFMessageComposeViewController()
         let recipients = (arguments["recipients"]?.stringValue ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         controller.recipients = recipients; controller.body = arguments["body"]?.stringValue; controller.messageComposeDelegate = context.coordinator
+        for url in attachments where !controller.addAttachmentURL(url, withAlternativeFilename: url.lastPathComponent) {
+            Task { @MainActor in complete("failed") }; break
+        }
         return controller
     }
     func updateUIViewController(_ controller: MFMessageComposeViewController, context: Context) {}
@@ -128,4 +138,44 @@ private struct TextMessageEditor: UIViewControllerRepresentable {
             complete(result == .sent ? "sent" : result == .cancelled ? "cancelled" : "failed")
         }
     }
+}
+
+private struct EmailEditor: UIViewControllerRepresentable {
+    let arguments: JSONValue
+    let attachments: [URL]
+    let complete: (String) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(complete) }
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let controller = MFMailComposeViewController(); controller.mailComposeDelegate = context.coordinator
+        controller.setToRecipients(arguments["recipients"]?.arrayValue?.compactMap(\.stringValue))
+        controller.setSubject(arguments["subject"]?.stringValue ?? "")
+        controller.setMessageBody(arguments["body"]?.stringValue ?? "", isHTML: false)
+        for url in attachments {
+            if let data = try? Data(contentsOf: url) { controller.addAttachmentData(data, mimeType: UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream", fileName: url.lastPathComponent) }
+            else { Task { @MainActor in complete("failed") }; break }
+        }
+        return controller
+    }
+    func updateUIViewController(_ controller: MFMailComposeViewController, context: Context) {}
+    @MainActor final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let complete: (String) -> Void
+        init(_ complete: @escaping (String) -> Void) { self.complete = complete }
+        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: (any Error)?) {
+            complete(error != nil ? "failed" : result == .sent ? "sent" : result == .saved ? "saved_draft" : result == .cancelled ? "cancelled" : "failed")
+        }
+    }
+}
+
+private struct FileShareEditor: UIViewControllerRepresentable {
+    let urls: [URL]
+    let complete: (String) -> Void
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, error in
+            let failed = error != nil
+            Task { @MainActor in complete(failed ? "failed" : completed ? "shared_via_system" : "cancelled") }
+        }
+        return controller
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

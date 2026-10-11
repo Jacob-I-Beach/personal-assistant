@@ -1,0 +1,22 @@
+{
+  "name": "personal-assistant-companion",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=24"},
+  "scripts": {
+    "build:sdk": "tsc -p vendor/siwc-local/tsconfig.json",
+    "test": "node --test test/*.test.mjs",
+    "test:compute": "node --test test/compute.integration.mjs",
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@siwc/local": "file:vendor/siwc-local",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "@types/proper-lockfile": "4.1.4",
+    "typescript": "7.0.2"
+  }
+}

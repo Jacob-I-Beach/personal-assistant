@@ -22,3 +22,14 @@ __pycache__/
 # SwiftPM's Windows resource staging copies these generated files to the root.
 /HealthDataCatalog.json
 /Info.plist
+
+# Companion dependencies, generated bundles and private runtime state.
+**/node_modules/
+Companion/dist/
+Companion/vendor/siwc-local/dist/
+Companion/.data/
+Companion/.test-data/
+*.key
+*.pem
+*.db-wal
+*.db-shm

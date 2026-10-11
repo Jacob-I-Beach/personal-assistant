@@ -701,6 +701,24 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Contextual-home-greeting")
     }
 
+    func testComputerAndContactsHaveNativeConnectionControls() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-empty", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Assistant menu"].waitForExistence(timeout: 15))
+        app.buttons["Assistant menu"].tap(); app.buttons["Connections"].tap()
+        let computer = app.buttons.containing(.staticText, identifier: "Computer").firstMatch
+        XCTAssertTrue(computer.waitForExistence(timeout: 5)); computer.tap()
+        XCTAssertTrue(app.buttons["Scan computer code"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Computer-connection")
+        app.buttons["Done"].firstMatch.tap()
+        let contacts = app.buttons.containing(.staticText, identifier: "Contacts").firstMatch
+        XCTAssertTrue(contacts.waitForExistence(timeout: 5)); contacts.tap()
+        XCTAssertTrue(app.buttons["Connect Contacts"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Contacts-connection")
+    }
+
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

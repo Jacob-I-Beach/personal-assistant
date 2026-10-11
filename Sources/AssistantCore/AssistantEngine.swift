@@ -142,7 +142,7 @@ public actor AssistantEngine {
         try await store.save(conversation)
         if !resuming { try await store.supersedeWork(in: conversation.id, except: turnID) }
         try await store.saveWorkTurn(work)
-        if resuming {
+        if resuming && !(backend is any RemoteTaskBackend) {
             let savedOperations = try await store.toolOperations(turnID)
             let start = conversation.messages.firstIndex(where: { $0.id == user.id })!
             for operation in savedOperations {
@@ -181,6 +181,33 @@ public actor AssistantEngine {
                                     compactCatalog: backend.contextLimits.maximumTextBytes < 20_000, contextBudget: backend.contextLimits.maximumTextBytes, automaticMemory: automaticMemory, operationScope: turnID,
                                     additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor)
         let turnStart = conversation.messages.firstIndex(where: { $0.id == user.id })!
+        if let remote = backend as? any RemoteTaskBackend {
+            var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: true, nativeFiles: backend.supportsFileInputs, appContext: appContext)
+            request.workIdentity = ModelWorkIdentity(conversationID: conversation.id, turnID: turnID, containsHealthData: conversation.containsHealthData)
+            request.toolCatalog = broker.availableDefinitions
+            request.instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())); time zone: \(TimeZone.current.identifier). Saved task ID: \(turnID.uuidString)."
+            if automaticMemory { request.instructions += "\nAutomatic memory is enabled. Maintain worthwhile user-shared context with history and undo; inferences remain tentative. Current user message ID: \(user.id.uuidString)." }
+            request.toolExecutor = { call in output.yield(.toolStarted(call)); return try await broker.execute(call) }
+            let prefix = Array(conversation.messages[...turnStart])
+            var completed = false
+            for try await event in remote.runTask(request) {
+                try Task.checkCancellation()
+                switch event {
+                case .transcript(let messages):
+                    guard messages.allSatisfy({ !$0.containsLocalOnlyContext && ($0.role != .user || $0.replyToTaskID == turnID) }) else { throw AssistantError.networkNotAuthorized }
+                    conversation.messages = prefix + messages
+                    try await store.save(conversation); output.yield(.conversation(conversation))
+                case .receipt(_, let result):
+                    try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
+                    if let response = result.userResponse { guard response.replyToTaskID == turnID else { throw AssistantError.invalidTool("The answer belongs to a different task.") } }
+                    output.yield(.toolResult(result))
+                case .activity(let text): output.yield(.activity(text))
+                case .completed: completed = true
+                }
+            }
+            guard completed else { throw AssistantError.incompleteResponse }
+            try await store.finishWork(turnID, phase: .completed); output.yield(.finished); return
+        }
         let turnMessages = Array(conversation.messages[turnStart...])
         var executedCallIDs = Set(turnMessages.filter { $0.role == .tool }.compactMap(\.toolCallID))
         let priorExecutionCount = executedCallIDs.count
@@ -393,7 +420,7 @@ public actor AssistantEngine {
                         let url = try await store.workspaceFileURL(id)
                         let data = try Data(contentsOf: url)
                         guard data.count == file.byteCount else { throw AssistantError.provider("An attached original file changed on disk. Import it again before sharing.") }
-                        files.append(ModelFile(filename: file.filename, mediaType: file.mediaType, data: data)); fileBytes += data.count
+                        files.append(ModelFile(filename: file.filename, mediaType: file.mediaType, data: data, id: id, containsHealthData: file.containsHealthData)); fileBytes += data.count
                         metadata["original_included"] = .bool(true)
                         fileOrder += 1; metadata["original_order"] = .number(Double(fileOrder))
                     }

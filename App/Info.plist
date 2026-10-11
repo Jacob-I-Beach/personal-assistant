@@ -9,12 +9,15 @@
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key><true/>
+    <key>NSSupportsLiveActivities</key><true/>
+    <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Assistant tasks</string><key>CFBundleURLSchemes</key><array><string>personalassistant</string></array></dict></array>
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>UILaunchScreen</key><dict/>
     <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>$(PRODUCT_BUNDLE_IDENTIFIER).reply.*</string></array>
     <key>UIBackgroundModes</key><array><string>processing</string></array>
     <key>NSCameraUsageDescription</key><string>Capture an image and available depth data when you ask the assistant to inspect something.</string>
+    <key>NSContactsUsageDescription</key><string>Find people you ask about in the contacts you allow, so you can review a message, email or call to the correct person.</string>
     <key>NSCalendarsFullAccessUsageDescription</key><string>Read calendars you select to find available time and review event changes. You choose whether the assistant's connected model can use this information.</string>
     <key>NSRemindersFullAccessUsageDescription</key><string>Read reminder lists you select and create, edit or complete reminders after your review.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>Read one current location when you approve an assistant request. The app shows which model will receive the location and does not track it in the background.</string>

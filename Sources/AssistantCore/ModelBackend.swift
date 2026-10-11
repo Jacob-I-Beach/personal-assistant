@@ -12,12 +12,16 @@ public struct ModelInputMessage: Sendable {
     public init(message: Message, images: [ModelImage] = [], files: [ModelFile] = []) { self.message = message; self.images = images; self.files = files }
 }
 public struct ModelFile: Sendable {
+    public var id: UUID?
+    public var containsHealthData = false
     public var filename: String
     public var mediaType: String
     public var data: Data
-    public init(filename: String, mediaType: String, data: Data) { self.filename = filename; self.mediaType = mediaType; self.data = data }
+    public init(filename: String, mediaType: String, data: Data, id: UUID? = nil, containsHealthData: Bool = false) { self.filename = filename; self.mediaType = mediaType; self.data = data; self.id = id; self.containsHealthData = containsHealthData }
 }
 public struct ModelRequest: Sendable {
+    public var workIdentity: ModelWorkIdentity?
+    public var toolCatalog: [ToolDefinition] = []
     public var instructions: String
     public var messages: [ModelInputMessage]
     public var tools: [ToolDefinition]
