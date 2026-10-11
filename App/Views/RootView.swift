@@ -49,7 +49,6 @@ struct RootView: View {
                     }
                 }
         }
-        .environmentObject(chatNavigation)
         .disabled(!model.isInitialized)
         .allowsHitTesting(!showHistory)
         .accessibilityHidden(showHistory)
@@ -116,6 +115,10 @@ struct RootView: View {
         .onChange(of: model.isConnecting) { _, value in if value { voice.stopAll() } }
         .onChange(of: model.showModels) { _, value in if value { voice.stopAll() } }
         .onChange(of: model.settings.hapticsEnabled, initial: true) { _, enabled in AppFeedback.enabled = enabled }
+        // Sheets and sidebar overlays share the same router as the transcript.
+        // Keep this outside the presentation modifiers so their destinations
+        // receive it as well as the NavigationStack's original content.
+        .environmentObject(chatNavigation)
     }
 }
 

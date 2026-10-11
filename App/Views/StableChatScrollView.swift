@@ -139,9 +139,12 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         disclosurePins += 1
         if scroll.markers[id]?.value == nil { missingDisclosurePins += 1 }
         #endif
-        guard let marker = scroll.markers[id]?.value else { return }
+        guard scroll.markers[id]?.value != nil else { return }
         scroll.setContentOffset(scroll.contentOffset, animated: false)
-        disclosureAnchor = (id, marker.convert(.zero, to: scroll).y - scroll.contentOffset.y)
+        // This tap changes content below its heading. Hosting can temporarily
+        // reposition a marker during remeasurement; the real reading offset is
+        // stable and must not be recomputed from that intermediate geometry.
+        disclosureAnchor = (id, scroll.contentOffset.y)
         follow.beginReading(); displayLink?.isPaused = true; pendingJump = false; rememberPosition()
     }
     @objc private func readerPanned(_ gesture: UIPanGestureRecognizer) {
@@ -162,8 +165,8 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
             let target: CGFloat
             // Empty chats show onboarding from its beginning, including at large text sizes.
             if pendingJump { target = hasMessages ? maximumOffset : 0 }
-            else if let pinned = disclosureAnchor, let marker = scroll.markers[pinned.id]?.value {
-                target = marker.convert(.zero, to: scroll).y - pinned.offset
+            else if let pinned = disclosureAnchor {
+                target = pinned.offset
                 // A collapsed section can shorten the content below this offset.
                 // Keep temporary space below it instead of clamping the reader
                 // upward. Explicit latest-following or scrolling back releases it.

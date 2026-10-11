@@ -52,12 +52,18 @@ struct MessageActionButton: View {
     var confirmation: String?
     let action: () -> Void
     @State private var confirmed = false
+    @State private var confirmationTask: Task<Void, Never>?
     var body: some View {
         Button {
             action(); AppFeedback.play(confirmation == nil ? .selection : .copied)
             if confirmation != nil {
+                confirmationTask?.cancel()
                 confirmed = true
-                Task { try? await Task.sleep(for: .seconds(1.4)); confirmed = false }
+                UIAccessibility.post(notification: .announcement, argument: confirmation)
+                confirmationTask = Task {
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled else { return }; confirmed = false
+                }
             }
         } label: {
             Image(systemName: confirmed ? "checkmark" : icon)
@@ -71,5 +77,6 @@ struct MessageActionButton: View {
                         .background(.regularMaterial, in: Capsule()).fixedSize().offset(y: -23).allowsHitTesting(false)
                 }
             }
+            .onDisappear { confirmationTask?.cancel() }
     }
 }
