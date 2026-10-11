@@ -11,10 +11,19 @@ struct CompanionModelBackend: RemoteTaskBackend {
     var networkDestination: String? { connection.destination }
     var contextLimits: ContextLimits { wire.contextLimits }
     var supportsFileInputs: Bool { true }
-    // Metadata calls remain short, explicit jobs too. Ordinary assistant turns
-    // use runTask, which has a persistent turn identity and resumable transcript.
+    // Optional naming remains a short request. User work always uses runTask.
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
-        AsyncThrowingStream { $0.finish(throwing: AssistantError.provider("Computer task metadata is generated with the task itself.")) }
+        AsyncThrowingStream { output in
+            let task = Task {
+                do {
+                    guard request.isMetadata, !request.containsLocalOnlyContext else { throw AssistantError.networkNotAuthorized }
+                    let result = try await client.json("/v1/metadata", method: "POST", body: .object(["profile_id": .string(connection.profileID), "body": try wire.responsesBody(request)]))
+                    guard let text = result["text"]?.stringValue, !text.isEmpty else { throw AssistantError.incompleteResponse }
+                    output.yield(.textDelta(text)); output.yield(.completed); output.finish()
+                } catch { output.finish(throwing: error) }
+            }
+            output.onTermination = { @Sendable _ in task.cancel() }
+        }
     }
     func runTask(_ request: ModelRequest) -> AsyncThrowingStream<RemoteTaskEvent, any Error> {
         AsyncThrowingStream { output in

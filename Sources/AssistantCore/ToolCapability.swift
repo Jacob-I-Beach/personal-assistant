@@ -14,7 +14,7 @@ public enum ToolCapability {
                         "read_only": .bool(readOnly.contains(tool.name) || surfaceReadOnly || healthReadOnly),
                         "native_review": .bool(reviewed.contains(tool.name) || extraReview),
                         "execution_location": .string(tool.name == "prepare_route" ? "on-device with Apple Maps network services" : "on-device"),
-                        "foreground_required": .bool(reviewed.contains(tool.name)),
+                        "foreground_required": .bool(reviewed.contains(tool.name) || extraReview),
                         "scope": .string(tool.name.contains("file") || tool.name.contains("workspace")
                             ? "Attached/permitted Library data or a connected folder explicitly enabled for this conversation and model location."
                             : "The current conversation and permissions described by this tool.")])

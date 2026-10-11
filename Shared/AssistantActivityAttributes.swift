@@ -1,8 +1,8 @@
 import ActivityKit
 import Foundation
 
-struct AssistantActivityAttributes: ActivityAttributes {
-    struct ContentState: Codable, Hashable {
+struct AssistantActivityAttributes: ActivityAttributes, Sendable {
+    struct ContentState: Codable, Hashable, Sendable {
         var title: String
         var detail: String
         var phase: String

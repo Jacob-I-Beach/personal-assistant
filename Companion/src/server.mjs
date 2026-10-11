@@ -1,6 +1,6 @@
 import http from 'node:http';
 import https from 'node:https';
-import {readFile,mkdir} from 'node:fs/promises';
+import {readFile,mkdir,appendFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {networkInterfaces} from 'node:os';
@@ -26,7 +26,7 @@ function openBrowser(url) {
   const child=spawn(join(process.env.SystemRoot??'C:\\Windows','System32','rundll32.exe'),['url.dll,FileProtocolHandler',url],{windowsHide:true,stdio:'ignore',shell:false});child.on('error',()=>{});
 }
 function addresses(port) {
-  return Object.entries(networkInterfaces()).flatMap(([name,items])=>(items??[]).filter(item=>!item.internal&&item.family==='IPv4'&&!/vEthernet|Docker|WSL|VMware|VirtualBox/i.test(name)).map(item=>({label:name,url:`https://${item.address}:${port}`})))
+  return Object.entries(networkInterfaces()).flatMap(([name,items])=>(items??[]).filter(item=>!item.internal&&item.family==='IPv4'&&!/vEthernet|Docker|WSL|VMware|VirtualBox|Radmin|Hamachi/i.test(name)).map(item=>({label:name,url:`https://${item.address}:${port}`})))
     .sort((a,b)=>Number(/tailscale/i.test(b.label))-Number(/tailscale/i.test(a.label)));
 }
 function publicJob(job) {return {id:job.id,request_key:job.requestKey,status:job.status,cursor:job.cursor,created_at:job.createdAt,updated_at:job.updatedAt,title:String(job.payload.title??'Assistant task').slice(0,160),model:job.payload.body?.model};}
@@ -72,6 +72,14 @@ export async function startCompanion(options={}) {
       const owner=pairing.authenticate(request.headers.authorization);
       if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.0',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
       if(url.pathname==='/v1/models'&&request.method==='GET')return jsonReply(response,200,{models:await provider.listModels()});
+      if(url.pathname==='/v1/metadata'&&request.method==='POST'){
+        const body=await jsonBody(request,128*1024),connection=await provider.getSession();
+        if(!connection.sharing||connection.status!=='connected'||body.profile_id!==connection.profileId)throw new Error('Reconnect the original ChatGPT account.');
+        if(typeof body.body?.model!=='string'||!Array.isArray(body.body.input))throw new Error('Invalid naming request.');
+        const result=await provider.streamTurn({body:{...body.body,tools:[],store:false,stream:true},signal:AbortSignal.timeout(25000),onEvent:()=>{}});
+        const text=(result.output??[]).filter(item=>item.type==='message').flatMap(item=>item.content??[]).filter(item=>item.type==='output_text').map(item=>item.text??'').join('');
+        return jsonReply(response,200,{text:text.slice(0,1000)});
+      }
       if(url.pathname==='/v1/schedules'&&request.method==='GET')return jsonReply(response,200,{schedules:scheduler.list(owner)});
       if(url.pathname==='/v1/schedules'&&request.method==='POST')return jsonReply(response,201,scheduler.create(owner,await jsonBody(request,16384)));
       const schedule=url.pathname.match(/^\/v1\/schedules\/([a-zA-Z0-9-]+)$/);
@@ -183,16 +191,23 @@ export async function startCompanion(options={}) {
   const scheduleTimer=setInterval(()=>scheduler.tick().catch(()=>{lastError='A scheduled task needs attention. Its saved record is kept.';}),15000);scheduleTimer.unref();
   let powerLease;
   if(options.keepAwake!==false&&process.platform==='win32'){
-    powerLease=spawn(join(process.env.SystemRoot??'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-File',fileURLToPath(new URL('../scripts/keep-awake.ps1',import.meta.url))],{windowsHide:true,stdio:['pipe','ignore','ignore']});powerLease.on('error',()=>{lastError='Keep this computer awake manually; the app could not obtain a power lease.';});
+    powerLease=spawn(join(process.env.SystemRoot??'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',fileURLToPath(new URL('../scripts/keep-awake.ps1',import.meta.url))],{windowsHide:true,stdio:['pipe','ignore','ignore']});powerLease.on('error',()=>{lastError='Keep this computer awake manually; the app could not obtain a power lease.';});powerLease.on('exit',code=>{if(code)lastError='Keep this computer awake manually; its power lease could not start.';});
   }
   return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,
     close:async()=>{clearInterval(scheduleTimer);powerLease?.stdin.end();for(const job of store.list())if(runner.active.has(job.id))runner.interrupt(job.id);await Promise.all([...runner.active.values()].map(value=>value.promise));await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();}};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
-  const local=process.argv.includes('--local-test');
-  const host=await startCompanion({apiHost:local?'127.0.0.1':'0.0.0.0'});
-  console.log('Personal Assistant Computer is ready at '+host.setupURL);
-  if(!process.argv.includes('--no-open'))openBrowser(host.setupURL);
-  process.on('SIGINT',()=>{host.close().then(()=>process.exit(0));});
+  try{
+    const local=process.argv.includes('--local-test');
+    const host=await startCompanion({apiHost:local?'127.0.0.1':'0.0.0.0'});
+    console.log('Personal Assistant Computer is ready at '+host.setupURL);
+    if(!process.argv.includes('--no-open'))openBrowser(host.setupURL);
+    process.on('SIGINT',()=>{host.close().then(()=>process.exit(0));});
+    process.on('SIGTERM',()=>{host.close().then(()=>process.exit(0));});
+  }catch(error){
+    const logs=join(process.env.LOCALAPPDATA??'.','PersonalAssistantCompanion','logs');await mkdir(logs,{recursive:true});
+    await appendFile(join(logs,'startup.log'),new Date().toISOString()+' Startup failed: '+String(error.message).slice(0,600)+'\n');
+    process.exitCode=1;
+  }
 }

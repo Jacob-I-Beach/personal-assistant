@@ -3,6 +3,7 @@ import VisionKit
 import AssistantCore
 
 struct ComputerConnectionView: View {
+    var openedTask: (() -> Void)?
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var showScanner = false
@@ -26,7 +27,7 @@ struct ComputerConnectionView: View {
                         })).disabled(model.isRunning)
                         Text("The computer uses its own ChatGPT sign-in. The selected model stays the same; unavailable connections do not silently switch providers.").font(.footnote).foregroundStyle(.secondary)
                         Button("Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }
-                        NavigationLink { ComputerTasksView() } label: { Label("Tasks & schedules", systemImage: "clock.arrow.circlepath") }
+                        NavigationLink { ComputerTasksView(openedTask: openedTask) } label: { Label("Tasks & schedules", systemImage: "clock.arrow.circlepath") }
                         if let state { Text(state).font(.subheadline).foregroundStyle(.secondary) }
                         Button("Disconnect this iPhone", role: .destructive) {
                             do {

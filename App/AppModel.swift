@@ -115,7 +115,7 @@ final class AppModel: ObservableObject {
     var modelLocation: String {
         switch settings.choice {
         case .localMLX, .appleOnDevice: "On this iPhone"
-        case .chatGPT: settings.useComputer && settings.companion != nil ? "ChatGPT · on your computer" : settings.chatGPTAccountID == nil ? "Connect your account" : "Using your ChatGPT plan"
+        case .chatGPT: settings.useComputer && settings.companion != nil ? "ChatGPT plan · via computer" : settings.chatGPTAccountID == nil ? "Connect your account" : "Using your ChatGPT plan"
         case .appleCloud: "Apple Private Cloud Compute"
         case .openAI: "OpenAI API"
         case .compatibleServer: "Connected computer"
@@ -523,7 +523,7 @@ final class AppModel: ObservableObject {
                 if selection.taskNotifications { await taskAttention.requestPermission() }
                 try Task.checkCancellation()
                 let selectedBackend = try await backend(for: selection)
-                titleBackend = selectedBackend is any RemoteTaskBackend ? nil : selectedBackend
+                titleBackend = selectedBackend
                 try Task.checkCancellation()
                 if savedWork == nil, let editID, let store {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)

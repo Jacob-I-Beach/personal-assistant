@@ -6,7 +6,7 @@ import WidgetKit
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: AssistantActivityAttributes.self) { context in
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "brain").font(.title2).foregroundStyle(.indigo).padding(11).background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                Image("ActivityIcon").resizable().scaledToFit().frame(width: 42, height: 42).clipShape(RoundedRectangle(cornerRadius: 11))
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("Personal Assistant").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -20,7 +20,7 @@ import WidgetKit
                 .widgetURL(destination(context.attributes.conversationID))
         } dynamicIsland: { context in
             DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) { Image(systemName: "brain").font(.title2).foregroundStyle(.indigo).padding(.leading, 5) }
+                DynamicIslandExpandedRegion(.leading) { Image("ActivityIcon").resizable().scaledToFit().frame(width: 28, height: 28).clipShape(RoundedRectangle(cornerRadius: 7)).padding(.leading, 5) }
                 DynamicIslandExpandedRegion(.trailing) { Image(systemName: context.attributes.onComputer ? "desktopcomputer" : "iphone").foregroundStyle(.secondary) }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -29,11 +29,11 @@ import WidgetKit
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 5).padding(.bottom, 8)
                 }
             } compactLeading: {
-                Image(systemName: "brain").foregroundStyle(.indigo)
+                Image("ActivityIcon").resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 5))
             } compactTrailing: {
                 Image(systemName: context.state.phase == "completed" ? "checkmark" : context.state.phase == "waiting" ? "bubble.left" : "ellipsis").font(.caption)
             } minimal: {
-                Image(systemName: "brain").foregroundStyle(.indigo)
+                Image("ActivityIcon").resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 5))
             }.widgetURL(destination(context.attributes.conversationID)).keylineTint(.indigo)
         }
     }

@@ -43,7 +43,7 @@ struct ConnectionsView: View {
                     case .folders: NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { self.destination = nil } } } }
                     case .models: ModelLibraryView()
                     case .watch: WatchRequestsView()
-                    case .computer: ComputerConnectionView()
+                    case .computer: ComputerConnectionView(openedTask: { self.destination = nil; dismiss() })
                     case .contacts: ContactsConnectionView()
                     }
                 }

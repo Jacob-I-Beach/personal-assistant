@@ -52,8 +52,8 @@ extension AppModel {
         chat.allowedNetworkDestinations.insert(connection.destination)
         if payload["contains_health_data"] == .bool(true) { chat.allowedHealthDestinations.insert(connection.destination) }
         chat.messages = [Message(id: turnID, role: .user, text: prompt, containsHealthData: payload["contains_health_data"] == .bool(true))]
-        let backend = try await backend(for: next)
-        var work = WorkTurn(id: turnID, conversationID: chatID, userMessageID: turnID, backendID: backend.id, destination: backend.networkDestination, goal: String(prompt.prefix(350)))
+        let selectedBackend = try await backend(for: next)
+        var work = WorkTurn(id: turnID, conversationID: chatID, userMessageID: turnID, backendID: selectedBackend.id, destination: selectedBackend.networkDestination, goal: String(prompt.prefix(350)))
         work.phase = .interrupted; work.reason = "Scheduled result on your computer"
         var record = CompanionRunRecord(turnID: turnID, connectionID: connection.destination, payload: payload)
         record.jobID = id; record.status = info["job"]?["status"]?.stringValue ?? "interrupted"
@@ -63,6 +63,7 @@ extension AppModel {
 }
 
 struct ComputerTasksView: View {
+    var openedTask: (() -> Void)?
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var schedules: [JSONValue] = []
@@ -89,7 +90,7 @@ struct ComputerTasksView: View {
             Section("Task results") {
                 ForEach(Array(jobs.enumerated()), id: \.offset) { _, job in
                     Button { Task {
-                        do { try await model.openComputerJob(job["id"]?.stringValue ?? ""); dismiss() }
+                        do { try await model.openComputerJob(job["id"]?.stringValue ?? ""); if let openedTask { openedTask() } else { dismiss() } }
                         catch { self.error = error.localizedDescription }
                     } } label: {
                         VStack(alignment: .leading, spacing: 5) {

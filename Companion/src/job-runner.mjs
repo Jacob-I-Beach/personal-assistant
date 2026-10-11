@@ -110,6 +110,7 @@ export class JobRunner extends EventEmitter {
           if (!args || Array.isArray(args) || typeof args !== 'object') throw new Error('Invalid completed tool arguments.');
           return {id: item.call_id, name: item.name.replace(/^assistant\./, ''), arguments: args};
         });
+        if(!pending.length&&!output.some(item=>item.type==='message'&&(item.content??[]).some(part=>typeof (part.text??part.refusal)==='string'&&(part.text??part.refusal).trim())))throw Object.assign(new Error(),{publicMessage:'The model finished without an answer. Saved actions and files remain available; continue this task to try again.'});
         checkpoint = {...checkpoint, input: [...checkpoint.input, ...output], pending, round: checkpoint.round + 1, final: pending.length ? null : output};
         this.store.checkpoint(job.id, checkpoint);
         this.publish(job.id, {type: 'continuation', output, model: payload.body.model, round: checkpoint.round});
@@ -176,7 +177,7 @@ export class JobRunner extends EventEmitter {
       const query = String(call.arguments.query ?? '').toLowerCase(), words = query.match(/[a-z0-9]+/g) ?? [];
       const score = tool => (tool.name === query ? 100 : 0) + words.filter(word => (tool.name + ' ' + tool.description).toLowerCase().includes(word)).length;
       output = [...catalog.values()].sort((a,b) => score(b)-score(a)).slice(0,3);
-    } else output = {model_processing: 'ChatGPT plan model; task coordinated by your computer', callable_entry_points: (payload.body.tools ?? []).flatMap(tool => tool.tools ?? [tool]).map(tool => tool.name).filter(Boolean), tools: [...catalog.values()], runtime: this.runtime.summary(), continuity: 'This computer owns the job. Phone-only tools wait for your phone and any required review.'};
+    } else output = {model_processing: 'ChatGPT plan model; task coordinated by your computer', callable_entry_points: (payload.body.tools ?? []).flatMap(tool => tool.tools ?? [tool]).map(tool => tool.name).filter(Boolean), tools: [...catalog.values()].map(tool=>({name:tool.name,description:tool.description.slice(0,300)})), runtime: this.runtime.summary(), continuity: 'This computer owns the job. Phone-only tools wait for your phone and any required review.'};
     return {callID: call.id, name: call.name, succeeded: true, output, completedAt: new Date().toISOString()};
   }
   waitForPhone(jobId, operationId, signal) {

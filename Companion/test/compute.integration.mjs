@@ -59,11 +59,16 @@ assistant.publish({'total':total,'network_blocked':network_blocked,'outside_writ
     assert.equal(inspected.output.result.page_count,1);
     assert.match(inspected.output.result.page_text,/Synthetic data report/);
     const preview = inspected.output.files.find(x=>x.filename==='page-1.png'); assert.ok(preview);
+    const inspectedWorkbook=await runtime.execute({id:'inspect-workbook',name:'inspect_document',arguments:{file_id:workbook.id,file_ids:[],page:1}},job,new AbortController().signal);
+    assert.equal(inspectedWorkbook.succeeded,true,JSON.stringify(inspectedWorkbook.output));
+    const totalCell=inspectedWorkbook.output.result.sheets[0].preview.flat().find(cell=>cell.cell==='B5');
+    assert.equal(totalCell.formula,'=SUM(B2:B4)');assert.equal(totalCell.cached_value,60);
+    assert.ok(inspectedWorkbook.output.result.page_count>0);
     const evidence = resolve('../../../work/companion-compute-evidence');
     await mkdir(evidence,{recursive:true});
     await writeFile(join(evidence,'report-page.png'),store.file(job.id,job.owner,preview.id).data);
     await writeFile(join(evidence,'report.pdf'),store.file(job.id,job.owner,pdf.id).data);
     await writeFile(join(evidence,'report.xlsx'),store.file(job.id,job.owner,workbook.id).data);
-    await writeFile(join(evidence,'result.json'),JSON.stringify({calculation:result.output.result,inspection:inspected.output.result},null,2));
+    await writeFile(join(evidence,'result.json'),JSON.stringify({calculation:result.output.result,inspection:inspected.output.result,spreadsheet:inspectedWorkbook.output.result},null,2));
   } finally { store.close(); await rm(root,{recursive:true,force:true}); }
 });

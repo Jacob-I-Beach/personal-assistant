@@ -24,7 +24,8 @@ struct WorkingSurfaceView: View {
                     if surface.revision > 1 { Text("Updated here · the earlier reply may use older inputs").font(.caption2).foregroundStyle(.secondary) }
                     Button {
                         let request = "Explain the latest changes to “\(surface.title)” and update any conclusions that depend on them."
-                        model.send(request)
+                        if model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty { model.send(request) }
+                        else { model.draft += (model.draft.isEmpty ? "" : "\n\n") + request }
                     } label: { Label("Ask about these changes", systemImage: "arrow.turn.up.right").font(.subheadline.weight(.medium)) }
                         .buttonStyle(.bordered).disabled(model.isRunning || saving)
                 }
