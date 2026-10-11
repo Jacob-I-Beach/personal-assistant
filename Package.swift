@@ -20,3 +20,13 @@ let package = Package(
     ],
     cLanguageStandard: .c11
 )
+
+// Compile the same native EventKit bridge used by the iPhone app on Mac CI.
+// These tests deliver synthetic, unsaved objects; no Calendar permission or
+// personal account data is needed. Windows keeps the shared-core test suite.
+#if os(macOS)
+package.targets += [
+    .target(name: "PlanningEventKitBridge", dependencies: ["AssistantCore"], path: "App/Device/PlanningEventKit"),
+    .testTarget(name: "PlanningEventKitBridgeTests", dependencies: ["PlanningEventKitBridge", "AssistantCore"], path: "Tests/PlanningEventKitBridgeTests"),
+]
+#endif

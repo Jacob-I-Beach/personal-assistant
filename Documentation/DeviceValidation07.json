@@ -1,10 +1,10 @@
 {
   "version": "0.7.0",
   "build": "7",
-  "recorded_at_utc": "2026-10-11T05:24:48+00:00",
-  "installation": "pending_user_confirmation",
+  "recorded_at_utc": "2026-10-11T05:47:20.778906+00:00",
+  "installation": "0.7.0 build 7 confirmed by eight device crash reports",
   "prior_chats": "pending_07_check",
-  "calendar_reminders": "pending_phone_permissions_and_real_store_check",
+  "calendar_reminders": "FAIL: startup crash after saved Reminders selection; callback actor assertion confirmed",
   "siri_routing": "pending_phone_check; shipped action/entity metadata verified",
   "background_and_notifications": "pending_phone_resource_and_delivery_check",
   "automated_native_evidence": {
@@ -63,5 +63,17 @@
     "dependency_pins_verified": 20,
     "physical_device_validation": "pending"
   },
-  "note": "Synthetic UI rehearsal is not proof of real calendar sync or notification delivery."
+  "note": "Synthetic UI rehearsal is not proof of real calendar sync or notification delivery.",
+  "workaround": "User confirmed app opens after revoking Calendar and Reminders permissions; no app deletion",
+  "crash_signature": {
+    "reports": 8,
+    "exception": "EXC_BREAKPOINT/SIGTRAP",
+    "queue": "com.apple.eventkit.reminders.search",
+    "frames": [
+      "_dispatch_assert_queue_fail",
+      "_swift_task_checkIsolatedSwift",
+      "closure #1 in closure #1 in PlanningService.reminders(sourceIDs:includeCompleted:)"
+    ],
+    "personal_reports_committed": false
+  }
 }

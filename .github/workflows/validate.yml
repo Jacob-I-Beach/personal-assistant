@@ -11,9 +11,9 @@ on:
         type: boolean
         default: false
       validation_scope:
-        description: Full native suite in a separate test job after compilation
+        description: Full UI suite, streaming repair, or a single capped EventKit/Release repair job
         type: choice
-        options: [full, streaming-repair]
+        options: [full, streaming-repair, planning-repair]
         default: full
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
   ios:
     # Standard Apple silicon preview image that actually includes the iOS 27 SDK.
     runs-on: xcode-27
-    timeout-minutes: ${{ inputs.build_device && 20 || 12 }}
+    timeout-minutes: ${{ inputs.validation_scope == 'planning-repair' && 15 || (inputs.build_device && 20 || 12) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v6
@@ -43,7 +43,7 @@ jobs:
           xcrun metal --version
       - name: Test the shared core with a local transport fixture
         id: core
-        continue-on-error: true
+        continue-on-error: ${{ inputs.validation_scope != 'planning-repair' }}
         run: |
           mkdir -p .build
           python --version
@@ -73,7 +73,7 @@ jobs:
           mkdir -p PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
           cp Dependencies/Package.resolved PersonalAssistant.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
       - name: Compile the simulator test bundle
-        if: inputs.validate_simulator
+        if: inputs.validate_simulator && inputs.validation_scope != 'planning-repair'
         run: |
           set -o pipefail
           xcodebuild -project PersonalAssistant.xcodeproj -scheme PersonalAssistant -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData -skipMacroValidation CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build-for-testing 2>&1 | tee .build/ui-build.log
@@ -82,7 +82,7 @@ jobs:
             ditto DerivedData/Build/Products/Debug-iphonesimulator/PersonalAssistant.app/Metadata.appintents .build/intent-metadata
           fi
       - name: Preserve the compiled simulator tests
-        if: inputs.validate_simulator && success()
+        if: inputs.validate_simulator && inputs.validation_scope != 'planning-repair' && success()
         uses: actions/upload-artifact@v4
         with:
           name: simulator-test-products
@@ -143,7 +143,7 @@ jobs:
         run: exit 1
 
   simulator-tests:
-    if: inputs.validate_simulator
+    if: inputs.validate_simulator && inputs.validation_scope != 'planning-repair'
     needs: ios
     strategy:
       fail-fast: false

@@ -1,6 +1,5 @@
 import AssistantCore
 import Combine
-import CryptoKit
 @preconcurrency import EventKit
 import Foundation
 import UIKit
@@ -66,15 +65,21 @@ final class PlanningService: ObservableObject {
         if let fixtureItems { return fixtureItems.filter { $0.kind == "calendar" && sourceIDs.contains($0.sourceID) && ($0.start ?? .distantFuture) < end && ($0.end ?? .distantPast) > start } }
         #endif
         let selected = try calendars(sourceIDs, kind: "calendar")
-        return events.events(matching: events.predicateForEvents(withStart: start, end: end, calendars: selected))
-            .filter { $0.status != .canceled }.sorted { $0.startDate < $1.startDate }.map(Self.snapshot)
+        return try events.events(matching: events.predicateForEvents(withStart: start, end: end, calendars: selected))
+            .filter { $0.status != .canceled }.map(PlanningEventKitBridge.snapshot)
+            .sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
     }
     func availability(from start: Date, to end: Date, minutes: Int, dayStart: Int, dayEnd: Int, timeZone: TimeZone, weekdaysOnly: Bool, sourceIDs: [String]) throws -> [DateInterval] {
         try validateRange(start, end)
         let selected = try calendars(sourceIDs, kind: "calendar")
         let values = events.events(matching: events.predicateForEvents(withStart: start, end: end, calendars: selected))
         guard values.count <= 1000 else { throw AssistantError.invalidTool("This range contains too many events to check completely. Use a shorter range.") }
-        let busy = values.filter { $0.status != .canceled && $0.availability != .free && $0.startDate < $0.endDate }.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+        // Validate every non-cancelled record before claiming a time is free.
+        let snapshots = try values.filter { $0.status != .canceled }.map(PlanningEventKitBridge.snapshot)
+        let busy = snapshots.filter(\.blocksTime).compactMap { item -> DateInterval? in
+            guard let start = item.start, let end = item.end, start < end else { return nil }
+            return DateInterval(start: start, end: end)
+        }
         return try AvailabilityPlanner.slots(start: start, end: end, minutes: minutes, dayStart: dayStart, dayEnd: dayEnd, timeZone: timeZone, weekdaysOnly: weekdaysOnly, busy: busy)
     }
     func reminders(sourceIDs: [String], includeCompleted: Bool = false) async throws -> [PlanningItem] {
@@ -83,10 +88,8 @@ final class PlanningService: ObservableObject {
         #endif
         let selected = try calendars(sourceIDs, kind: "reminder")
         let predicate = events.predicateForReminders(in: selected)
-        let values: [PlanningItem] = await withCheckedContinuation { continuation in
-            events.fetchReminders(matching: predicate) { reminders in
-                continuation.resume(returning: (reminders ?? []).filter { includeCompleted || !$0.isCompleted }.map(Self.snapshot))
-            }
+        let values: [PlanningItem] = try await withCheckedThrowingContinuation { continuation in
+            events.fetchReminders(matching: predicate, completion: PlanningEventKitBridge.reminderCompletion(includeCompleted: includeCompleted, continuation: continuation))
         }
         try Task.checkCancellation()
         return values.sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
@@ -105,8 +108,8 @@ final class PlanningService: ObservableObject {
     func readItem(id: String, kind: String, sourceIDs: [String]) throws -> PlanningItem {
         _ = try calendars(sourceIDs, kind: kind)
         let value: PlanningItem
-        if kind == "calendar", let event = events.event(withIdentifier: id) { value = Self.snapshot(event) }
-        else if kind == "reminder", let reminder = events.calendarItem(withIdentifier: id) as? EKReminder { value = Self.snapshot(reminder) }
+        if kind == "calendar", let event = events.event(withIdentifier: id) { value = try PlanningEventKitBridge.snapshot(event) }
+        else if kind == "reminder", let reminder = events.calendarItem(withIdentifier: id) as? EKReminder { value = try PlanningEventKitBridge.snapshot(reminder) }
         else { throw AssistantError.invalidTool("This item is no longer available. Read the current schedule or list again.") }
         guard sourceIDs.contains(value.sourceID) else { throw AssistantError.invalidTool("This item is outside your selected sources.") }
         return value
@@ -160,11 +163,13 @@ final class PlanningService: ObservableObject {
             event.calendar = calendar; event.title = title; event.startDate = start; event.endDate = end
             event.notes = args["notes"]?.stringValue; event.location = args["location"]?.stringValue
             try events.save(event, span: .thisEvent, commit: true)
-            guard let id = event.eventIdentifier, let saved = events.event(withIdentifier: id), saved.title == title,
-                  abs(saved.startDate.timeIntervalSince(start)) < 1, abs(saved.endDate.timeIntervalSince(end)) < 1,
-                  (saved.notes ?? "") == (args["notes"]?.stringValue ?? ""), (saved.location ?? "") == (args["location"]?.stringValue ?? ""),
-                  saved.calendar.calendarIdentifier == sourceID else { throw PlanningWriteUnverified(itemID: event.eventIdentifier ?? event.calendarItemIdentifier) }
-            return Self.snapshot(saved)
+            guard let id = event.eventIdentifier, let saved = events.event(withIdentifier: id),
+                  let actual = try? PlanningEventKitBridge.snapshot(saved), actual.title == title,
+                  let actualStart = actual.start, let actualEnd = actual.end,
+                  abs(actualStart.timeIntervalSince(start)) < 1, abs(actualEnd.timeIntervalSince(end)) < 1,
+                  actual.notes == (args["notes"]?.stringValue ?? ""), actual.location == (args["location"]?.stringValue ?? ""),
+                  actual.sourceID == sourceID else { throw PlanningWriteUnverified(itemID: event.eventIdentifier ?? event.calendarItemIdentifier) }
+            return actual
         }
         let reminder: EKReminder
         if let existing { guard let saved = events.calendarItem(withIdentifier: existing.id) as? EKReminder else { throw AssistantError.invalidTool("The reminder disappeared. Read the list again.") }; reminder = saved }
@@ -196,14 +201,14 @@ final class PlanningService: ObservableObject {
         }
         try events.save(reminder, commit: true)
         guard let saved = events.calendarItem(withIdentifier: reminder.calendarItemIdentifier) as? EKReminder,
-              saved.title == title, !completeOnly || saved.isCompleted else { throw PlanningWriteUnverified(itemID: reminder.calendarItemIdentifier) }
+              let actual = try? PlanningEventKitBridge.snapshot(saved),
+              actual.title == title, !completeOnly || actual.completed else { throw PlanningWriteUnverified(itemID: reminder.calendarItemIdentifier) }
         if !completeOnly {
             let expectedDue = try (args["due"]?.stringValue).flatMap { $0.isEmpty ? nil : try Self.date($0) }
-            let actual = Self.snapshot(saved)
             guard actual.sourceID == sourceID, actual.notes == (args["notes"]?.stringValue ?? ""),
                   (expectedDue == nil && actual.start == nil) || (expectedDue != nil && actual.start != nil && abs(actual.start!.timeIntervalSince(expectedDue!)) < 1) else { throw PlanningWriteUnverified(itemID: reminder.calendarItemIdentifier) }
         }
-        return Self.snapshot(saved)
+        return actual
     }
     private func validateRange(_ start: Date, _ end: Date) throws {
         guard start < end, end.timeIntervalSince(start) <= 31 * 86_400 else { throw AssistantError.invalidTool("Choose a valid date range of at most 31 days.") }
@@ -211,17 +216,6 @@ final class PlanningService: ObservableObject {
     static func date(_ raw: String) throws -> Date {
         guard raw.contains("T"), let date = ISO8601DateFormatter().date(from: raw) else { throw AssistantError.invalidTool("Use an ISO8601 date and time including its time-zone offset.") }
         return date
-    }
-    private nonisolated static func fingerprint(_ values: [String]) -> String { SHA256.hash(data: Data(values.joined(separator: "\u{0}").utf8)).map { String(format: "%02x", $0) }.joined() }
-    private nonisolated static func snapshot(_ event: EKEvent) -> PlanningItem {
-        let version = fingerprint([event.eventIdentifier ?? "", event.title ?? "", event.startDate.description, event.endDate.description, event.notes ?? "", event.location ?? "", event.calendar.calendarIdentifier, event.lastModifiedDate?.description ?? "", String(event.isAllDay), String(event.availability.rawValue)])
-        return .init(id: event.eventIdentifier ?? event.calendarItemIdentifier, sourceID: event.calendar.calendarIdentifier, sourceTitle: event.calendar.title, kind: "calendar", title: event.title ?? "Untitled event", start: event.startDate, end: event.endDate, notes: event.notes ?? "", location: event.location ?? "", allDay: event.isAllDay, recurring: event.hasRecurrenceRules || event.isDetached, version: version, blocksTime: event.availability != .free)
-    }
-    private nonisolated static func snapshot(_ reminder: EKReminder) -> PlanningItem {
-        var calendar = Calendar.current; calendar.timeZone = reminder.dueDateComponents?.timeZone ?? .current
-        let due = reminder.dueDateComponents.flatMap { calendar.date(from: $0) }
-        let version = fingerprint([reminder.calendarItemIdentifier, reminder.title ?? "", due?.description ?? "", reminder.notes ?? "", String(reminder.isCompleted), reminder.calendar.calendarIdentifier, reminder.lastModifiedDate?.description ?? ""])
-        return .init(id: reminder.calendarItemIdentifier, sourceID: reminder.calendar.calendarIdentifier, sourceTitle: reminder.calendar.title, kind: "reminder", title: reminder.title ?? "Untitled reminder", start: due, end: nil, notes: reminder.notes ?? "", completed: reminder.isCompleted, allDay: reminder.dueDateComponents?.hour == nil, recurring: reminder.hasRecurrenceRules, version: version)
     }
 }
 

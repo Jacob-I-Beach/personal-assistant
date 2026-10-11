@@ -53,8 +53,8 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: App/PersonalAssistant.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "0.7.0"
-        CURRENT_PROJECT_VERSION: "7"
+        MARKETING_VERSION: "0.7.1"
+        CURRENT_PROJECT_VERSION: "8"
     dependencies:
       - package: Textual
         product: Textual
@@ -99,8 +99,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "4"
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
-        MARKETING_VERSION: "0.7.0"
-        CURRENT_PROJECT_VERSION: "7"
+        MARKETING_VERSION: "0.7.1"
+        CURRENT_PROJECT_VERSION: "8"
   PersonalAssistantUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -115,7 +115,7 @@ targets:
   PersonalAssistantPlatformTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [PlatformTests]
+    sources: [PlatformTests, Tests/PlanningEventKitBridgeTests]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jacob.personalassistant.platformtests

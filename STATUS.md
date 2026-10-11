@@ -1,6 +1,6 @@
 # Implementation status
 
-**0.7.0 build 7 is verified and ready for personal signing. Installation remains user-operated and pending.** The last explicit About/version confirmation is 0.5.0 build 5 with retained chats; later screenshot feedback did not include About.
+**0.7.1 build 8 is being prepared to repair a confirmed 0.7.0 Reminders startup crash.** Device crash reports establish that 0.7.0 build 7 was installed. Saving selected planning sources invokes a Reminders callback that incorrectly inherits MainActor; EventKit's background delivery then traps. Jacob confirmed that disabling Calendar and Reminders permissions restores launch. Preserve the app and its chats. See [repair scope](Documentation/RELEASE_071.md); native repair validation and an in-place update are pending.
 
 ## Current evidence
 
