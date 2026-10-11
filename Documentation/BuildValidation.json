@@ -1029,6 +1029,32 @@
       "rounded_minutes": 0,
       "runner_started": false,
       "note": "No runner execution occurred for this skipped or rejected job."
+    },
+    {
+      "run_id": 38147109662,
+      "attempt": 1,
+      "job_id": 114492677836,
+      "source_revision": "f4fb8690d81205ea0a4950d6943292f945780710",
+      "completed_at": "2026-10-11T14:29:13Z",
+      "conclusion": "cancelled",
+      "name": "ios",
+      "started_at": "2026-10-11T14:25:22Z",
+      "status": "completed",
+      "rounded_minutes": 0,
+      "runner_started": false,
+      "note": "No runner execution occurred for this skipped or rejected job."
+    },
+    {
+      "run_id": 38147109662,
+      "attempt": 1,
+      "job_id": 114493447253,
+      "source_revision": "f4fb8690d81205ea0a4950d6943292f945780710",
+      "completed_at": "2026-10-11T14:29:13Z",
+      "conclusion": "cancelled",
+      "name": "simulator-tests",
+      "started_at": "2026-10-11T14:29:14Z",
+      "status": "completed",
+      "rounded_minutes": 0
     }
   ],
   "rounded_runner_minutes": 788,

@@ -7,7 +7,8 @@ extension AppModel {
         guard let store else { return }
         settings.choice = .appleOnDevice; settings.automaticChatTitles = false; settings.taskNotifications = false
         let chatID = UUID(uuidString: "00000000-0000-4000-8000-000000000091")!
-        if ProcessInfo.processInfo.arguments.contains("--ui-recovery09-seed") || (try? await store.loadConversation(chatID)) == nil {
+        let existing = try? await store.loadConversation(chatID)
+        if ProcessInfo.processInfo.arguments.contains("--ui-recovery09-seed") || existing == nil {
             var chat = Conversation(id: chatID, title: "Saved background task")
             let user = Message(role: .user, text: "Finish the saved research")
             chat.messages = [user, Message(role: .assistant, text: "The earlier work stays saved.", state: .interrupted)]
