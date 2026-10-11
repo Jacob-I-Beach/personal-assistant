@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full native suite in a separate test job after compilation
         type: choice
-        options: [full]
+        options: [full, streaming-repair]
         default: full
 permissions:
   contents: read
@@ -148,7 +148,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [workflows, reading, files]
+        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || '["workflows","reading","files"]') }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -177,6 +177,9 @@ jobs:
           test -n "$bundle"
           test_options=()
           case "${{ matrix.suite }}" in
+            streaming)
+              scenarios="testStreamingFollowsDetachesAndReturnsToFollowing"
+              ;;
             workflows)
               test_options+=("-only-testing:PersonalAssistantPlatformTests")
               scenarios="testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent testGroupedHistoryReadableDetailsRetryAndNoStaleContinueCard testForegroundReturnContinuesWithoutAnotherUserMessage testSavedRouteMemoryUndoAndResumeStayInTheApp testOrderedProgressWebAndReadableCalculation"

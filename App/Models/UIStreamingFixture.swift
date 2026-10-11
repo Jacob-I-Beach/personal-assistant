@@ -21,18 +21,19 @@ struct UIStreamingBackend: ModelBackend {
         AsyncThrowingStream { output in
             let task = Task {
                 do {
-                    let introduction = ResponsePart(id: "intro", text: "I’m checking a synthetic reference, then streaming a long answer.", phase: "commentary")
+                    let introduction = ResponsePart(id: "intro", text: "Iâ€™m checking a synthetic reference, then streaming a long answer.", phase: "commentary")
                     output.yield(.responseContent([introduction, .init(id: "web", web: .init(status: "in_progress", queries: ["Synthetic reference"]))]))
                     try await Task.sleep(for: .seconds(2))
                     let web = ResponsePart(id: "web", web: .init(status: "completed", queries: ["Synthetic reference"]))
                     var text = ""
                     // Keep real growth throughout the gesture checks without producing
                     // pages faster than XCUITest's mandatory between-gesture idle waits.
+                    // Half-second chunks still grow throughout the reading/reattachment assertions.
                     for index in 1...240 {
                         try Task.checkCancellation()
                         text += "Line \(index). More of the example.\n\n"
                         output.yield(.responseContent([introduction, web, .init(id: "answer", text: text, phase: "final_answer")]))
-                        try await Task.sleep(for: .milliseconds(250))
+                        try await Task.sleep(for: .milliseconds(500))
                     }
                     output.yield(.completed); output.finish()
                 } catch { output.finish(throwing: error) }
