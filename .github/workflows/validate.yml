@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full UI suite, streaming repair, or a single capped EventKit/Release repair job
         type: choice
-        options: [full, streaming-repair, planning-repair, interaction-diagnostics]
+        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification]
         default: full
 permissions:
   contents: read
@@ -152,7 +152,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]')) }}
+        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))) }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -181,6 +181,10 @@ jobs:
           test -n "$bundle"
           test_options=()
           case "${{ matrix.suite }}" in
+            release)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests")
+              scenarios="testFullWidthComposerContextAndImmediateConnectedSend testToolExpansionAndLatestButtonPreserveIntentionalPosition testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords testConnectedFolderAndFilesOutputs"
+              ;;
             disclosure)
               scenarios="testKeyboardAndDisclosurePreserveReadingPosition"
               ;;

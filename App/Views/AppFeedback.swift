@@ -71,12 +71,6 @@ struct MessageActionButton: View {
                 .contentTransition(.symbolEffect(.replace))
         }.buttonStyle(QuietPressStyle())
             .accessibilityLabel(confirmed ? confirmation ?? title : title)
-            .overlay(alignment: .top) {
-                if confirmed, let confirmation {
-                    Text(confirmation).font(.caption2.weight(.medium)).padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(.regularMaterial, in: Capsule()).fixedSize().offset(y: -23).allowsHitTesting(false)
-                }
-            }
             .onDisappear { confirmationTask?.cancel() }
     }
 }

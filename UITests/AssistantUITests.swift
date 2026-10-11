@@ -229,7 +229,11 @@ final class AssistantUITests: XCTestCase {
         app.navigationBars["Connections"].buttons["Done"].tap()
         for _ in 0..<4 { if app.buttons["Work with files"].isHittable { break }; app.swipeDown() }
         app.buttons["Work with files"].tap()
-        let picker = NSPredicate { _, _ in app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].exists || (app.navigationBars["Recents"].exists && app.buttons["Browse"].exists) }
+        let picker = NSPredicate { _, _ in
+            app.buttons["Cancel"].exists && (app.navigationBars["Recents"].exists || app.navigationBars["Browse"].exists || app.buttons["Browse"].exists || app.buttons["Recents"].exists || app.navigationBars["FullDocumentManagerViewControllerNavigationBar"].exists)
+        }
+        saveScreenshot(app, name: "Home-file-picker-opening")
+        print("File picker opening hierarchy:\n" + app.debugDescription)
         expectation(for: picker, evaluatedWith: app); waitForExpectations(timeout: 15)
         saveScreenshot(app, name: "Home-file-picker")
     }
@@ -318,7 +322,10 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-demo", "--ui-workspace", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
-        app.buttons["Add to message"].tap(); app.buttons["Connected folders"].tap()
+        app.buttons["Add to message"].tap()
+        let connectedFolders = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Connected folders")).firstMatch
+        XCTAssertTrue(connectedFolders.waitForExistence(timeout: 5))
+        connectedFolders.tap()
         XCTAssertTrue(app.staticTexts["Sample workspace"].waitForExistence(timeout: 5))
         app.staticTexts["Sample workspace"].tap()
         XCTAssertTrue(app.switches["Use in this chat"].waitForExistence(timeout: 5))

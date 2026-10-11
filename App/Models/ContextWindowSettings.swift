@@ -26,7 +26,11 @@ struct ContextWindowView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var selected: Int?
-    private var plan: ModelContextBudget? { model.contextBudget(for: model.settings) }
+    private var plan: ModelContextBudget? {
+        var preview = model.settings
+        preview.contextTokensByModel[preview.contextPreferenceKey] = selected
+        return model.contextBudget(for: preview)
+    }
     var body: some View {
         NavigationStack {
             List {
