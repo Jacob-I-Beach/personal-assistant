@@ -1,6 +1,14 @@
 import Foundation
 
-public enum WorkPhase: String, Codable, Sendable { case running, interrupted, completed, cancelled }
+public struct ToolExecutionIdentity: Sendable {
+    public let turnID: UUID
+    public let callID: String
+}
+public enum ToolExecutionContext {
+    @TaskLocal public static var current: ToolExecutionIdentity?
+}
+
+public enum WorkPhase: String, Codable, Sendable { case running, interrupted, completed, cancelled, superseded }
 public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var conversationID: UUID
@@ -10,6 +18,8 @@ public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public var goal: String
     public var phase: WorkPhase = .running
     public var reason: String?
+    public var needsChangedRequest: Bool? = nil
+    public var networkRetries: Int? = nil
     public var updatedAt: Date = Date()
     public var rounds = 0
     public var resumes = 0
@@ -31,6 +41,7 @@ struct ToolOperation: Codable, Sendable {
     var health: Bool = false
     var startedAt: Date = Date()
     var result: ToolResult?
+    var awaitingReview: Bool? = nil
 }
 
 extension LocalStore {
@@ -55,7 +66,10 @@ extension LocalStore {
             SELECT w.payload FROM work_turns w JOIN conversations c ON c.id=w.conversation_id
             JOIN messages m ON m.id=json_extract(CAST(w.payload AS TEXT),'$.userMessageID') AND m.conversation_id=c.id
             WHERE json_extract(CAST(w.payload AS TEXT),'$.phase') IN ('running','interrupted')
-            AND json_extract(CAST(c.payload AS TEXT),'$.archivedAt') IS NULL ORDER BY w.updated_at DESC LIMIT 30
+            AND json_extract(CAST(c.payload AS TEXT),'$.archivedAt') IS NULL
+            AND NOT EXISTS(SELECT 1 FROM messages newer WHERE newer.conversation_id=c.id AND newer.ordinal>m.ordinal
+                AND json_extract(CAST(newer.payload AS TEXT),'$.role')='user')
+            ORDER BY w.updated_at DESC LIMIT 30
             """)
             .map { try Self.decode(WorkTurn.self, $0[0].data!) }
     }
@@ -63,6 +77,48 @@ extension LocalStore {
         guard var work = try workTurn(id) else { return }
         work.phase = phase; work.reason = reason.map { String($0.prefix(700)) }
         try saveWorkTurn(work)
+    }
+    public func supersedeWork(in conversationID: UUID, except turnID: UUID) throws {
+        try ensureWorkJournal()
+        let records = try database.execute("SELECT payload FROM work_turns WHERE conversation_id=? AND id!=?", [.text(conversationID.uuidString), .text(turnID.uuidString)])
+        for row in records {
+            var work = try Self.decode(WorkTurn.self, row[0].data!)
+            if work.phase == .running || work.phase == .interrupted {
+                work.phase = .superseded; work.reason = "A newer request continued this conversation."
+                try saveWorkTurn(work)
+            }
+        }
+    }
+    public func recordNetworkRetry(_ id: UUID) throws {
+        guard var work = try workTurn(id) else { return }
+        work.networkRetries = (work.networkRetries ?? 0) + 1
+        try saveWorkTurn(work)
+    }
+    /// A shareable operational report. No prompt text, tool arguments, extracted content,
+    /// file paths, account/model identifiers, location, credentials or error bodies.
+    public func taskDiagnostics(_ id: UUID) throws -> JSONValue {
+        guard let work = try workTurn(id) else { throw AssistantError.invalidTool("The task record is unavailable.") }
+        let operations = try toolOperations(id)
+        let chat = try loadConversation(work.conversationID)
+        guard let start = chat.messages.firstIndex(where: { $0.id == work.userMessageID }) else { throw AssistantError.invalidTool("The task's source request no longer exists.") }
+        let end = chat.messages[(start + 1)...].firstIndex(where: { $0.role == .user }) ?? chat.messages.endIndex
+        let messages = Array(chat.messages[start..<end])
+        let knownStatuses: Set<String> = ["saved", "sent", "handed_to_system", "cancelled", "approved", "opened", "failed", "outcome_unknown", "interrupted", "completed", "prepared", "ready"]
+        return .object([
+            "report_version": .number(1), "phase": .string(work.phase.rawValue),
+            "updated_at": .string(ISO8601DateFormatter().string(from: work.updatedAt)),
+            "response_rounds": .number(Double(work.rounds)), "manual_or_foreground_resumes": .number(Double(work.resumes)),
+            "network_retries": .number(Double(work.networkRetries ?? 0)), "request_needs_revision": .bool(work.needsChangedRequest == true),
+            "saved_tool_results": .number(Double(messages.filter { $0.role == .tool }.count)),
+            "partial_replies": .number(Double(messages.filter { $0.role == .assistant && $0.state != .complete }.count)),
+            "actions": .array(operations.map { operation in .object([
+                "tool": .string(operation.name),
+                "started_at": .string(ISO8601DateFormatter().string(from: operation.startedAt)),
+                "receipt_saved": .bool(operation.result != nil),
+                "status": .string(operation.awaitingReview == true ? "awaiting_review" : operation.result == nil ? "outcome_unknown" : knownStatuses.contains(operation.result?.output["status"]?.stringValue ?? "") ? operation.result!.output["status"]!.stringValue! : operation.result!.succeeded ? "receipt_recorded" : "failed")
+            ]) }),
+            "notice": .string("A finished reply does not prove every external action succeeded. Only recorded outcomes are evidence. Personal content is excluded from this report.")
+        ])
     }
     func updateWorkPlan(_ turnID: UUID, steps: [JSONValue]) throws {
         guard var work = try workTurn(turnID) else { return }
@@ -89,7 +145,17 @@ extension LocalStore {
     func finishToolOperation(_ call: ToolCall, turnID: UUID, result: ToolResult) throws {
         let key = turnID.uuidString + ":" + call.id
         guard let payload = try database.execute("SELECT payload FROM tool_operations WHERE id=?", [.text(key)]).first?[0].data else { throw AssistantError.invalidTool("The operation record is missing.") }
-        var value = try Self.decode(ToolOperation.self, payload); value.result = result
+        var value = try Self.decode(ToolOperation.self, payload); value.result = result; value.awaitingReview = false
+        try database.execute("UPDATE tool_operations SET payload=? WHERE id=?", [.blob(try Self.encode(value)), .text(key)])
+    }
+    /// True only while a native review has NOT been presented and cannot have caused a side effect.
+    public func setOperationWaitingForReview(turnID: UUID, callID: String, waiting: Bool) throws {
+        try ensureWorkJournal()
+        let key = turnID.uuidString + ":" + callID
+        guard let payload = try database.execute("SELECT payload FROM tool_operations WHERE id=?", [.text(key)]).first?[0].data else { return }
+        var value = try Self.decode(ToolOperation.self, payload)
+        guard value.result == nil else { throw AssistantError.invalidTool("This operation already has an outcome.") }
+        value.awaitingReview = waiting
         try database.execute("UPDATE tool_operations SET payload=? WHERE id=?", [.blob(try Self.encode(value)), .text(key)])
     }
     public func workEvidence(_ id: UUID, conversationID: UUID, remote: Bool, workspaceEnabled: Bool) throws -> JSONValue {
@@ -106,7 +172,7 @@ extension LocalStore {
         return .object(["task_id": .string(work.id.uuidString), "goal": .string(work.goal), "phase": .string(work.phase.rawValue), "plan": .array(work.plan),
             "reason": work.reason.map(JSONValue.string) ?? .null, "updated_at": .string(ISO8601DateFormatter().string(from: work.updatedAt)),
             "actions": .array(operations.map { op in .object(["tool": .string(op.name), "started_at": .string(ISO8601DateFormatter().string(from: op.startedAt)),
-                "status": op.result?.output["status"] ?? .string(op.result == nil ? "outcome_unknown" : op.result!.succeeded ? "completed" : "failed"),
+                "status": op.result?.output["status"] ?? .string(op.awaitingReview == true ? "awaiting_review" : op.result == nil ? "outcome_unknown" : op.result!.succeeded ? "completed" : "failed"),
                 "receipt_recorded": .bool(op.result != nil)]) }),
             "notice": .string("Phase describes the assistant turn, not proof that every real-world goal is complete. Plans are intentions; action receipts describe observed outcomes. An unfinished operation is not safe to repeat blindly.")])
     }

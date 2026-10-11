@@ -7,7 +7,7 @@ final class TransportTests: XCTestCase, @unchecked Sendable {
         guard let base = ProcessInfo.processInfo.environment["ASSISTANT_FIXTURE_BASE_URL"] else {
             throw XCTSkip("Run scripts/Test-Core.ps1 -Integration to include loopback transport tests.")
         }
-        return try NetworkModelBackend(baseURL: URL(string: base + path)!, model: "synthetic-fixture", wireProtocol: format)
+        return try NetworkModelBackend(baseURL: URL(string: base + path)!, model: "synthetic-fixture", wireProtocol: format, retryPolicy: .init(baseDelay: 0))
     }
     private var request: ModelRequest {
         ModelRequest(instructions: "Test only", messages: [ModelInputMessage(message: Message(role: .user, text: "Hello"))], tools: [])
@@ -41,12 +41,12 @@ final class TransportTests: XCTestCase, @unchecked Sendable {
     func testRedirectDoesNotForwardPrivateRequest() async throws {
         let provider = try backend(path: "/redirect/v1")
         do { for try await _ in provider.stream(request) {}; XCTFail("Redirect must be rejected") }
-        catch AssistantError.provider(let message) { XCTAssertTrue(message.contains("307")) }
+        catch let error as ModelHTTPError { XCTAssertEqual(error.status, 307); XCTAssertFalse(error.retryable) }
     }
     func testHTTP401IsReportedWithoutParsingHTMLAsModelOutput() async throws {
         let provider = try backend(path: "/unauthorized/v1")
         do { for try await _ in provider.stream(request) {}; XCTFail("Expected HTTP error") }
-        catch AssistantError.provider(let message) { XCTAssertTrue(message.contains("401")) }
+        catch let error as ModelHTTPError { XCTAssertEqual(error.status, 401); XCTAssertFalse(error.retryable) }
     }
     func testFullHTTPToolLoopUsesTheSavedCapture() async throws {
         for path in ["/tool/v1", "/tool-empty/v1"] {

@@ -15,18 +15,41 @@ struct ActiveWorkRow: View {
 struct ResponseContentView: View {
     let message: Message
     private var parts: [ResponsePart] { message.displayParts }
+    private struct PartGroup: Identifiable {
+        var offset: Int
+        var parts: [ResponsePart]
+        var id: String { parts[0].id }
+    }
+    private var groups: [PartGroup] {
+        var result: [PartGroup] = []
+        for (index, part) in parts.enumerated() {
+            if part.web != nil, result.last?.parts.last?.web != nil { result[result.count - 1].parts.append(part) }
+            else { result.append(PartGroup(offset: index, parts: [part])) }
+        }
+        return result
+    }
     var body: some View {
         if parts.isEmpty {
             AssistantMarkdown(text: message.citationMarkdown)
         } else {
             VStack(alignment: .leading, spacing: 14) {
-                ForEach(Array(parts.enumerated()), id: \.element.id) { index, part in
-                    if part.kind == .text {
-                        let offset = parts.prefix(index).reduce(0) { $0 + $1.citations.count }
+                ForEach(groups) { group in
+                    if group.parts.count > 1 {
+                        DisclosureGroup {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(group.parts) { part in
+                                    if let activity = part.web { WebActivityView(activity: resolved(activity)) }
+                                }
+                            }.padding(.top, 10)
+                        } label: {
+                            Label("Web research · \(group.parts.count) searches", systemImage: "globe").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        }.tint(.secondary).transaction { $0.animation = nil }
+                    } else if let part = group.parts.first, part.kind == .text {
+                        let offset = parts.prefix(group.offset).reduce(0) { $0 + $1.citations.count }
                         AssistantMarkdown(text: Message.citationMarkdown(text: part.text, citations: part.citations, startingAt: offset))
                             .foregroundStyle(Color.primary)
-                            .accessibilityIdentifier("response-text-\(index)")
-                    } else if let activity = part.web {
+                            .accessibilityIdentifier("response-text-\(group.offset)")
+                    } else if let activity = group.parts.first?.web {
                         WebActivityView(activity: resolved(activity))
                     }
                 }

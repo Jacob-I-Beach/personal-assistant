@@ -14,6 +14,7 @@ public struct NetworkModelBackend: ModelBackend {
     private let chatGPTAccountID: String?
     private let webSearchEnabled: Bool
     private let reasoningEffort: ReasoningEffort?
+    private let retryPolicy: ResponseRetryPolicy
     public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") + (webSearchEnabled ? ":web-search" : "") }
     public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
     public var supportsFileInputs: Bool { wireProtocol == .responses && baseURL.absoluteString == "https://api.openai.com/v1" }
@@ -23,7 +24,7 @@ public struct NetworkModelBackend: ModelBackend {
 
     public init(baseURL: URL, model: String, wireProtocol: NetworkProtocol,
                 credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil,
-                webSearchEnabled: Bool = false, reasoningEffort: ReasoningEffort? = nil) throws {
+                webSearchEnabled: Bool = false, reasoningEffort: ReasoningEffort? = nil, retryPolicy: ResponseRetryPolicy = .init()) throws {
         try EndpointPolicy.validate(baseURL)
         guard !credential.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             throw AssistantError.invalidEndpoint("The credential contains a line break or control character. Paste only the credential value.")
@@ -44,6 +45,7 @@ public struct NetworkModelBackend: ModelBackend {
         }
         self.webSearchEnabled = webSearchEnabled
         self.reasoningEffort = reasoningEffort
+        self.retryPolicy = retryPolicy
     }
 
     public func makeRequest(_ input: ModelRequest) throws -> URLRequest {
@@ -63,17 +65,30 @@ public struct NetworkModelBackend: ModelBackend {
             let task = Task {
                 do {
                     let request = try makeRequest(input)
-                    var sse = SSEDecoder()
-                    var wire = ModelWireDecoder(wireProtocol: wireProtocol)
-                    for try await data in transport.stream(request) {
-                        try Task.checkCancellation()
-                        for event in try sse.append(data) {
-                            for result in try wire.consume(event) { continuation.yield(result) }
+                    var retry = 0
+                    while true {
+                        do {
+                            var sse = SSEDecoder()
+                            var wire = ModelWireDecoder(wireProtocol: wireProtocol)
+                            for try await data in transport.stream(request) {
+                                try Task.checkCancellation()
+                                for event in try sse.append(data) {
+                                    for result in try wire.consume(event) { continuation.yield(result) }
+                                    // Once committed, a late socket error must not regenerate valid calls.
+                                    if wire.completed { continuation.finish(); return }
+                                }
+                            }
+                            throw AssistantError.incompleteResponse
+                        } catch {
+                            try Task.checkCancellation()
+                            retry += 1
+                            guard let delay = retryPolicy.delay(after: error, retry: retry) else { throw error }
+                            continuation.yield(.retrying(attempt: retry, maximum: retryPolicy.maximumRetries))
+                            try await Task.sleep(for: .seconds(delay))
+                            try Task.checkCancellation()
+                            continuation.yield(.restartResponse)
                         }
                     }
-                    try Task.checkCancellation()
-                    guard wire.completed else { throw AssistantError.incompleteResponse }
-                    continuation.finish()
                 } catch { continuation.finish(throwing: error) }
             }
             continuation.onTermination = { @Sendable _ in task.cancel() }
@@ -197,7 +212,12 @@ public struct ModelWireDecoder: Sendable {
             return calls + [.completed]
         }
         let payload = try JSONValue.parse(event.data)
-        if let error = payload["error"], error != .null { throw AssistantError.provider(error["message"]?.stringValue ?? "Model server reported an error.") }
+        if let error = payload["error"], error != .null {
+            if ["rate_limit_exceeded", "server_error"].contains(error["code"]?.stringValue ?? "") {
+                throw ModelHTTPError(status: error["code"]?.stringValue == "server_error" ? 503 : 429)
+            }
+            throw AssistantError.provider(error["message"]?.stringValue ?? "Model server reported an error.")
+        }
         return try wireProtocol == .responses ? consumeResponses(payload) : consumeChat(payload)
     }
 
@@ -292,8 +312,14 @@ public struct ModelWireDecoder: Sendable {
             completed = true
             return events + [.continuation(output), .completed]
         case "response.failed", "error":
+            let code = payload["response"]?["error"]?["code"]?.stringValue ?? payload["code"]?.stringValue
+            if ["server_error", "rate_limit_exceeded"].contains(code ?? "") { throw ModelHTTPError(status: code == "server_error" ? 503 : 429) }
             throw AssistantError.provider(payload["response"]?["error"]?["message"]?.stringValue ?? payload["message"]?.stringValue ?? "The model request failed.")
-        case "response.incomplete": throw AssistantError.incompleteResponse
+        case "response.incomplete":
+            if let reason = payload["response"]?["incomplete_details"]?["reason"]?.stringValue, ["max_output_tokens", "content_filter"].contains(reason) {
+                throw AssistantError.provider("The model stopped before finishing this reply. The partial answer is saved. Send a narrower follow-up to continue.")
+            }
+            throw AssistantError.incompleteResponse
         default: return []
         }
     }

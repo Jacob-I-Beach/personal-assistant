@@ -129,7 +129,7 @@ struct WorkReceiptView: View {
                                 Label(filename, systemImage: "doc").font(.subheadline)
                             }
                         }
-                        Text("Values are rounded for display. Exact values are available in Technical details.")
+                        Text("Values are rounded for display. Exact values are retained in the diagnostic record.")
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     if let code = arguments?["code"]?.stringValue {
@@ -138,16 +138,21 @@ struct WorkReceiptView: View {
                             Button("Copy code", systemImage: "doc.on.doc") { UIPasteboard.general.string = code }.font(.caption)
                         }.font(.footnote)
                     }
-                    DisclosureGroup("Technical details") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let call {
-                                Text("Request").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                                Text((try? call.arguments.jsonString()) ?? "").font(.caption.monospaced()).textSelection(.enabled)
-                            }
-                            Text("Exact result").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                            Text(message.text).font(.caption.monospaced()).textSelection(.enabled)
-                        }.padding(.top, 8)
-                    }.font(.footnote)
+                    if let arguments, !ReceiptDetails.nodes(arguments).isEmpty {
+                        DisclosureGroup("Request details") {
+                            ReceiptDetailView(nodes: ReceiptDetails.nodes(arguments)).padding(.top, 10)
+                        }.font(.footnote)
+                    }
+                    if let output {
+                        ReceiptDetailView(nodes: ReceiptDetails.nodes(output))
+                    } else { Text(message.text).font(.subheadline).textSelection(.enabled) }
+                    HStack(spacing: 12) {
+                        Label(message.createdAt.formatted(date: .omitted, time: .shortened), systemImage: "clock").font(.caption2).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Copy diagnostic record", systemImage: "doc.on.doc") {
+                            UIPasteboard.general.string = "Tool: \(toolName)\nRequest: \((try? arguments?.jsonString()) ?? "")\nResult: \(message.text)"
+                        }.font(.caption2)
+                    }
                 }.padding(.top, 12)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {

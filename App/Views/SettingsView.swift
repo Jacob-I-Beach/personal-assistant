@@ -32,6 +32,10 @@ struct SettingsView: View {
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
+                    Toggle("Continue connected tasks in background", isOn: $draft.continueInBackground)
+                    Text("Tasks you start can keep working while you use another app, when iOS grants processing time. You can stop them from the system activity. Downloaded models still pause when the app leaves the foreground.").font(.footnote).foregroundStyle(.secondary)
+                    Toggle("Notify when a task needs attention", isOn: $draft.taskNotifications)
+                    Text("Allow notifications when iOS asks. Receive a notice for reviews, completed replies, or saved work that needs attention. Tapping opens its chat.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Automatic memory", isOn: $draft.automaticMemory)
                     Text("Remember useful things you share and keep them current. Inferences stay tentative. Inspect changes and undo them in Library → Saved memory.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow workspace search", isOn: $draft.workspaceSearchEnabled)

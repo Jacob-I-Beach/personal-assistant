@@ -96,7 +96,7 @@ public actor LocalStore {
             SELECT m.id, m.conversation_id, COALESCE(json_extract(CAST(c.payload AS TEXT),'$.modelTitleOverride'),c.title), snippet(message_search, 0, '', '', ' … ', 36), m.payload
             FROM message_search JOIN messages m ON m.rowid = message_search.rowid
             JOIN conversations c ON c.id = m.conversation_id
-            WHERE message_search MATCH ? \(scope) ORDER BY rank LIMIT ?
+            WHERE message_search MATCH ? AND json_extract(CAST(m.payload AS TEXT),'$.role') IN ('user','assistant') \(scope) ORDER BY rank LIMIT ?
             """, parameters).map { row in
                 let message = try Self.decode(Message.self, row[4].data!)
                 return HistoryMatch(id: UUID(uuidString: row[0].text!)!, conversationID: UUID(uuidString: row[1].text!)!,

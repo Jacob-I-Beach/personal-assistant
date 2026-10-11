@@ -31,11 +31,13 @@ private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked
     let continuation: AsyncThrowingStream<Data, any Error>.Continuation
     var session: URLSession?
     var statusCode = 0
+    var retryAfter: Double?
     var errorBody = Data()
     init(continuation: AsyncThrowingStream<Data, any Error>.Continuation) { self.continuation = continuation }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
         statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        retryAfter = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
         completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -47,7 +49,8 @@ private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked
         if let error { continuation.finish(throwing: error) }
         else if !(200..<300).contains(statusCode) {
             // Do not log credentials, prompts, response bodies, or arbitrary server-provided instructions.
-            continuation.finish(throwing: AssistantError.provider("Model server returned HTTP \(statusCode). Check the endpoint, model, and credential."))
+            let code = (try? JSONValue.parse(String(decoding: errorBody, as: UTF8.self)))?["error"]?["code"]?.stringValue
+            continuation.finish(throwing: ModelHTTPError(status: statusCode, retryAfter: retryAfter, code: code))
         } else { continuation.finish() }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask,

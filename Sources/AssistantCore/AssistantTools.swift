@@ -95,6 +95,12 @@ public struct AssistantTools: Sendable {
         return try await executeDirect(call)
     }
     private func executeDirect(_ call: ToolCall) async throws -> ToolResult {
+        guard let scope = operationScope else { return try await executeRecorded(call) }
+        return try await ToolExecutionContext.$current.withValue(.init(turnID: scope, callID: call.id)) {
+            try await executeRecorded(call)
+        }
+    }
+    private func executeRecorded(_ call: ToolCall) async throws -> ToolResult {
         try Task.checkCancellation()
         let definition = availableDefinitions.first { $0.name == call.name }
         let descriptor = definition.map { ToolCapability.describe($0) }
@@ -108,6 +114,11 @@ public struct AssistantTools: Sendable {
                 return await classify(result)
             }
             guard !remote || (!prior.localOnly && (!prior.health || healthData)) else { throw AssistantError.invalidTool("This unfinished operation contains protected context.") }
+            if prior.awaitingReview == true {
+                let result = try await executeUnrecorded(call)
+                try await store.finishToolOperation(call, turnID: scope, result: result)
+                return result
+            }
             if call.name == "run_javascript" { await restoreCalculationStatus(succeeded: false) }
             return await classify(ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object([
                 "status": .string("outcome_unknown"), "error": .string("An earlier attempt started, but no final receipt was saved. Inspect its outcome before proposing another action; this operation was not repeated.")

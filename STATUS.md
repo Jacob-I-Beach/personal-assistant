@@ -1,5 +1,13 @@
 # Implementation status
 
+## Current source candidate: 0.7.0 build 7
+
+New phone feedback exposed oversized current-turn context, repeated Continue failures, stale saved-work cards, crowded tools and unreadable details. The [0.7 scope and idea decisions](Documentation/RELEASE_07.md) describe request compaction, history filtering, bounded visible retries, grouped readable activity, supported continued background processing, local attention notifications and a redacted task diagnostic view. **152 Windows core tests pass; Swift syntax parsing passes. Native tests and a 0.7 IPA are pending.** This is not an iOS build claim. The user supplied new app screenshots without an About screen; preserve that distinction from explicit installed-version confirmation.
+
+The recorded hosted-Mac estimate remains USD 19.902 under the authorized USD 20 ceiling. No new hosted job has run for 0.7. Current validation and package evidence below applies to 0.6 only.
+
+## Previous verified package
+
 **0.6.0 build 6 is verified and ready for personal signing in iLoader.** The last user-confirmed installed version remains 0.5.0 build 5, with previous chats present. Installation and physical checks of 0.6 await Jacob.
 
 ## Current evidence

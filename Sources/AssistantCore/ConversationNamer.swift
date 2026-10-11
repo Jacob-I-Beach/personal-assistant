@@ -27,6 +27,7 @@ public enum ConversationNamer {
         for try await event in backend.stream(request) {
             try Task.checkCancellation()
             switch event {
+            case .restartResponse: text = ""; completed = false
             case .textDelta(let value): text += value
             case .responseContent(let parts): text = ResponsePresentation.text(in: parts)
             case .toolCall, .executedTool: return nil

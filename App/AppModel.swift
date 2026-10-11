@@ -53,13 +53,17 @@ final class AppModel: ObservableObject {
     var pickedFolderURL: URL?
     private var nativeActionWaiter: CheckedContinuation<String, any Error>?
     private var nativeActionWaiterID: UUID?
+    private var deferredNativeAction: NativeActionRequest?
+    private var deferredReviewIdentity: ToolExecutionIdentity?
     let locationService = ForegroundLocation()
     let routeService = RouteService()
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
     private var localBackend: MLXLocalBackend?
     private var responseTask: Task<Void, Never>?
-    private let completionWindow = ResponseCompletionWindow()
+    private let completionWindow = ResponseCompletionWindow.shared
+    private let taskAttention = TaskAttentionService.shared
+    private var systemEndedBackgroundWork = false
     private var responseWasBackgrounded = false
     private var userRequestedStop = false
     private(set) var activeTurnID: UUID?
@@ -109,6 +113,7 @@ final class AppModel: ObservableObject {
             let root = try PrivatePaths.root(); self.root = root
             let store = try LocalStore(root: root.appendingPathComponent("data"), outputsRoot: PrivatePaths.outputs())
             self.store = store; engine = AssistantEngine(store: store)
+            taskAttention.onOpen = { [weak self] id in await self?.openTaskAttention(id) }
             workspaceService = try FolderWorkspaceService(storage: root.appendingPathComponent("data/workspaces"))
             settingsURL = root.appendingPathComponent("settings.json")
             draftURL = root.appendingPathComponent("data/drafts.json")
@@ -136,6 +141,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { await installStreamingFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { await installContinuityFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-background") { await installBackgroundFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { await installLongTaskFixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -144,6 +150,7 @@ final class AppModel: ObservableObject {
                 await refreshDownloads()
                 if let last = conversation.messages.last { requiresManualResume = last.role != .assistant || last.state != .complete }
                 finishInitialization()
+                await taskAttention.openQueued()
                 await refreshAccounts()
                 await processNextWatchRequest()
             }
@@ -175,6 +182,7 @@ final class AppModel: ObservableObject {
         contextRefresh += 1
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
         Task {
+            await presentDeferredReview()
             if !isRunning { await continueInterruptedReplyIfEligible() }
             await processNextWatchRequest()
         }
@@ -184,6 +192,7 @@ final class AppModel: ObservableObject {
         titleTask?.cancel()
         guard isRunning else { return }
         responseWasBackgrounded = true
+        if let request = deferredNativeAction ?? nativeAction { Task { await notifyReview(request) } }
         guard settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
         pauseResponseForBackground()
         guard settings.choice == .localMLX else { return }
@@ -396,9 +405,9 @@ final class AppModel: ObservableObject {
         responseWasBackgrounded = true; responseTask?.cancel()
     }
     private func continueInterruptedReplyIfEligible() async {
-        guard !isRunning, !userRequestedStop, responseWasBackgrounded, UIApplication.shared.applicationState == .active,
+        guard !isRunning, !userRequestedStop, !systemEndedBackgroundWork, responseWasBackgrounded, UIApplication.shared.applicationState == .active,
               let work = try? await store?.unfinishedWork().first(where: { $0.conversationID == conversation.id }),
-              work.resumes < 3, Date().timeIntervalSince(work.updatedAt) < 86_400 else { return }
+              work.resumes < 3, work.needsChangedRequest != true, Date().timeIntervalSince(work.updatedAt) < 86_400 else { return }
         await resumeReply(work, automatic: true)
     }
     func resumeReply(_ work: WorkTurn, automatic: Bool = false) async {
@@ -445,8 +454,13 @@ final class AppModel: ObservableObject {
         let previousIDs = Set(original.messages.map(\.id))
         draftTask?.cancel()
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
-        responseWasBackgrounded = false; userRequestedStop = false; activeTurnID = savedWork?.id
-        completionWindow.begin { [weak self] in self?.pauseResponseForBackground() }
+        responseWasBackgrounded = false; userRequestedStop = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
+        taskAttention.clear(conversation.id)
+        let continued = selection.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(selection.choice)
+        completionWindow.begin(allowContinued: continued) { [weak self] cancelledBySystem in
+            self?.systemEndedBackgroundWork = cancelledBySystem
+            self?.pauseResponseForBackground()
+        }
         requiresManualResume = false
         let previousTitleTask = titleTask
         previousTitleTask?.cancel(); titleTask = nil
@@ -459,6 +473,7 @@ final class AppModel: ObservableObject {
                     message: "Your iPhone is working on it.", modelName: modelTitle))
             }
             do {
+                if selection.taskNotifications { await taskAttention.requestPermission() }
                 try Task.checkCancellation()
                 let selectedBackend = try await backend(for: selection)
                 titleBackend = selectedBackend
@@ -487,6 +502,8 @@ final class AppModel: ObservableObject {
                     switch event {
                     case .conversation(let updated):
                         conversation = updated
+                        let newMessages = updated.messages.filter { !previousIDs.contains($0.id) }
+                        completionWindow.update(completedUnits: newMessages.reduce(0) { $0 + $1.text.count }, subtitle: activity ?? (activeToolCall.map(ToolResultPresentation.activeTitle) ?? "Receiving reply"))
                         if let user = updated.messages.last(where: { $0.role == .user }) { activeTurnID = savedWork?.id ?? user.id }
                         if savedWork == nil, updated.messages.contains(where: { $0.role == .user && $0.text == text && !previousIDs.contains($0.id) }) {
                             attachedCaptureIDs = []
@@ -502,8 +519,7 @@ final class AppModel: ObservableObject {
                 }
             } catch {
                 if !Task.isCancelled && !(error is CancellationError) {
-                    if responseWasBackgrounded { noticeMessage = "Reply paused while the app was away. Your progress is saved." }
-                    else { errorMessage = error.localizedDescription; noticeMessage = error.localizedDescription }
+                    if activeTurnID == nil { noticeMessage = error.localizedDescription }
                 }
             }
             await engine.waitUntilIdle()
@@ -516,9 +532,13 @@ final class AppModel: ObservableObject {
                     else if responseWasBackgrounded { try? await store?.finishWork(id, phase: .interrupted, reason: "Interrupted while the app was away") }
                 }
             }
-            requiresManualResume = !completedTurn && (errorMessage != nil || Task.isCancelled || conversation.messages.last?.state != .complete)
+            requiresManualResume = !completedTurn
             isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
-            completionWindow.end()
+            completionWindow.end(success: completedTurn)
+            if responseWasBackgrounded, !userRequestedStop, selection.taskNotifications, UIApplication.shared.applicationState != .active {
+                await taskAttention.notify(conversationID: current.id, title: completedTurn ? "Your reply is ready" : "Your task needs attention",
+                    explanation: completedTurn ? "Open Personal Assistant to see the answer and saved results." : "Progress is saved. Open the task to review what remains and continue.")
+            }
             if !requiresManualResume, let titleBackend, conversation.needsAutomaticTitle, selection.automaticChatTitles {
                 let namedConversation = conversation
                 let generationID = UUID(); titleGenerationID = generationID
@@ -560,6 +580,7 @@ final class AppModel: ObservableObject {
         if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { return UIStreamingBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { return UIContinuityBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-background") { return UIBackgroundBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { return UILongTaskBackend() }
         #endif
         switch selection.choice {
         case .localMLX:
@@ -722,7 +743,8 @@ final class AppModel: ObservableObject {
             var context: [String: JSONValue] = ["model": .string(modelTitle), "processing": .string(modelLocation),
                 "automatic_memory": .bool(settings.automaticMemory), "workspace_history_enabled": .bool(settings.workspaceSearchEnabled),
                 "location_context_enabled": .bool(settings.locationContextEnabled), "location_authorization": .string(locationService.authorizationSummary),
-                "local_only": .bool(settings.localOnly), "background_tracking": .bool(false), "weather": .null]
+                "local_only": .bool(settings.localOnly), "background_tracking": .bool(false), "weather": .null,
+                "continued_background_requested": .bool(settings.continueInBackground), "task_notifications_enabled": .bool(settings.taskNotifications)]
             if !settings.localOnly, let weather = try await store?.cachedHomeWeather(), weather.isFresh(),
                (settings.weatherFollowsLocation && settings.locationContextEnabled && weather.place.name == "Nearby") || (!settings.weatherFollowsLocation && settings.weatherPlace == weather.place) {
                 context["weather"] = .object(["place": .string(weather.place.name), "celsius": .number(weather.celsius), "conditions": .string(weather.condition),
@@ -805,10 +827,21 @@ final class AppModel: ObservableObject {
         return result
     }
     func reviewNativeAction(_ request: NativeActionRequest) async throws -> String {
-        guard nativeActionWaiter == nil, UIApplication.shared.applicationState == .active else { throw AssistantError.invalidTool("Bring the app to the foreground and finish the current review before another action.") }
+        guard nativeActionWaiter == nil else { throw AssistantError.invalidTool("Finish the current review before another action.") }
+        let identity = ToolExecutionContext.current
+        if let identity {
+            try await store?.setOperationWaitingForReview(turnID: identity.turnID, callID: identity.callID, waiting: true)
+        }
+        guard nativeActionWaiter == nil else { throw AssistantError.invalidTool("Another review is already waiting. Finish it before another action.") }
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
-            return try await withCheckedThrowingContinuation { continuation in nativeActionWaiter = continuation; nativeActionWaiterID = request.id; nativeAction = request; activity = "Waiting for your review" }
+            let result: String = try await withCheckedThrowingContinuation { continuation in
+                nativeActionWaiter = continuation; nativeActionWaiterID = request.id; activity = "Waiting for your review"
+                deferredNativeAction = request; deferredReviewIdentity = identity
+                Task { await presentDeferredReview(); await notifyReview(request) }
+            }
+            try Task.checkCancellation()
+            return result
         } onCancel: { Task { @MainActor [weak self] in
             guard self?.isPendingNativeAction(request.id) == true else { return }
             self?.resolveNativeAction("interrupted", for: request.id)
@@ -816,10 +849,47 @@ final class AppModel: ObservableObject {
     }
     func resolveNativeAction(_ status: String, for requestID: UUID? = nil) {
         if let requestID, nativeActionWaiterID != requestID { return }
-        let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeActionWaiterID = nil; nativeAction = nil
+        let waiter = nativeActionWaiter; nativeActionWaiter = nil; nativeActionWaiterID = nil; nativeAction = nil; deferredNativeAction = nil; deferredReviewIdentity = nil
+        taskAttention.clear(conversation.id)
         waiter?.resume(returning: status)
     }
     func isPendingNativeAction(_ id: UUID) -> Bool { nativeActionWaiterID == id && nativeActionWaiter != nil }
+    private func presentDeferredReview() async {
+        guard UIApplication.shared.applicationState == .active, let request = deferredNativeAction, isPendingNativeAction(request.id) else { return }
+        let identity = deferredReviewIdentity
+        do {
+            if let identity {
+                try await store?.setOperationWaitingForReview(turnID: identity.turnID, callID: identity.callID, waiting: false)
+            }
+            guard isPendingNativeAction(request.id) else { return }
+            guard UIApplication.shared.applicationState == .active else {
+                if let identity { try await store?.setOperationWaitingForReview(turnID: identity.turnID, callID: identity.callID, waiting: true) }
+                return
+            }
+            deferredNativeAction = nil; nativeAction = request
+        } catch { resolveNativeAction("interrupted", for: request.id); noticeMessage = error.localizedDescription }
+    }
+    private func notifyReview(_ request: NativeActionRequest) async {
+        guard settings.taskNotifications, UIApplication.shared.applicationState != .active, isPendingNativeAction(request.id) else { return }
+        await taskAttention.notify(conversationID: conversation.id, title: "Your review is needed",
+            explanation: request.kind == .message ? "A message draft is ready. Open the app to review it before sending." : request.kind == .calendar ? "An event is ready. Open the app to review it before saving." : "Your task is waiting for a choice or approval. Open the app to review the next step.")
+    }
+    private func openTaskAttention(_ id: UUID) async {
+        do { try await waitUntilReady() } catch { return }
+        if isRunning {
+            if conversation.id == id { await presentDeferredReview() }
+            else { noticeMessage = "Another task is running. Its progress is saved in the sidebar." }
+            return
+        }
+        await refresh()
+        guard let summary = histories.first(where: { $0.id == id }) else { return }
+        await selectConversation(summary)
+        if let work = unfinishedReplies.first(where: { $0.conversationID == id }),
+           let evidence = try? await store?.workEvidence(work.id, conversationID: id, remote: settings.networkDestination != nil, workspaceEnabled: settings.workspaceSearchEnabled),
+           evidence["actions"]?.arrayValue?.contains(where: { $0["status"] == .string("awaiting_review") }) == true {
+            await resumeReply(work)
+        }
+    }
     func refreshAccounts() async {
         guard let accountService else { return }
         accounts = await accountService.summaries()

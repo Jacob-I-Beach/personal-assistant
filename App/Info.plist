@@ -12,6 +12,8 @@
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>UILaunchScreen</key><dict/>
+    <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>$(PRODUCT_BUNDLE_IDENTIFIER).reply.*</string></array>
+    <key>UIBackgroundModes</key><array><string>processing</string></array>
     <key>NSCameraUsageDescription</key><string>Capture an image and available depth data when you ask the assistant to inspect something.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>Read one current location when you approve an assistant request. The app shows which model will receive the location and does not track it in the background.</string>
     <key>NSMicrophoneUsageDescription</key><string>Transcribe your voice into an editable message when you tap the microphone.</string>

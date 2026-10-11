@@ -31,6 +31,9 @@ public struct ModelRequest: Sendable {
     }
 }
 public enum ModelEvent: Sendable {
+    /// Replace only the uncommitted output of a failed network attempt. Saved tool receipts stay intact.
+    case restartResponse
+    case retrying(attempt: Int, maximum: Int)
     case textDelta(String)
     /// Ordered public text and hosted activity; replaces this provider response's visible content.
     case responseContent([ResponsePart])

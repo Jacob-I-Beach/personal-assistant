@@ -15,6 +15,7 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var showHealth = false
     @State private var showWatchRequests = false
+    @State private var showTaskActivity = false
     var body: some View {
         NavigationStack {
             ChatView().environmentObject(voice)
@@ -48,6 +49,7 @@ struct RootView: View {
                             Button("Library", systemImage: "square.stack") { voice.stopAll(); showLibrary = true }
                             Button("Health overview", systemImage: "heart.text.square") { voice.stopAll(); showHealth = true }
                             Button("Watch requests", systemImage: "applewatch") { voice.stopAll(); showWatchRequests = true }
+                            Button("Task activity", systemImage: "list.bullet.rectangle") { showTaskActivity = true }
                             Button("Settings", systemImage: "slider.horizontal.3") { voice.stopAll(); showSettings = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Assistant menu")
                     }
@@ -93,6 +95,7 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showHealth) { HealthOverviewView() }
         .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
+        .sheet(isPresented: $showTaskActivity) { TaskActivityView() }
         .sheet(item: $model.nativeAction) { NativeActionView(request: $0) }
         .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
@@ -155,9 +158,13 @@ struct ChatView: View {
                         Label(folder.name, systemImage: "folder").font(.caption).foregroundStyle(.secondary)
                     }
                     let actionIDs = model.conversation.responseActionMessageIDs(isRunning: model.isRunning)
-                    ForEach(model.conversation.messages.suffix(visibleMessageCount).filter { !$0.text.isEmpty || !$0.captureIDs.isEmpty || !$0.fileIDs.isEmpty || !$0.displayParts.isEmpty || $0.role == .tool || $0.state == .failed || $0.state == .interrupted }) { message in
-                        MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id)).environmentObject(voice)
-                            .background(alignment: .topLeading) { ChatScrollAnchor(id: message.id).frame(width: 1, height: 1) }.id(message.id)
+                    ForEach(ChatTimeline.items(model.conversation.messages).suffix(visibleMessageCount)) { item in
+                        Group {
+                            if item.isActivity { ActivityGroupView(messages: item.messages) }
+                            else if let message = item.messages.first {
+                                MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id)).environmentObject(voice)
+                            }
+                        }.background(alignment: .topLeading) { ChatScrollAnchor(id: item.id).frame(width: 1, height: 1) }.id(item.id)
                     }
                     ForEach(model.artifacts.filter { $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains($0.id) }.prefix(6)) { artifact in
                         Button { chatNavigation.destination = .artifact(artifact.id) } label: { ArtifactCard(artifact: artifact) }.buttonStyle(.plain)
@@ -167,11 +174,11 @@ struct ChatView: View {
                     }
                     if let call = model.activeToolCall {
                         ActiveWorkRow(title: model.activity ?? ToolResultPresentation.activeTitle(call))
-                    } else if let activity = model.activity, !model.conversation.messages.suffix(2).filter({ $0.state == .streaming }).flatMap(\.displayParts).contains(where: { $0.web?.isRunning == true }) {
+                    } else if let activity = model.activity, activity.hasPrefix("Retrying") || activity == "Reconnecting" || !model.conversation.messages.suffix(2).filter({ $0.state == .streaming }).flatMap(\.displayParts).contains(where: { $0.web?.isRunning == true }) {
                         ActiveWorkRow(title: activity)
                     }
                     if !model.isRunning, !model.conversation.messages.isEmpty,
-                       let work = model.unfinishedReplies.first(where: { $0.conversationID == model.conversation.id }) {
+                       let work = model.unfinishedReplies.first(where: { $0.conversationID == model.conversation.id && $0.userMessageID == model.conversation.messages.last(where: { $0.role == .user })?.id }) {
                         SavedWorkCard(work: work)
                     }
                     Color.clear.frame(height: 10).id("conversation-bottom")

@@ -1,0 +1,21 @@
+{
+  "version": "0.7.0",
+  "build": "7",
+  "recorded_at_utc": "2026-10-11T01:08:32+00:00",
+  "scope": "Windows source candidate; not native compilation",
+  "core_tests": 152,
+  "core_failures": 0,
+  "transport": "synthetic localhost",
+  "paid_model_calls": 0,
+  "log_sha256": "3c72ddfce24801c47afe70d83caccb0c2e004f843f808b6a6158f571aa541cf5",
+  "source_and_tests_sha256": "e7ab417d4abc89194e47c57f92efbcb5b5fa3f78c019d199848054e2b8027b7d",
+  "fingerprint_file_count": 142,
+  "fingerprint_definition": "Sorted relative paths + NUL + LF-normalized bytes + NUL: App/Sources/Tests/PlatformTests/UITests Swift, project.yml, Package.swift, App Info.plist and entitlements",
+  "swift_syntax_parse": "passed; not native typecheck",
+  "public_core_construction_probe": "passed",
+  "native_platform_scenarios_pending": 19,
+  "native_ui_scenarios_pending": 14,
+  "iphone_archive": "not_built",
+  "hosted_compute_estimate_usd": 19.902,
+  "authorized_total_usd": 20
+}

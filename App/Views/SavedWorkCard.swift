@@ -8,11 +8,15 @@ struct SavedWorkCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Saved progress", systemImage: "arrow.clockwise.circle").font(.caption.weight(.medium)).foregroundStyle(.secondary)
             Text(work.goal.isEmpty ? "Continue with your attachment" : work.goal).font(.subheadline).lineLimit(2)
-            Text("The request and completed action results are kept here.").font(.caption).foregroundStyle(.secondary)
-            Button { Task { await model.resumeReply(work) } } label: {
-                Label("Continue reply", systemImage: "arrow.right").font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 5)
-            }.disabled(model.isRunning)
+            Text(model.conversation.messages.last?.failureReason == work.reason ? "The request and completed action results are kept here." : work.reason ?? "The request and completed action results are kept here.").font(.caption).foregroundStyle(.secondary)
+            if work.needsChangedRequest == true || work.resumes >= 3 || work.rounds >= 12 {
+                Text("Send your next request below. The completed work stays in this chat.").font(.subheadline)
+            } else {
+                Button { Task { await model.resumeReply(work) } } label: {
+                    Label("Continue reply", systemImage: "arrow.right").font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 5)
+                }.disabled(model.isRunning)
+            }
         }.padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
     }
 }

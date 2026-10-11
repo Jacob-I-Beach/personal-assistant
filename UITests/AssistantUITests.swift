@@ -2,6 +2,35 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testGroupedHistoryReadableDetailsRetryAndNoStaleContinueCard() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-long-task", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["Continue reply"].exists)
+        let activity = app.staticTexts["Activity"].firstMatch
+        for _ in 0..<5 { if activity.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(activity.isHittable); activity.tap()
+        let history = app.staticTexts["Earlier conversations & files · 5"]
+        XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
+        let receipt = app.staticTexts["Read saved context"].firstMatch
+        XCTAssertTrue(receipt.waitForExistence(timeout: 5)); receipt.tap()
+        XCTAssertFalse(app.staticTexts["Technical details"].exists)
+        XCTAssertTrue(app.staticTexts["Found"].firstMatch.exists)
+        saveScreenshot(app, name: "Grouped-history-and-readable-details")
+        activity.tap()
+        app.buttons["Send message"].tap()
+        XCTAssertTrue(app.staticTexts["Retrying 1/5"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Visible-connection-retry")
+        XCTAssertTrue(app.staticTexts["Recovered reply with saved work intact."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["An unfinished response."].exists)
+        XCTAssertFalse(app.buttons["Continue reply"].exists)
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+        app.buttons["Assistant menu"].tap(); app.buttons["Task activity"].tap()
+        XCTAssertTrue(app.buttons["Share diagnostic report"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Task-activity-and-diagnostic-report")
+    }
     func testSavedRouteMemoryUndoAndResumeStayInTheApp() {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -285,13 +314,17 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Example reference"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Response-web-sources")
         app.staticTexts["Searched the web"].tap()
+        let activity = app.staticTexts["Activity"].firstMatch
+        for _ in 0..<4 { if activity.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(activity.isHittable); activity.tap()
         let calculation = app.staticTexts["Calculated with JavaScript"]
         if !calculation.isHittable { app.swipeUp() }
         XCTAssertTrue(calculation.waitForExistence(timeout: 5)); calculation.tap()
         XCTAssertTrue(app.staticTexts["Circumference Km"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["450,270.2391"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "tool_succeeded")).firstMatch.isHittable)
-        XCTAssertTrue(app.staticTexts["Technical details"].exists)
+        XCTAssertFalse(app.staticTexts["Technical details"].exists)
+        XCTAssertTrue(app.buttons["Copy diagnostic record"].exists)
         XCTAssertTrue(app.staticTexts["Code"].exists)
         saveScreenshot(app, name: "Response-calculation")
         if calculation.isHittable { calculation.tap() }

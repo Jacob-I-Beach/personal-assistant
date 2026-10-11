@@ -57,7 +57,7 @@ extension AppModel {
         var route = try await store.route(id, in: conversationID)
         route.handoffStatus = "opening"; route.handoffUpdatedAt = Date()
         try await store.saveRoute(route)
-        let window = ResponseCompletionWindow(); window.begin {}
+        let window = ResponseCompletionWindow(); window.begin { _ in }
         defer { window.end() }
         let opened = await routeService.open(route)
         route.handoffStatus = opened ? "opened" : "failed"; route.handoffUpdatedAt = Date()

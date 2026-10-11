@@ -33,6 +33,8 @@ struct ModelSettings: Codable, Equatable {
     var chatGPTWebSearch = true
     var workspaceSearchEnabled = false
     var automaticMemory = true
+    var continueInBackground = true
+    var taskNotifications = true
     var locationContextEnabled = false
     var weatherFollowsLocation = false
     var weatherPlace: WeatherPlace?
@@ -43,7 +45,7 @@ struct ModelSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
         case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled, chatGPTWebSearch
-        case workspaceSearchEnabled, automaticMemory, locationContextEnabled, weatherFollowsLocation, weatherPlace, speakReplies, automaticChatTitles, reasoningByModel
+        case workspaceSearchEnabled, automaticMemory, continueInBackground, taskNotifications, locationContextEnabled, weatherFollowsLocation, weatherPlace, speakReplies, automaticChatTitles, reasoningByModel
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -64,6 +66,8 @@ struct ModelSettings: Codable, Equatable {
         chatGPTWebSearch = try values.decodeIfPresent(Bool.self, forKey: .chatGPTWebSearch) ?? true
         workspaceSearchEnabled = try values.decodeIfPresent(Bool.self, forKey: .workspaceSearchEnabled) ?? false
         automaticMemory = try values.decodeIfPresent(Bool.self, forKey: .automaticMemory) ?? true
+        continueInBackground = try values.decodeIfPresent(Bool.self, forKey: .continueInBackground) ?? true
+        taskNotifications = try values.decodeIfPresent(Bool.self, forKey: .taskNotifications) ?? true
         locationContextEnabled = try values.decodeIfPresent(Bool.self, forKey: .locationContextEnabled) ?? false
         weatherFollowsLocation = try values.decodeIfPresent(Bool.self, forKey: .weatherFollowsLocation) ?? false
         weatherPlace = try values.decodeIfPresent(WeatherPlace.self, forKey: .weatherPlace)
@@ -111,6 +115,7 @@ enum PrivatePaths {
         if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { folder = "PersonalAssistant-UITests-Streaming" }
         if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { folder = "PersonalAssistant-UITests-Continuity" }
         if ProcessInfo.processInfo.arguments.contains("--ui-background") { folder = "PersonalAssistant-UITests-Background" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { folder = "PersonalAssistant-UITests-LongTask" }
         #endif
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)

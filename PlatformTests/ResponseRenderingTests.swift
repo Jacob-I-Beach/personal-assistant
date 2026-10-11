@@ -6,6 +6,15 @@ import XCTest
 
 @MainActor
 final class ResponseRenderingTests: XCTestCase {
+    func testCollapsedActivityHeightStaysStableAsReceiptsArrive() {
+        let model = AppModel()
+        let first = Message(role: .tool, text: "{}", toolCallID: "1")
+        let size = CGSize(width: 350, height: 2000)
+        let one = UIHostingController(rootView: ActivityGroupView(messages: [first]).environmentObject(model)).sizeThatFits(in: size)
+        let many = UIHostingController(rootView: ActivityGroupView(messages: [first] + (2...12).map { Message(role: .tool, text: "{}", toolCallID: String($0)) }).environmentObject(model)).sizeThatFits(in: size)
+        XCTAssertGreaterThan(one.height, 20)
+        XCTAssertLessThan(abs(one.height - many.height), 1)
+    }
     func testWebActivityKeepsTheSameRowHeightWhileRunningAndCompleted() {
         let live = UIHostingController(rootView: WebActivityView(activity: .init(status: "in_progress")))
         let done = UIHostingController(rootView: WebActivityView(activity: .init(status: "completed")))

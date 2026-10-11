@@ -21,6 +21,6 @@ extension LocalStore {
         guard chat.archivedAt == nil, !remote || (!chat.networkDisabled && !chat.messages.contains(where: { $0.containsLocalOnlyContext || $0.containsHealthData })) else {
             throw AssistantError.invalidTool("This conversation is outside the permitted history scope.")
         }
-        return Array(chat.messages.reversed().dropFirst(offset).prefix(min(max(limit, 1), 20)).reversed())
+        return Array(chat.messages.filter { $0.role != .tool && !$0.text.isEmpty }.reversed().dropFirst(offset).prefix(min(max(limit, 1), 20)).reversed())
     }
 }

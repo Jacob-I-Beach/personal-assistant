@@ -19,8 +19,9 @@ final class NativeReviewPlatformTests: XCTestCase {
         for _ in 0..<50 { if model.isPendingNativeAction(request.id) { break }; try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertTrue(model.isPendingNativeAction(request.id))
         task.cancel()
-        let status = try await task.value
-        XCTAssertEqual(status, "interrupted"); XCTAssertFalse(model.isPendingNativeAction(request.id))
+        do { _ = try await task.value; XCTFail("An interrupted review must not create a completed receipt") }
+        catch is CancellationError { }
+        XCTAssertFalse(model.isPendingNativeAction(request.id))
     }
     func testCancelMessageEditRestoresDraftAndAttachmentsWithoutChangingHistory() async throws {
         let model = AppModel(); try await model.waitUntilReady()
