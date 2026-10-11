@@ -25,6 +25,11 @@ public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public var resumes = 0
     public var configuration: JSONValue = .object([:])
     public var plan: [JSONValue] = []
+    public func permitsContextRetry(maximumTextBytes: Int) -> Bool {
+        guard needsChangedRequest == true else { return true }
+        let prior = configuration["context_text_bytes"]?.numberValue.flatMap { Int(exactly: $0) } ?? (destination == nil ? 32_768 : 128_000)
+        return maximumTextBytes > max(0, prior)
+    }
     public init(id: UUID, conversationID: UUID, userMessageID: UUID, backendID: String, destination: String? = nil, goal: String, configuration: JSONValue = .object([:])) {
         self.id = id; self.conversationID = conversationID; self.userMessageID = userMessageID
         self.backendID = backendID; self.destination = destination; self.goal = goal; self.configuration = configuration

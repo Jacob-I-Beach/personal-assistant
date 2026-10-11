@@ -7,6 +7,7 @@ final class ChatViewport: ObservableObject {
     @Published private(set) var nearBottom = true
     weak var controller: ChatScrollController?
     func jumpToLatest() { controller?.jumpToLatest() }
+    func pinDisclosure(_ id: UUID) { controller?.pinDisclosure(id) }
     func updateNearBottom(_ value: Bool) { if nearBottom != value { nearBottom = value } }
 }
 
@@ -42,6 +43,7 @@ struct StableChatScrollView<Content: View>: UIViewControllerRepresentable {
             .disabled(!context.environment.isEnabled)
             .tint(Color.primary)
         controller.update(AnyView(root), conversationID: conversationID, streaming: isStreaming, hasMessages: hasMessages)
+        controller.attach(viewport)
         controller.composerFocused = composerFocused
         controller.dismissKeyboard = dismissKeyboard
     }
@@ -69,6 +71,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private var anchor: (id: UUID, offset: CGFloat)?
     private var lastOffset: CGFloat = 0
     private var reachedBottomDuringGesture = false
+    private var disclosureAnchor: (id: UUID, offset: CGFloat)?
 
     init(viewport: ChatViewport) { self.viewport = viewport; super.init(nibName: nil, bundle: nil); viewport.controller = self }
     required init?(coder: NSCoder) { fatalError("Use init(viewport:)") }
@@ -100,7 +103,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     func update(_ content: AnyView, conversationID: UUID, streaming: Bool, hasMessages: Bool) {
         loadViewIfNeeded()
         if self.conversationID != conversationID {
-            self.conversationID = conversationID; anchor = nil; lastOffset = 0; pendingJump = true; follow.followLatest()
+            self.conversationID = conversationID; anchor = nil; disclosureAnchor = nil; lastOffset = 0; pendingJump = true; follow.followLatest()
         }
         self.streaming = streaming
         self.hasMessages = hasMessages
@@ -108,8 +111,29 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         host.view.invalidateIntrinsicContentSize()
         scroll.setNeedsLayout()
     }
-    func detach() { displayLink?.invalidate(); displayLink = nil; frameDriver = nil; scroll.didLayout = nil; scroll.delegate = nil; dismissKeyboard = nil; viewport?.controller = nil }
-    func jumpToLatest() { follow.followLatest(); pendingJump = true; scroll.setNeedsLayout() }
+    func attach(_ viewport: ChatViewport) { self.viewport = viewport; viewport.controller = self }
+    func detach() {
+        displayLink?.invalidate(); displayLink = nil; frameDriver = nil; scroll.didLayout = nil; scroll.delegate = nil; dismissKeyboard = nil
+        if viewport?.controller === self { viewport?.controller = nil }
+    }
+    func jumpToLatest() {
+        loadViewIfNeeded()
+        disclosureAnchor = nil; follow.followLatest(); pendingJump = true
+        // Stop an existing deceleration and perform the jump now, even when no
+        // new token or size change would otherwise schedule a layout callback.
+        scroll.setContentOffset(scroll.contentOffset, animated: false)
+        host.view.layoutIfNeeded(); scroll.layoutIfNeeded()
+        reconciling = true
+        scroll.setContentOffset(CGPoint(x: 0, y: hasMessages ? maximumOffset : 0), animated: false)
+        pendingJump = false; reconciling = false
+        rememberPosition(); publishPosition()
+        if streaming { startFollowingFrames() }
+    }
+    func pinDisclosure(_ id: UUID) {
+        guard let marker = scroll.markers[id]?.value else { return }
+        disclosureAnchor = (id, marker.convert(.zero, to: scroll).y - scroll.contentOffset.y)
+        follow.beginReading(); displayLink?.isPaused = true; pendingJump = false; rememberPosition()
+    }
     @objc private func readerPanned(_ gesture: UIPanGestureRecognizer) {
         if composerFocused && gesture.state == .changed && gesture.translation(in: scroll).y > 12 { dismissKeyboard?() }
     }
@@ -127,6 +151,9 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
             let target: CGFloat
             // Empty chats show onboarding from its beginning, including at large text sizes.
             if pendingJump { target = hasMessages ? maximumOffset : 0 }
+            else if let pinned = disclosureAnchor, let marker = scroll.markers[pinned.id]?.value {
+                target = marker.convert(.zero, to: scroll).y - pinned.offset
+            }
             else if streaming && follow.isFollowing && !viewportChanged {
                 startFollowingFrames()
                 lastContentSize = scroll.contentSize; lastViewportSize = scroll.bounds.size
@@ -187,9 +214,13 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))|\(scroll.isDragging || scroll.isDecelerating ? "moving" : "idle")|\(Int(screenY.rounded()))"
         #endif
         let value = follow.isFollowing || nearBottom
-        DispatchQueue.main.async { [weak self] in self?.viewport?.updateNearBottom(value) }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.viewport?.controller === self else { return }
+            self.viewport?.updateNearBottom(value)
+        }
     }
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        disclosureAnchor = nil
         reachedBottomDuringGesture = false
         follow.beginReading(); displayLink?.isPaused = true; pendingJump = false; rememberPosition()
         // The composer belongs to the enclosing SwiftUI root, outside this scroll view.

@@ -35,7 +35,7 @@ struct ResponseContentView: View {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(groups) { group in
                     if group.parts.count > 1 {
-                        DisclosureGroup {
+                        AssistantDisclosure {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(group.parts) { part in
                                     if let activity = part.web { WebActivityView(activity: resolved(activity)) }
@@ -66,7 +66,7 @@ struct ResponseContentView: View {
 struct WebActivityView: View {
     let activity: WebActivity
     var body: some View {
-        DisclosureGroup {
+        AssistantDisclosure {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(activity.queries.enumerated()), id: \.offset) { _, query in
                     Label(query, systemImage: "magnifyingglass").font(.subheadline).textSelection(.enabled)

@@ -24,9 +24,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["When should we work on it?"].waitForExistence(timeout: 8))
         saveScreenshot(app, name: "Task-question-with-choices")
         app.buttons["Later"].tap()
-        let ready = NSPredicate { _, _ in app.buttons["New chat"].isEnabled }
+        let ready = NSPredicate { _, _ in app.buttons["Send message"].exists }
         expectation(for: ready, evaluatedWith: app); waitForExpectations(timeout: 8)
-        app.buttons["New chat"].tap()
+        app.buttons["History"].tap(); app.buttons["New chat"].tap()
         let question = app.staticTexts["When should we work on it?"].firstMatch
         for _ in 0..<7 { if question.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(question.isHittable); saveScreenshot(app, name: "Today-and-needs-you"); question.tap()
@@ -43,7 +43,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your example session is saved."].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["Continue reply"].exists)
         XCTAssertFalse(app.alerts["Could not finish"].exists)
-        app.buttons["New chat"].tap()
+        app.buttons["History"].tap(); app.buttons["New chat"].tap()
         let event = app.staticTexts["Example work session"]
         for _ in 0..<7 { if event.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(event.isHittable); saveScreenshot(app, name: "Today-with-created-event")
@@ -210,11 +210,13 @@ final class AssistantUITests: XCTestCase {
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
         XCTAssertEqual(composer.value as? String, "A two-page study guide")
         app.scrollViews["conversation-scroll"].swipeDown()
-        for _ in 0..<4 { if app.buttons["Home context"].isHittable { break }; app.swipeUp() }
-        app.buttons["Home context"].tap()
+        for _ in 0..<5 { if app.buttons["Connections"].isHittable { break }; app.swipeUp() }
+        app.buttons["Connections"].tap()
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Location & weather")).firstMatch.tap()
         XCTAssertTrue(app.switches["Use location while I’m here"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Use my approximate location"].exists)
         saveScreenshot(app, name: "Home-context-controls")
+        app.buttons["Done"].tap()
         app.buttons["Done"].tap()
         for _ in 0..<4 { if app.buttons["Work with files"].isHittable { break }; app.swipeDown() }
         app.buttons["Work with files"].tap()
@@ -396,8 +398,8 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Qwen 3.5 4B"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Model-library")
         app.buttons["Done"].tap()
-        app.buttons["Assistant menu"].tap()
-        app.buttons["Settings"].tap()
+        app.buttons["History"].tap()
+        app.buttons["Settings & access"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Settings")
         app.buttons["Close"].tap()
@@ -442,7 +444,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Recently created"].exists)
         app.buttons["Add to message"].tap()
         XCTAssertTrue(app.buttons["Choose files"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["From Library"].exists)
+        XCTAssertTrue(app.buttons["Library"].exists)
         XCTAssertFalse(app.buttons["Read responses aloud"].exists)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
         app.buttons["History"].tap()
@@ -469,9 +471,10 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Sidebar-managed-chats")
         app.buttons["Close sidebar"].tap()
         app.buttons["Add to message"].tap()
-        app.buttons["From Library"].tap()
+        app.buttons["Library"].tap()
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
         app.staticTexts["sample.csv"].tap()
+        app.buttons["Attach to current chat"].tap()
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "File-attachment")
         app.buttons["Assistant menu"].tap()
@@ -505,6 +508,63 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Models-dark-large-text")
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["Assistant menu"].exists)
+    }
+
+    func testFullWidthComposerContextAndImmediateConnectedSend() {
+        executionTimeAllowance = 180
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["New chat"].exists)
+        app.buttons["Assistant menu"].tap()
+        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).tap()
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        composer.tap(); composer.typeText("A synthetic message long enough to wrap naturally across the full width of the input.")
+        XCTAssertGreaterThan(composer.frame.width, app.frame.width * 0.78)
+        saveScreenshot(app, name: "Full-width-composer")
+        app.buttons["Send message"].tap()
+        XCTAssertTrue(app.staticTexts["Your synthetic request started without another connection prompt."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Allow for this conversation"].exists)
+        let actions = app.descendants(matching: .any).matching(identifier: "final-response-actions").allElementsBoundByIndex.last!
+        actions.buttons["Copy message"].tap()
+        XCTAssertTrue(app.buttons["Copied"].waitForExistence(timeout: 2))
+        saveScreenshot(app, name: "Copied-confirmation")
+        app.buttons["Choose model"].tap(); app.buttons["Working context"].tap()
+        for _ in 0..<4 { if app.buttons["1,000,000 tokens"].isHittable { break }; app.swipeUp() }
+        app.buttons["1,000,000 tokens"].tap()
+        saveScreenshot(app, name: "Model-context-million")
+        app.buttons["Save"].tap(); app.buttons["Done"].tap()
+        app.buttons["Choose model"].tap(); app.buttons["Working context"].tap()
+        XCTAssertTrue(app.navigationBars["Working context"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap(); app.buttons["Done"].tap()
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+
+    func testToolExpansionAndLatestButtonPreserveIntentionalPosition() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-long-task", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15))
+        let group = app.staticTexts["Activity"].firstMatch
+        for _ in 0..<5 { if group.isHittable { break }; app.swipeDown() }
+        let before = group.frame.minY; group.tap()
+        XCTAssertLessThan(abs(group.frame.minY - before), 5)
+        let category = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Earlier conversations & files")).firstMatch
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.tap()
+        let row = app.staticTexts["Read saved context"].firstMatch
+        let rowBefore = row.frame.minY; row.tap()
+        XCTAssertLessThan(abs(row.frame.minY - rowBefore), 5)
+        saveScreenshot(app, name: "Nested-tool-hierarchy")
+        let jump = app.buttons["Jump to latest message"]
+        for _ in 0..<4 { if jump.exists { break }; app.swipeDown() }
+        XCTAssertTrue(jump.isHittable); jump.tap()
+        let atBottom = NSPredicate { _, _ in !app.buttons["Jump to latest message"].exists }
+        expectation(for: atBottom, evaluatedWith: app); waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.staticTexts["The current request is complete."].isHittable)
     }
 
     private func saveScreenshot(_ app: XCUIApplication, name: String) {

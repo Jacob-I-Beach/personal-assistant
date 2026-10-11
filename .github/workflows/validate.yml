@@ -104,9 +104,11 @@ jobs:
           ditto DerivedData/Build/Products/Release-iphoneos/PersonalAssistant.app .build/device/Payload/PersonalAssistant.app
           (cd .build/device && zip -qr PersonalAssistant-unsigned.ipa Payload)
           python scripts/prepare_iloader_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/PersonalAssistant-iPhone-only.ipa
+          python scripts/prepare_iloader_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/PersonalAssistant-HealthKit.ipa --healthkit
           (cd .build/device && shasum -a 256 *.ipa > SHA256SUMS.txt)
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-unsigned.ipa .build/device/SHA256SUMS.txt --report .build/device/CompletePackageValidation.json
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-iPhone-only.ipa .build/device/SHA256SUMS.txt --report .build/device/iPhonePackageValidation.json
+          python scripts/inspect_ipa.py .build/device/PersonalAssistant-HealthKit.ipa .build/device/SHA256SUMS.txt --report .build/device/HealthPackageValidation.json
       - name: Preserve unsigned device package
         if: inputs.build_device && success()
         uses: actions/upload-artifact@v4
@@ -116,6 +118,8 @@ jobs:
             .build/device/PersonalAssistant-unsigned.ipa
             .build/device/PersonalAssistant-iPhone-only.ipa
             .build/device/PersonalAssistant-iPhone-only.json
+            .build/device/PersonalAssistant-HealthKit.ipa
+            .build/device/PersonalAssistant-HealthKit.json
             .build/device/*PackageValidation.json
             .build/device/SHA256SUMS.txt
           include-hidden-files: true
@@ -148,7 +152,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || '["workflows","reading","files"]') }}
+        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || '["workflows","reading","files","coherence"]') }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -177,6 +181,9 @@ jobs:
           test -n "$bundle"
           test_options=()
           case "${{ matrix.suite }}" in
+            coherence)
+              scenarios="testFullWidthComposerContextAndImmediateConnectedSend testToolExpansionAndLatestButtonPreserveIntentionalPosition"
+              ;;
             streaming)
               scenarios="testStreamingFollowsDetachesAndReturnsToFollowing"
               ;;

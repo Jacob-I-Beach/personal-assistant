@@ -35,6 +35,9 @@ struct ModelSettings: Codable, Equatable {
     var automaticMemory = true
     var continueInBackground = true
     var taskNotifications = true
+    var hapticsEnabled = true
+    var confirmNewConnectedChats = false
+    var contextTokensByModel: [String: Int] = [:]
     var calendarSourceIDs: [String] = []
     var reminderSourceIDs: [String] = []
     var planningConnectedAccess = false
@@ -50,6 +53,7 @@ struct ModelSettings: Codable, Equatable {
         case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled, chatGPTWebSearch
         case workspaceSearchEnabled, automaticMemory, continueInBackground, taskNotifications, locationContextEnabled, weatherFollowsLocation, weatherPlace, speakReplies, automaticChatTitles, reasoningByModel
         case calendarSourceIDs, reminderSourceIDs, planningConnectedAccess
+        case hapticsEnabled, confirmNewConnectedChats, contextTokensByModel
     }
     init() {}
     init(from decoder: Decoder) throws {
@@ -72,6 +76,9 @@ struct ModelSettings: Codable, Equatable {
         automaticMemory = try values.decodeIfPresent(Bool.self, forKey: .automaticMemory) ?? true
         continueInBackground = try values.decodeIfPresent(Bool.self, forKey: .continueInBackground) ?? true
         taskNotifications = try values.decodeIfPresent(Bool.self, forKey: .taskNotifications) ?? true
+        hapticsEnabled = try values.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+        confirmNewConnectedChats = try values.decodeIfPresent(Bool.self, forKey: .confirmNewConnectedChats) ?? false
+        contextTokensByModel = try values.decodeIfPresent([String: Int].self, forKey: .contextTokensByModel) ?? [:]
         calendarSourceIDs = try values.decodeIfPresent([String].self, forKey: .calendarSourceIDs) ?? []
         reminderSourceIDs = try values.decodeIfPresent([String].self, forKey: .reminderSourceIDs) ?? []
         planningConnectedAccess = try values.decodeIfPresent(Bool.self, forKey: .planningConnectedAccess) ?? false
@@ -124,6 +131,7 @@ enum PrivatePaths {
         if ProcessInfo.processInfo.arguments.contains("--ui-background") { folder = "PersonalAssistant-UITests-Background" }
         if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { folder = "PersonalAssistant-UITests-LongTask" }
         if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { folder = "PersonalAssistant-UITests-DailyWork" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { folder = "PersonalAssistant-UITests-Coherence" }
         #endif
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)

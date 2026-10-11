@@ -22,7 +22,9 @@ struct HistoryView: View {
                 Section {
                     Button { model.newConversation(folderID: selectedFolder); close() } label: { rowLabel("New chat", icon: "square.and.pencil").fontWeight(.medium) }.disabled(model.isRunning)
                     Button { close(); open("library") } label: { rowLabel("Library", icon: "square.stack") }
-                    Button { close(); open("models") } label: { rowLabel("Models", icon: "slider.horizontal.3") }
+                    Button { close(); open("inbox") } label: { rowLabel("Inbox", icon: "tray") }
+                    Button { close(); open("connections") } label: { rowLabel("Connections", icon: "point.3.connected.trianglepath.dotted") }
+                    Button { close(); open("activity") } label: { rowLabel("Task activity", icon: "list.bullet.rectangle") }
                 }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                 if query.isEmpty {
                     Section {

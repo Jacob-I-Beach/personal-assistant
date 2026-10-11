@@ -13,7 +13,7 @@ import plistlib
 import zipfile
 
 
-def prepare(source: Path, destination: Path) -> dict:
+def prepare(source: Path, destination: Path, healthkit: bool = False) -> dict:
     if source.resolve() == destination.resolve():
         raise ValueError("The original package must be retained.")
     root = "Payload/PersonalAssistant.app/"
@@ -33,6 +33,10 @@ def prepare(source: Path, destination: Path) -> dict:
             for entry in original.infolist():
                 if entry.filename.startswith(watch):
                     omitted.append(entry.filename)
+                elif healthkit and entry.filename == root + "Info.plist":
+                    enabled_info = dict(info)
+                    enabled_info["AssistantHealthEnabled"] = True
+                    output.writestr(entry, plistlib.dumps(enabled_info, fmt=plistlib.FMT_BINARY))
                 else:
                     output.writestr(entry, original.read(entry.filename))
     with zipfile.ZipFile(destination) as candidate:
@@ -51,8 +55,9 @@ def prepare(source: Path, destination: Path) -> dict:
         "bundle_identifier": info["CFBundleIdentifier"],
         "omitted_watch_entries": len(omitted),
         "requires_personal_resigning": True,
-        "health_enabled": False,
-        "reason": "Official iLoader 2.3.6 does not provision Watch bundles or request HealthKit.",
+        "health_enabled": healthkit,
+        "requires_healthkit_profile": healthkit,
+        "reason": "HealthKit input requires a capability-aware signer and a verified HealthKit provisioning profile." if healthkit else "Official iLoader 2.3.6 does not provision Watch bundles or request HealthKit.",
     }
 
 
@@ -60,7 +65,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--healthkit", action="store_true", help="Prepare a HealthKit signing input; never install without a profile that grants HealthKit.")
     args = parser.parse_args()
-    receipt = prepare(args.source, args.destination)
+    receipt = prepare(args.source, args.destination, healthkit=args.healthkit)
     args.destination.with_suffix(".json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(receipt, indent=2))

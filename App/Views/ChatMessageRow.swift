@@ -70,13 +70,14 @@ struct MessageRow: View {
     private var actions: some View {
         HStack(spacing: 8) {
             if !message.text.isEmpty {
-                Button { UIPasteboard.general.string = message.role == .user ? message.text : message.answerText } label: { Image(systemName: "doc.on.doc").frame(width: 32, height: 32) }.accessibilityLabel("Copy message")
-                ShareLink(item: message.role == .user ? message.text : message.answerText) { Image(systemName: "square.and.arrow.up").frame(width: 32, height: 32) }.accessibilityLabel("Share message")
+                MessageActionButton(title: "Copy message", icon: "doc.on.doc", confirmation: "Copied") { UIPasteboard.general.string = message.role == .user ? message.text : message.answerText }
+                ShareLink(item: message.role == .user ? message.text : message.answerText) { Image(systemName: "square.and.arrow.up").font(.system(size: 16)).frame(width: 44, height: 44) }
+                    .buttonStyle(QuietPressStyle()).simultaneousGesture(TapGesture().onEnded { AppFeedback.play(.selection) }).accessibilityLabel("Share message")
             }
             if message.role == .assistant {
-                Button { voice.speak(MarkdownContent(message.answerText).renderPlainText()) } label: { Image(systemName: "speaker.wave.2").frame(width: 32, height: 32) }.accessibilityLabel("Read response aloud")
+                MessageActionButton(title: "Read response aloud", icon: "speaker.wave.2") { voice.speak(MarkdownContent(message.answerText).renderPlainText()) }
             } else if message.isRequest {
-                Button { model.beginEditing(message) } label: { Image(systemName: "pencil").frame(width: 32, height: 32) }
+                MessageActionButton(title: "Edit message", icon: "square.and.pencil") { model.beginEditing(message) }
                     .accessibilityLabel("Edit message").disabled(model.isRunning)
             }
         }.buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)

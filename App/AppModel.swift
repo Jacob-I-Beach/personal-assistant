@@ -152,6 +152,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-background") { await installBackgroundFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { await installLongTaskFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { await installDailyWorkflowFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { await installCoherenceFixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -392,15 +393,21 @@ final class AppModel: ObservableObject {
         if settings.choice == .localMLX, !downloadedModelIDs.contains(settings.localRepository) {
             showModels = true; noticeMessage = "Download or import a model, or choose an available connection. Your draft is saved."; return
         }
-        if let destination = settings.networkDestination,
-           !conversation.allowedNetworkDestinations.contains(destination) || ((draftContainsHealthData || conversation.containsHealthData) && !conversation.allowedHealthDestinations.contains(destination)) {
-            pendingText = text; needsNetworkConsent = true; return
+        if let destination = settings.networkDestination {
+            if ConversationSharing.needsReview(conversation, destination: destination, includesHealth: draftContainsHealthData, confirmNewChats: settings.confirmNewConnectedChats) {
+                pendingText = text; needsNetworkConsent = true; return
+            }
+            // Pressing Send with an explicitly selected connection authorizes this
+            // chat's ordinary content. Health sharing remains a separate decision.
+            conversation.allowedNetworkDestinations.insert(destination)
         }
+        AppFeedback.play(.sent)
         startResponse(text)
     }
     func approveNetworkConversation() {
         guard let destination = settings.networkDestination, let text = pendingText else { return }
         conversation.allowedNetworkDestinations.insert(destination)
+        conversation.requiresNetworkReview = false
         if draftContainsHealthData || conversation.containsHealthData { conversation.allowedHealthDestinations.insert(destination) }
         pendingText = nil; needsNetworkConsent = false; startResponse(text)
     }
@@ -410,6 +417,7 @@ final class AppModel: ObservableObject {
         titleTask?.cancel()
         conversation.allowedNetworkDestinations = []
         conversation.allowedHealthDestinations = []
+        conversation.requiresNetworkReview = true
         Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
     }
     func stop() { userRequestedStop = true; responseWasBackgrounded = false; responseTask?.cancel() }
@@ -480,6 +488,7 @@ final class AppModel: ObservableObject {
         previousTitleTask?.cancel(); titleTask = nil
         responseTask = Task {
             var current = original
+            var signalledReply = false
             await previousTitleTask?.value
             var titleBackend: (any ModelBackend)?
             if let requestID = activeWatchRequestID {
@@ -498,6 +507,9 @@ final class AppModel: ObservableObject {
                 } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request] + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] : [])
                 let destination = selection.networkDestination
+                let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
+                    planningSharedWithModel: selection.planningConnectedAccess, locationEnabled: selection.locationContextEnabled,
+                    healthAvailable: HealthOverviewService.isEnabledInThisBuild, backgroundEnabled: selection.continueInBackground)
                 let execute: @Sendable (ToolCall) async throws -> ToolResult = { [weak self, conversationID = original.id] call in
                         guard let self else { throw CancellationError() }
                         return try await self.executeNativeTool(call, conversationID: conversationID, destination: destination)
@@ -505,20 +517,30 @@ final class AppModel: ObservableObject {
                 let events: AsyncThrowingStream<AssistantEvent, any Error>
                 if let savedWork {
                     events = engine.resume(conversation: current, turnID: savedWork.id, backend: selectedBackend,
-                        workspaceEnabled: selection.workspaceSearchEnabled, automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute)
+                        workspaceEnabled: selection.workspaceSearchEnabled, automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute, appContext: appContext)
                     activity = "Continuing from saved work"
                 } else {
                     events = engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
                         containsHealthData: healthData, fileIDs: fileAttachments, imageSelections: imageSelections, workspaceEnabled: selection.workspaceSearchEnabled,
-                        automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute)
+                        automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute, appContext: appContext)
                 }
                 for try await event in events {
                     switch event {
+                    case .transportProgress(let bytes): completionWindow.received(bytes: bytes)
                     case .conversation(let updated):
                         conversation = updated
                         let newMessages = updated.messages.filter { !previousIDs.contains($0.id) }
-                        completionWindow.update(completedUnits: newMessages.reduce(0) { $0 + $1.text.count }, subtitle: activity ?? (activeToolCall.map(ToolResultPresentation.activeTitle) ?? "Receiving reply"))
-                        if let user = updated.messages.last(where: \.isRequest) { activeTurnID = savedWork?.id ?? user.id }
+                        if !signalledReply, newMessages.contains(where: { $0.role == .assistant && !$0.answerText.isEmpty }) {
+                            signalledReply = true; AppFeedback.play(.reply)
+                        }
+                        let streamingReply = newMessages.last { $0.role == .assistant && $0.state == .streaming }
+                        if let web = streamingReply?.displayParts.last?.web, web.isRunning { completionWindow.status(web.title) }
+                        else if streamingReply?.answerText.isEmpty == false && activeToolCall == nil { completionWindow.status("Writing your reply") }
+                        else { completionWindow.status(activity ?? (activeToolCall.map(ToolResultPresentation.activeTitle) ?? "Receiving reply")) }
+                        if let user = updated.messages.last(where: \.isRequest) {
+                            activeTurnID = savedWork?.id ?? user.id
+                            completionWindow.identifyTurn(savedWork?.id ?? user.id)
+                        }
                         if savedWork == nil, updated.messages.contains(where: { $0.role == .user && $0.text == text && !previousIDs.contains($0.id) }) {
                             if let id = routedInboxID, let entry = inbox.first(where: { $0.id == id && $0.text == text && $0.captureIDs == attachments }) { routedInboxID = nil; await finishInboxEntry(entry) }
                             attachedCaptureIDs = []
@@ -526,7 +548,9 @@ final class AppModel: ObservableObject {
                             attachedFileIDs = []
                             if draft == text || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = ""; flushDraft() }
                         }
-                    case .toolResult: activeToolCall = nil; await refresh(); activity = "Preparing the result"
+                    case .toolResult(let result):
+                        completionWindow.received(bytes: (try? result.output.jsonString().utf8.count) ?? 0)
+                        activeToolCall = nil; await refresh(); activity = "Preparing the result"
                     case .toolStarted(let call): activeToolCall = call; activity = nil; completionWindow.status(ToolResultPresentation.activeTitle(call))
                     case .activity(let value): activeToolCall = nil; activity = value; completionWindow.status(value)
                     case .finished: break
@@ -598,6 +622,7 @@ final class AppModel: ObservableObject {
         if ProcessInfo.processInfo.arguments.contains("--ui-background") { return UIBackgroundBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { return UILongTaskBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { return UIDailyWorkflowBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return UICoherenceBackend() }
         #endif
         switch selection.choice {
         case .localMLX:
@@ -608,13 +633,13 @@ final class AppModel: ObservableObject {
             guard let account = selection.chatGPTAccountID, let accountService, !selection.chatGPTModel.isEmpty else { throw AccountConnectionError.signInRequired }
             let access = try await accountService.accessToken(for: account)
             return try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel,
-                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort)
+                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort, contextBudget: contextBudget(for: selection))
         case .openAI, .compatibleServer:
             guard let url = selection.endpoint else { throw AssistantError.invalidEndpoint("Add a valid server address in Connections.") }
             let credential = try selection.credentialAccount.map { try CredentialStore.read(account: $0) } ?? ""
             if selection.choice == .openAI && credential.isEmpty { throw AssistantError.provider("Add an OpenAI API key, or use Continue with ChatGPT in the model picker.") }
             return try NetworkModelBackend(baseURL: url, model: selection.choice == .openAI ? selection.openAIModel : selection.compatibleModel,
-                wireProtocol: selection.choice == .openAI ? .responses : .chatCompletions, credential: credential, reasoningEffort: selection.choice == .openAI ? selectedReasoningEffort : nil)
+                wireProtocol: selection.choice == .openAI ? .responses : .chatCompletions, credential: credential, reasoningEffort: selection.choice == .openAI ? selectedReasoningEffort : nil, contextBudget: contextBudget(for: selection))
         }
     }
 
@@ -895,6 +920,7 @@ final class AppModel: ObservableObject {
                 return
             }
             deferredNativeAction = nil; nativeReviewVisible = true; nativeAction = request
+            if request.kind == .question { AppFeedback.play(.question) }
         } catch { resolveNativeAction("interrupted", for: request.id); noticeMessage = error.localizedDescription }
     }
     func nativeReviewDidDismiss() {
@@ -926,6 +952,9 @@ final class AppModel: ObservableObject {
         }
     }
     func refreshAccounts() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return }
+        #endif
         guard let accountService else { return }
         accounts = await accountService.summaries()
         guard !settings.localOnly else { chatGPTModels = []; return }

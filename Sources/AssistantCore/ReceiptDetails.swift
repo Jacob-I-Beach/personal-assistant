@@ -6,9 +6,19 @@ public struct ReceiptDetail: Identifiable, Equatable, Sendable {
     public var title: String
     public var value: String?
     public var children: [ReceiptDetail]
+    public var isProse: Bool { ["Saved text", "Notes", "Description", "Summary", "Answer", "What was read"].contains(title) || (value?.contains("\n") ?? false) }
 }
 public enum ReceiptDetails {
-    private static let internalKeys: Set<String> = ["operation_id", "execution_location", "tool_succeeded", "parameters", "required", "type", "additionalProperties"]
+    private static let internalKeys: Set<String> = ["operation_id", "execution_location", "tool_succeeded", "parameters", "required", "type", "additionalProperties", "role", "total_characters", "offset", "next_offset", "created_at", "completed_at"]
+    public static func readableContent(_ value: JSONValue) -> [ReceiptDetail] {
+        let envelope: Set<String> = ["result", "completed_at", "operation_id", "execution_location", "tool_succeeded", "status"]
+        if let fields = value.objectValue, Set(fields.keys).isSubset(of: envelope), let result = fields["result"],
+           fields["tool_succeeded"] != .bool(false), fields["status"] == nil || fields["status"] == .string("completed") {
+            if let items = result.arrayValue, items.count == 1 { return nodes(items[0]) }
+            return nodes(result)
+        }
+        return nodes(value)
+    }
     public static func nodes(_ value: JSONValue, path: String = "result", depth: Int = 0) -> [ReceiptDetail] {
         guard depth < 5 else { return [.init(id: path, title: "More detail", value: "Available in the diagnostic record.", children: [])] }
         if let fields = value.objectValue {

@@ -15,16 +15,17 @@ public struct NetworkModelBackend: ModelBackend {
     private let webSearchEnabled: Bool
     private let reasoningEffort: ReasoningEffort?
     private let retryPolicy: ResponseRetryPolicy
+    private let contextBudget: ModelContextBudget?
     public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") + (webSearchEnabled ? ":web-search" : "") }
     public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
     public var supportsFileInputs: Bool { wireProtocol == .responses && baseURL.absoluteString == "https://api.openai.com/v1" }
     public var contextLimits: ContextLimits {
-        ContextLimits(maximumTextBytes: chatGPTAccountID == nil ? 32_768 : 128_000, maximumImages: 4)
+        ContextLimits(maximumTextBytes: contextBudget?.textByteBudget ?? (chatGPTAccountID == nil ? 32_768 : 128_000), maximumImages: 4)
     }
 
     public init(baseURL: URL, model: String, wireProtocol: NetworkProtocol,
                 credential: String = "", transport: any HTTPStreamingTransport = URLSessionStreamingTransport(), chatGPTAccountID: String? = nil,
-                webSearchEnabled: Bool = false, reasoningEffort: ReasoningEffort? = nil, retryPolicy: ResponseRetryPolicy = .init()) throws {
+                webSearchEnabled: Bool = false, reasoningEffort: ReasoningEffort? = nil, retryPolicy: ResponseRetryPolicy = .init(), contextBudget: ModelContextBudget? = nil) throws {
         try EndpointPolicy.validate(baseURL)
         guard !credential.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             throw AssistantError.invalidEndpoint("The credential contains a line break or control character. Paste only the credential value.")
@@ -46,6 +47,7 @@ public struct NetworkModelBackend: ModelBackend {
         self.webSearchEnabled = webSearchEnabled
         self.reasoningEffort = reasoningEffort
         self.retryPolicy = retryPolicy
+        self.contextBudget = contextBudget
     }
 
     public func makeRequest(_ input: ModelRequest) throws -> URLRequest {
@@ -72,6 +74,7 @@ public struct NetworkModelBackend: ModelBackend {
                             var wire = ModelWireDecoder(wireProtocol: wireProtocol)
                             for try await data in transport.stream(request) {
                                 try Task.checkCancellation()
+                                if !data.isEmpty { continuation.yield(.transportProgress(data.count)) }
                                 for event in try sse.append(data) {
                                     for result in try wire.consume(event) { continuation.yield(result) }
                                     // Once committed, a late socket error must not regenerate valid calls.
@@ -136,6 +139,7 @@ public struct NetworkModelBackend: ModelBackend {
             "instructions": .string(input.instructions + (webSearchEnabled ? "\nWeb search is enabled subject to the selected model and account policy. Use it for current or sourced facts. Cite returned sources with visible Markdown links; do not invent citations." : "")), "input": .array(items),
             "include": .array([.string("reasoning.encrypted_content")]),
         ]
+        if let contextBudget { body["max_output_tokens"] = .number(Double(contextBudget.outputReserve)) }
         if !input.tools.isEmpty {
             let functions = input.tools.map { tool in
                 .object(["type": .string("function"), "name": .string(tool.name),
@@ -177,6 +181,7 @@ public struct NetworkModelBackend: ModelBackend {
             messages.append(.object(item))
         }
         var body: [String: JSONValue] = ["model": .string(model), "stream": .bool(true), "messages": .array(messages)]
+        if let contextBudget { body["max_tokens"] = .number(Double(contextBudget.outputReserve)) }
         if !input.tools.isEmpty {
             body["tools"] = .array(input.tools.map { tool in
                 .object(["type": .string("function"), "function": .object([

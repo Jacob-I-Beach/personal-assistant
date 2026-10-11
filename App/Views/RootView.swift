@@ -11,7 +11,6 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @State private var showHistory = false
-    @State private var showLibrary = false
     @State private var showSettings = false
     @State private var showHealth = false
     @State private var showWatchRequests = false
@@ -41,18 +40,11 @@ struct RootView: View {
                         }.accessibilityLabel("Choose model").disabled(model.isRunning)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("New chat", systemImage: "square.and.pencil") { model.newConversation() }.disabled(model.isRunning)
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            Button("New conversation", systemImage: "square.and.pencil") { model.newConversation() }.disabled(model.isRunning)
-                            Button("Library", systemImage: "square.stack") { voice.stopAll(); showLibrary = true }
-                            Button("Health overview", systemImage: "heart.text.square") { voice.stopAll(); showHealth = true }
-                            Button("Watch requests", systemImage: "applewatch") { voice.stopAll(); showWatchRequests = true }
+                            Button("Library", systemImage: "square.stack") { voice.stopAll(); chatNavigation.showLibrary = true }
+                            Button("Connections", systemImage: "point.3.connected.trianglepath.dotted") { chatNavigation.showConnections = true }
                             Button("Task activity", systemImage: "list.bullet.rectangle") { showTaskActivity = true }
                             Button("Assistant inbox", systemImage: "tray") { model.showInbox = true }
-                            Button("Planning access", systemImage: "calendar") { model.showPlanningAccess = true }
-                            Button("Settings", systemImage: "slider.horizontal.3") { voice.stopAll(); showSettings = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Assistant menu")
                     }
                 }
@@ -74,7 +66,10 @@ struct RootView: View {
                         }
                         HistoryView(close: { withAnimation(.snappy(duration: 0.25)) { showHistory = false } }, open: { destination in
                             switch destination {
-                            case "library": showLibrary = true
+                            case "library": chatNavigation.showLibrary = true
+                            case "connections": chatNavigation.showConnections = true
+                            case "inbox": model.showInbox = true
+                            case "activity": showTaskActivity = true
                             case "models": model.showModels = true
                             case "watch": showWatchRequests = true
                             default: showSettings = true
@@ -93,7 +88,8 @@ struct RootView: View {
         }
         .tint(Color.primary)
         .sheet(isPresented: $model.showModels) { ModelLibraryView() }
-        .sheet(isPresented: $showLibrary) { LibraryView() }
+        .sheet(isPresented: $chatNavigation.showLibrary) { LibraryView() }
+        .sheet(isPresented: $chatNavigation.showConnections) { ConnectionsView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showHealth) { HealthOverviewView() }
         .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
@@ -119,6 +115,7 @@ struct RootView: View {
         .modifier(TestAppearance(systemTypeSize: systemTypeSize))
         .onChange(of: model.isConnecting) { _, value in if value { voice.stopAll() } }
         .onChange(of: model.showModels) { _, value in if value { voice.stopAll() } }
+        .onChange(of: model.settings.hapticsEnabled, initial: true) { _, enabled in AppFeedback.enabled = enabled }
     }
 }
 
@@ -199,11 +196,11 @@ struct ChatView: View {
                 }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 12)
                     .frame(maxWidth: 720).frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
-                    .environmentObject(model).environmentObject(voice).environmentObject(chatNavigation)
+                    .environmentObject(model).environmentObject(voice).environmentObject(chatNavigation).environment(\.chatViewport, viewport)
         }
         .overlay(alignment: .bottomTrailing) {
             if !viewport.nearBottom && !model.conversation.messages.isEmpty {
-                Button { viewport.jumpToLatest() } label: {
+                Button { AppFeedback.play(.selection); viewport.jumpToLatest() } label: {
                     Image(systemName: "arrow.down").padding(12).background(.regularMaterial, in: Circle())
                 }.padding().accessibilityLabel("Jump to latest message")
             }
@@ -215,7 +212,6 @@ struct ChatView: View {
         .onChange(of: model.editingMessageID) { _, value in if value != nil { composerFocused = true } }
         .background(Color(uiColor: .systemBackground))
         .sheet(isPresented: $showCapture) { SceneCaptureSheet().environmentObject(model) }
-        .sheet(isPresented: $showAttachmentLibrary) { FileAttachmentPicker() }
         .sheet(isPresented: $showReasoningEffort) { ReasoningEffortView() }
         .sheet(isPresented: $showCreationBrief) { CreationBriefView(text: model.draft) { model.draft = $0; composerFocused = true } }
         .sheet(isPresented: $model.showConnectedFolders) {
@@ -315,17 +311,20 @@ struct ChatView: View {
                     }
                 }.scrollIndicators(.hidden)
             }
-            HStack(alignment: .bottom, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 4)
+                    .focused($composerFocused).accessibilityIdentifier("message-composer").disabled(voice.isRecording)
+                HStack(alignment: .center, spacing: 4) {
                 Menu {
                     Button("Camera and depth", systemImage: "camera") { showCapture = true }
                     Button("Photo library", systemImage: "photo") { showPhotos = true }
                     Button("Choose files", systemImage: "doc.badge.plus") { showFiles = true }
-                    Button("From Library", systemImage: "square.stack") { showAttachmentLibrary = true }
+                    Button("Library", systemImage: "square.stack") { composerFocused = false; chatNavigation.showLibrary = true }
                     Button("Connected folders", systemImage: "folder") { model.showConnectedFolders = true }
                 } label: { Image(systemName: "plus").font(.title3).frame(width: 44, height: 44) }
                     .accessibilityLabel("Add to message").disabled(importing || model.isImportingFiles || model.isRunning)
-                TextField("Ask anything", text: $model.draft, axis: .vertical).lineLimit(1...7)
-                    .padding(.vertical, 10).focused($composerFocused).accessibilityIdentifier("message-composer").disabled(voice.isRecording)
+                Spacer(minLength: 16)
                 Button {
                     if voice.isRecording { voice.stopRecording() }
                     else {
@@ -343,7 +342,8 @@ struct ChatView: View {
                     Button { voice.stopRecording(); composerFocused = false; viewport.jumpToLatest(); model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .accessibilityLabel("Send message").disabled((model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty) || importing || model.isImportingFiles)
                 }
-            }.padding(.horizontal, 12).padding(.vertical, 7).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 27))
+                }.buttonStyle(QuietPressStyle())
+            }.padding(.horizontal, 10).padding(.vertical, 6).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 25))
         }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8).background(.bar)
     }
 }

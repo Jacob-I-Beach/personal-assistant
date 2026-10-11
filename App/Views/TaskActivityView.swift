@@ -23,7 +23,11 @@ struct TaskActivityView: View {
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
                 .task {
                     guard let id = model.conversation.messages.last(where: \.isRequest)?.id else { note = "Send a request to start a task record."; return }
-                    do { report = try await model.store?.taskDiagnostics(id) }
+                    do {
+                        var fields = try await model.store?.taskDiagnostics(id).objectValue ?? [:]
+                        fields["background_processing"] = ResponseCompletionWindow.diagnostic(for: id)
+                        report = .object(fields)
+                    }
                     catch { note = "This older conversation has no task record. New requests record their progress here." }
                 }
         }

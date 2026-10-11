@@ -19,11 +19,11 @@ struct ActivityGroupView: View {
         return groups
     }
     var body: some View {
-        DisclosureGroup {
+        AssistantDisclosure {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(categories) { group in
                     if group.messages.count > 1 {
-                        DisclosureGroup {
+                        AssistantDisclosure(nested: true) {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(group.messages) { WorkReceiptView(message: $0) }
                             }.padding(.top, 10)

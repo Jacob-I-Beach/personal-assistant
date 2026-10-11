@@ -91,7 +91,7 @@ struct WorkReceiptView: View {
                 }
             }.padding(.vertical, 6)
         } else {
-            DisclosureGroup {
+            AssistantDisclosure(nested: true) {
                 VStack(alignment: .leading, spacing: 14) {
                     if let output {
                         ForEach(ToolResultPresentation.summary(tool: toolName, output: output)) { field in
@@ -142,25 +142,25 @@ struct WorkReceiptView: View {
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     if let code = arguments?["code"]?.stringValue {
-                        DisclosureGroup("Code") {
+                        AssistantDisclosure(nested: true) {
                             ScrollView(.horizontal) { Text(code).font(.caption.monospaced()).textSelection(.enabled).padding(.vertical, 8) }
                             Button("Copy code", systemImage: "doc.on.doc") { UIPasteboard.general.string = code }.font(.caption)
-                        }.font(.footnote)
+                        } label: { Label("Code", systemImage: "curlybraces") }.font(.footnote)
                     }
                     if let arguments, !ReceiptDetails.nodes(arguments).isEmpty {
-                        DisclosureGroup("Request details") {
+                        AssistantDisclosure(nested: true) {
                             ReceiptDetailView(nodes: ReceiptDetails.nodes(arguments)).padding(.top, 10)
-                        }.font(.footnote)
+                        } label: { Label("What was requested", systemImage: "text.magnifyingglass") }.font(.footnote)
                     }
                     if let output {
-                        ReceiptDetailView(nodes: ReceiptDetails.nodes(output))
+                        ReceiptDetailView(nodes: ReceiptDetails.readableContent(output))
                     } else { Text(message.text).font(.subheadline).textSelection(.enabled) }
                     HStack(spacing: 12) {
                         Label(message.createdAt.formatted(date: .omitted, time: .shortened), systemImage: "clock").font(.caption2).foregroundStyle(.secondary)
                         Spacer()
-                        Button("Copy diagnostic record", systemImage: "doc.on.doc") {
+                        MessageActionButton(title: "Copy diagnostic record", icon: "doc.on.doc", confirmation: "Copied") {
                             UIPasteboard.general.string = "Tool: \(toolName)\nRequest: \((try? arguments?.jsonString()) ?? "")\nResult: \(message.text)"
-                        }.font(.caption2)
+                        }
                     }
                 }.padding(.top, 12)
             } label: {

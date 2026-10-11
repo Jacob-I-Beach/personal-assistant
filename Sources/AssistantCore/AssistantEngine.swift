@@ -1,6 +1,7 @@
 import Foundation
 
 public enum AssistantEvent: Sendable {
+    case transportProgress(Int)
     case conversation(Conversation)
     case toolResult(ToolResult)
     case toolStarted(ToolCall)
@@ -24,14 +25,14 @@ public actor AssistantEngine {
 
     public nonisolated func respond(conversation: Conversation, text: String, captureIDs: [UUID],
                                     backend: any ModelBackend, containsHealthData: Bool = false, fileIDs: [UUID] = [], imageSelections: [String: [ImagePoint]] = [:], workspaceEnabled: Bool = false, automaticMemory: Bool = false, configuration: JSONValue = .object([:]), additionalTools: [ToolDefinition] = [],
-                                    additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
+                                    additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil, appContext: AssistantAppContext? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
         let turnID = UUID()
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: text, captureIDs: captureIDs,
                                        backend: backend, containsHealthData: containsHealthData, fileIDs: fileIDs, imageSelections: imageSelections, workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
-                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, configuration: configuration, output: continuation)
+                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, configuration: configuration, appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
                     await self.recordInterruption(turnID, error: error)
@@ -43,13 +44,13 @@ public actor AssistantEngine {
     }
 
     public nonisolated func resume(conversation: Conversation, turnID: UUID, backend: any ModelBackend, workspaceEnabled: Bool = false, automaticMemory: Bool = false,
-                                   additionalTools: [ToolDefinition] = [], additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
+                                   additionalTools: [ToolDefinition] = [], additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil, appContext: AssistantAppContext? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: "", captureIDs: [], backend: backend, containsHealthData: conversation.containsHealthData,
                                        fileIDs: [], imageSelections: [:], workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
-                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, configuration: .object([:]), output: continuation)
+                                       additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, configuration: .object([:]), appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
                     await self.recordInterruption(turnID, error: error)
@@ -68,7 +69,7 @@ public actor AssistantEngine {
     private func run(conversation original: Conversation, text: String, captureIDs: [UUID],
                      backend: any ModelBackend, containsHealthData: Bool, fileIDs: [UUID], imageSelections: [String: [ImagePoint]], workspaceEnabled: Bool, automaticMemory: Bool, additionalTools: [ToolDefinition],
                      additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?,
-                     turnID: UUID, resuming: Bool, configuration: JSONValue,
+                     turnID: UUID, resuming: Bool, configuration: JSONValue, appContext: AssistantAppContext?,
                      output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
         guard activeRun == nil else { throw AssistantError.busy }
         let runID = UUID(); activeRun = runID
@@ -104,12 +105,13 @@ public actor AssistantEngine {
         var work: WorkTurn
         if resuming {
             guard var saved = try await store.workTurn(turnID), saved.conversationID == conversation.id, saved.backendID == backend.id, saved.destination == backend.networkDestination,
-                  saved.phase == .interrupted || saved.phase == .running, saved.resumes < 3, saved.needsChangedRequest != true,
+                  saved.phase == .interrupted || saved.phase == .running, saved.resumes < 3,
                   let last = conversation.messages.last(where: \.isRequest), last.id == saved.userMessageID,
                   backend.networkDestination == nil || !last.containsLocalOnlyContext else {
                 throw AssistantError.invalidTool("This reply cannot resume automatically. Open its chat and choose how to continue.")
             }
-            saved.phase = .running; saved.resumes += 1; saved.reason = nil
+            guard saved.permitsContextRetry(maximumTextBytes: backend.contextLimits.maximumTextBytes) else { throw AssistantError.contextCapacity }
+            saved.phase = .running; saved.resumes += 1; saved.reason = nil; saved.needsChangedRequest = false
             work = saved; user = last
         } else {
             var message = Message(id: turnID, role: .user, text: text, captureIDs: captureIDs, fileIDs: fileIDs, containsHealthData: containsHealthData,
@@ -119,6 +121,9 @@ public actor AssistantEngine {
             work = WorkTurn(id: turnID, conversationID: conversation.id, userMessageID: message.id, backendID: backend.id, destination: backend.networkDestination,
                             goal: String(text.prefix(350)), configuration: configuration)
         }
+        var contextConfiguration = work.configuration.objectValue ?? [:]
+        contextConfiguration["context_text_bytes"] = .number(Double(backend.contextLimits.maximumTextBytes))
+        work.configuration = .object(contextConfiguration)
         try await store.save(conversation)
         if !resuming { try await store.supersedeWork(in: conversation.id, except: turnID) }
         try await store.saveWorkTurn(work)
@@ -190,7 +195,7 @@ public actor AssistantEngine {
             work = try await store.workTurn(turnID) ?? work
             guard work.rounds < 12 else { throw AssistantError.invalidTool("This task reached its total response-round limit. Its work remains saved.") }
             work.rounds += 1; try await store.saveWorkTurn(work)
-            var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs)
+            var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs, appContext: appContext)
             request.instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())); local time zone: \(TimeZone.current.identifier). Current saved task ID: \(turnID.uuidString). update_plan persists its public plan; read_task inspects recorded action outcomes."
             if resuming { request.instructions += "\nThe app is continuing the original user request after an interruption. No new user message was sent. Use completed receipts and any partial reply as prior work; finish coherently without repeating completed effects. Unknown outcomes require inspection before another action." }
             if automaticMemory {
@@ -214,6 +219,7 @@ public actor AssistantEngine {
                 for try await event in backend.stream(request) {
                     try Task.checkCancellation()
                     switch event {
+                    case .transportProgress(let bytes): output.yield(.transportProgress(bytes))
                     case .retrying(let attempt, let maximum):
                         try await store.recordNetworkRetry(turnID)
                         output.yield(.activity("Retrying \(attempt)/\(maximum)"))
@@ -313,13 +319,14 @@ public actor AssistantEngine {
         conversation.allowedHealthDestinations.insert(destination)
     }
 
-    private func request(for conversation: Conversation, tools: [ToolDefinition], limits: ContextLimits, remote: Bool, nativeFiles: Bool) async throws -> ModelRequest {
+    private func request(for conversation: Conversation, tools: [ToolDefinition], limits: ContextLimits, remote: Bool, nativeFiles: Bool, appContext: AssistantAppContext?) async throws -> ModelRequest {
         var inputs: [ModelInputMessage] = []
         let notes = try await store.memories()
         var instructions = AssistantInstructions.base + MemoryContext.instructions(notes, query: conversation.messages.last(where: { $0.role == .user })?.text ?? "",
             conversationID: conversation.id, remote: remote)
         instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())). Time zone: \(TimeZone.current.identifier)."
         instructions += "\nThis session uses \(remote ? "a connected model" : "on-device inference"). get_capabilities reports the actual app tools and limits. Connected folders require selection for this chat and per-folder model-sharing permission."
+        if let appContext { instructions += "\n" + appContext.instructions }
         let surfaces = try await store.surfaces(conversationID: conversation.id, remote: remote)
         if !surfaces.isEmpty {
             var states: [JSONValue] = []

@@ -3,12 +3,11 @@ import SwiftUI
 
 struct SourceListView: View {
     let citations: [WebCitation]
-    @State private var expanded = false
     private var sources: [CitationSource] { CitationSource.group(citations) }
     var body: some View {
         Group {
             if sources.count > 3 {
-                DisclosureGroup(isExpanded: $expanded) { rows.padding(.top, 10) } label: {
+                AssistantDisclosure { rows.padding(.top, 10) } label: {
                     Label("\(sources.count) sources", systemImage: "link").font(.subheadline.weight(.medium))
                 }
                 .tint(.secondary)

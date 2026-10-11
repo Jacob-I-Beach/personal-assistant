@@ -553,5 +553,20 @@
     "baseline_run_id": 38089667633,
     "scope": "expanded 0.7 implementation, native validation and IPA",
     "per_job_maximum_minutes": 20
+  },
+  "current_validation_policy": {
+    "verified_at_utc": "2026-10-11T07:55:28.316960+00:00",
+    "repository_visibility": "public",
+    "user_preference": "Keep source public for free development",
+    "standard_runner_label": "xcode-27",
+    "runner_group": "GitHub Actions",
+    "prospective_standard_compute_charge_usd_per_minute": 0,
+    "historical_estimate_semantics": "Existing estimated_compute_usd_if_fully_billable is a list-price upper bound, not net invoiced spend. Do not use it to block verified-free standard public runs.",
+    "preflight": "Recheck repository visibility and runner class before each dispatch; private/larger runs need an applicable spend authorization.",
+    "storage": "Separate from compute; keep short retention.",
+    "policy_sources": [
+      "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+      "https://docs.github.com/en/actions/reference/runners/github-hosted-runners"
+    ]
   }
 }

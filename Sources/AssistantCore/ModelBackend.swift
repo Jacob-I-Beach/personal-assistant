@@ -31,6 +31,9 @@ public struct ModelRequest: Sendable {
     }
 }
 public enum ModelEvent: Sendable {
+    /// Actual bytes delivered by the model transport, including progress before
+    /// public answer text exists. Never synthesized by a timer.
+    case transportProgress(Int)
     /// Replace only the uncommitted output of a failed network attempt. Saved tool receipts stay intact.
     case restartResponse
     case retrying(attempt: Int, maximum: Int)

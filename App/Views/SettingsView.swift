@@ -22,29 +22,31 @@ struct SettingsView: View {
                     }
                     Button("Continue with ChatGPT") { model.connectChatGPT() }.disabled(model.isConnecting || model.isRunning)
                     Link("Manage ChatGPT usage", destination: URL(string: "https://chatgpt.com/settings/usage")!)
-                    Toggle("Allow web search with ChatGPT", isOn: $draft.chatGPTWebSearch)
+                    Toggle("Allow web search with ChatGPT", isOn: preference(\.chatGPTWebSearch))
                     Text("Lets supported account models search the web and return source links. Availability follows the selected model and your account's policy. This does not grant browser control or network access to code.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("On-device models") {
-                    Toggle("Allow cellular downloads", isOn: $draft.allowCellularDownloads)
+                    Toggle("Allow cellular downloads", isOn: preference(\.allowCellularDownloads))
                     Stepper("Response budget: \(draft.localResponseTokens)", value: $draft.localResponseTokens, in: 512...8192, step: 512)
                     Button("Release model memory") { model.unloadModel() }.disabled(model.isRunning)
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Privacy and recovery") {
-                    Toggle("Continue connected tasks in background", isOn: $draft.continueInBackground)
+                    Toggle("Confirm each new connected chat", isOn: preference(\.confirmNewConnectedChats))
+                    Text("When off, Send uses the model you selected without another pop-up. Health sharing still has a separate review.").font(.footnote).foregroundStyle(.secondary)
+                    Toggle("Continue connected tasks in background", isOn: preference(\.continueInBackground))
                     Text("Tasks you start can keep working while you use another app, when iOS grants processing time. You can stop them from the system activity. Downloaded models still pause when the app leaves the foreground.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Notify when a task needs attention", isOn: $draft.taskNotifications)
+                    Toggle("Notify when a task needs attention", isOn: preference(\.taskNotifications))
                     Text("Allow notifications when iOS asks. Receive a notice for reviews, completed replies, or saved work that needs attention. Tapping opens its chat.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Automatic memory", isOn: $draft.automaticMemory)
+                    Toggle("Automatic memory", isOn: preference(\.automaticMemory))
                     Text("Remember useful things you share and keep them current. Inferences stay tentative. Inspect changes and undo them in Library → Saved memory.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Allow workspace search", isOn: $draft.workspaceSearchEnabled)
+                    Toggle("Allow workspace search", isOn: preference(\.workspaceSearchEnabled))
                     Text("Lets the selected model search other chats in this app and files you marked for workspace access. Connected models cannot search archived, on-device-only, or Health chats. This does not import your history from the ChatGPT app.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Allow assistant Health reads", isOn: $draft.healthToolsEnabled).disabled(!HealthOverviewService.isEnabledInThisBuild)
+                    Toggle("Allow assistant Health reads", isOn: preference(\.healthToolsEnabled)).disabled(!HealthOverviewService.isEnabledInThisBuild)
                     Text(HealthOverviewService.isEnabledInThisBuild ? "Controls new Health overview queries. Review the shared data types in Health overview. Existing conversation records are kept until you remove them." : HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Work only on this device", isOn: $draft.localOnly)
+                    Toggle("Work only on this device", isOn: preference(\.localOnly))
                     Text("Blocks connected models and account-model refreshes. Turn this off temporarily when downloading model files.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Include user data in device backups", isOn: $draft.includeInDeviceBackup).disabled(model.libraryContainsHealthData)
+                    Toggle("Include user data in device backups", isOn: preference(\.includeInDeviceBackup)).disabled(model.libraryContainsHealthData)
                     Text(model.libraryContainsHealthData ? "This library contains Health-derived information and stays excluded from device backups. Export selected items when needed." : "Conversations, memories, captures, and files stay excluded until you enable this. Model weights are always excluded. Account credentials remain in this device's Keychain.").font(.footnote).foregroundStyle(.secondary)
                     Button("Revoke network access for this conversation") { model.revokeNetworkConsent() }.disabled(model.isRunning)
                 }
@@ -66,13 +68,15 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Section("Voice") {
-                    Toggle("Read completed responses aloud", isOn: $draft.speakReplies)
+                Section("Feedback & voice") {
+                    Toggle("Gentle haptics", isOn: preference(\.hapticsEnabled))
+                    Text("Quiet feedback for selections, sending, copying and replies. A soft three-tap pattern means the assistant needs your answer.").font(.footnote).foregroundStyle(.secondary)
+                    Toggle("Read completed responses aloud", isOn: preference(\.speakReplies))
                     Text("You can also play an individual answer from its speaker button. Voice input uses on-device transcription when available.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Conversations") {
                     Button("Home context", systemImage: "sun.max") { showContext = true }
-                    Toggle("Automatic chat titles", isOn: $draft.automaticChatTitles)
+                    Toggle("Automatic chat titles", isOn: preference(\.automaticChatTitles))
                     Text("Uses the selected model to name new chats after the first answer. Names you enter yourself are kept.").font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("About") {
@@ -87,7 +91,7 @@ struct SettingsView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        do { try model.saveSettings(draft, credential: credential); credential = ""; showSaved = true }
+                        do { try model.saveSettings(draft, credential: credential); credential = ""; AppFeedback.play(.saved); showSaved = true }
                         catch { model.errorMessage = error.localizedDescription }
                     }.disabled(model.isRunning)
                 }
@@ -106,6 +110,12 @@ struct SettingsView: View {
             .onChange(of: model.libraryContainsHealthData) { _, contains in if contains { draft.includeInDeviceBackup = false } }
             .alert("Settings saved", isPresented: $showSaved) { Button("Done") { dismiss() } }
         }
+    }
+    private func preference(_ key: WritableKeyPath<ModelSettings, Bool>) -> Binding<Bool> {
+        Binding(get: { draft[keyPath: key] }, set: { value in
+            guard draft[keyPath: key] != value else { return }
+            draft[keyPath: key] = value; AppFeedback.play(.selection)
+        })
     }
 }
 private struct AcknowledgmentsView: View {

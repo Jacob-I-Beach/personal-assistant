@@ -10,4 +10,6 @@ enum ChatDestination: Hashable, Identifiable {
 @MainActor
 final class ChatNavigation: ObservableObject {
     @Published var destination: ChatDestination?
+    @Published var showLibrary = false
+    @Published var showConnections = false
 }

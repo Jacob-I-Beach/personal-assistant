@@ -3,12 +3,12 @@ import SwiftUI
 
 struct WelcomeWorkspaceView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dynamicTypeSize) private var typeSize
     @StateObject private var weather = HomeWeatherService()
     @State private var name: String?
     @State private var showContext = false
     @State private var showMemory = false
-    @State private var showLibrary = false
     let camera: () -> Void
     let files: () -> Void
     let create: () -> Void
@@ -60,7 +60,7 @@ struct WelcomeWorkspaceView: View {
                 HStack {
                     Text("Your workspace").font(.subheadline.weight(.semibold))
                     Spacer()
-                    Button("Open Library", systemImage: "arrow.up.right") { showLibrary = true }.labelStyle(.titleOnly).font(.caption)
+                    Button("Open Library", systemImage: "arrow.up.right") { navigation.showLibrary = true }.labelStyle(.titleOnly).font(.caption)
                 }
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 20) { shortcuts }
@@ -72,13 +72,12 @@ struct WelcomeWorkspaceView: View {
             .sheet(isPresented: $showMemory, onDismiss: { Task { await readName() } }) {
                 NavigationStack { MemoryView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showMemory = false } } } }
             }
-            .sheet(isPresented: $showLibrary) { LibraryView() }
             .task(id: refreshID) { await readName(); await weather.refresh(model: model) }
     }
     @ViewBuilder private var shortcuts: some View {
         Button("Memory", systemImage: "brain.head.profile") { showMemory = true }
-        Button("Folders", systemImage: "folder") { model.showConnectedFolders = true }
-        Button("Home context", systemImage: "sun.max") { showContext = true }
+        Button("Inbox", systemImage: "tray") { model.showInbox = true }
+        Button("Connections", systemImage: "point.3.connected.trianglepath.dotted") { navigation.showConnections = true }
     }
     private func entry(_ title: String, subtitle: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {

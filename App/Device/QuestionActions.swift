@@ -34,6 +34,7 @@ extension AppModel {
         guard !isRunning || conversation.id == question.conversationID else { return }
         if nativeAction != nil { return }
         nativeReviewVisible = true
+        AppFeedback.play(.question)
         nativeAction = .init(kind: .question, title: "Your answer is needed", detail: question.title, arguments: .object([:]), questionID: question.id)
     }
     func submitQuestion(_ id: UUID, text: String, captureIDs: [UUID], skip: Bool) async throws {

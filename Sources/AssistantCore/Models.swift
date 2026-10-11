@@ -134,6 +134,7 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var allowedNetworkDestinations: Set<String>
     public var allowedHealthDestinations: Set<String> = []
     public var networkDisabled = false
+    public var requiresNetworkReview = false
     public var folderID: UUID?
     public var archivedAt: Date?
     public var needsAutomaticTitle: Bool
@@ -152,7 +153,7 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var attachedCaptureIDs: Set<UUID> { Set(messages.flatMap(\.captureIDs)) }
     public var attachedFileIDs: Set<UUID> { Set(messages.flatMap(\.fileIDs)) }
     public var containsHealthData: Bool { messages.contains(where: \.containsHealthData) }
-    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, folderID, archivedAt, needsAutomaticTitle, titleWasGenerated, modelTitleOverride, workspaceIDs, excludedArtifactIDs, excludedFileIDs }
+    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, requiresNetworkReview, folderID, archivedAt, needsAutomaticTitle, titleWasGenerated, modelTitleOverride, workspaceIDs, excludedArtifactIDs, excludedFileIDs }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion); id = try c.decode(UUID.self, forKey: .id)
@@ -161,6 +162,7 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
         allowedNetworkDestinations = try c.decodeIfPresent(Set<String>.self, forKey: .allowedNetworkDestinations) ?? []
         allowedHealthDestinations = try c.decodeIfPresent(Set<String>.self, forKey: .allowedHealthDestinations) ?? []
         networkDisabled = try c.decodeIfPresent(Bool.self, forKey: .networkDisabled) ?? false
+        requiresNetworkReview = try c.decodeIfPresent(Bool.self, forKey: .requiresNetworkReview) ?? false
         folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
         archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
         needsAutomaticTitle = try c.decodeIfPresent(Bool.self, forKey: .needsAutomaticTitle) ?? false

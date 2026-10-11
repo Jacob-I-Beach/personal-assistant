@@ -25,8 +25,7 @@ private struct AssistantCodeBlockStyle: StructuredText.CodeBlockStyle {
             HStack {
                 Text(configuration.languageHint ?? "Code").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Copy", systemImage: "doc.on.doc") { configuration.codeBlock.copyToPasteboard() }
-                    .font(.caption).accessibilityLabel("Copy code")
+                MessageActionButton(title: "Copy code", icon: "doc.on.doc", confirmation: "Copied") { configuration.codeBlock.copyToPasteboard() }
             }.padding(.horizontal, 12).padding(.top, 10)
             ScrollView(.horizontal) {
                 configuration.label.textual.fontScale(0.85).monospaced().padding(12)

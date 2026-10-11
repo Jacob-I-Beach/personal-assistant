@@ -9,10 +9,15 @@ final class HealthOverviewService {
         parameters: .object(["type": .string("object"), "properties": .object(["days": .object(["type": .string("string"), "description": .string("Use 7 for the supported seven-day overview."), "enum": .array([.string("7")])])]),
                             "required": .array([.string("days")]), "additionalProperties": .bool(false)]))
     private let store = HKHealthStore()
-    // Enabled by a deployment profile only after its signer provisions HealthKit.
-    // iLoader 2.3.6 does not request this capability from Apple.
-    static var isEnabledInThisBuild: Bool { Bundle.main.object(forInfoDictionaryKey: "AssistantHealthEnabled") as? Bool == true }
-    static let signingMessage = "Health access needs an updated installation with Apple's HealthKit capability. It is not available in this build."
+    // Ordinary iLoader does not request HealthKit. A capability-aware signing
+    // input must also carry an Apple profile granting it, before showing a read UI.
+    static let isEnabledInThisBuild: Bool = {
+        guard Bundle.main.object(forInfoDictionaryKey: "AssistantHealthEnabled") as? Bool == true,
+              let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let profile = try? Data(contentsOf: url) else { return false }
+        return ProvisionedCapabilities.healthKit(in: profile)
+    }()
+    static let signingMessage = "This installation does not include HealthKit access. Use the Health-enabled Assistant package with the capability-aware signing helper. Free developer accounts can support HealthKit; the installed profile must authorize it."
     var isAvailable: Bool { Self.isEnabledInThisBuild && HKHealthStore.isHealthDataAvailable() }
     private func requireAvailability() throws {
         guard Self.isEnabledInThisBuild else { throw AssistantError.provider(Self.signingMessage) }
