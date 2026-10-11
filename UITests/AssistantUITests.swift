@@ -128,10 +128,19 @@ final class AssistantUITests: XCTestCase {
         let row = app.staticTexts["Searched the web"]
         for _ in 0..<6 { if row.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(row.isHittable)
+        let scroll = app.scrollViews["conversation-scroll"]
+        let settled = NSPredicate { _, _ in (scroll.value as? String ?? "").contains("|idle|") }
+        expectation(for: settled, evaluatedWith: scroll); waitForExpectations(timeout: 5)
         let before = row.frame.minY
+        print("Disclosure before: \(row.frame); \(String(describing: scroll.value)); viewport \(scroll.frame)")
+        saveScreenshot(app, name: "Web-disclosure-before")
         row.tap()
         XCTAssertTrue(app.staticTexts["Example reference"].waitForExistence(timeout: 5))
+        print("Disclosure open: \(row.frame); \(String(describing: scroll.value))")
+        saveScreenshot(app, name: "Web-disclosure-open")
         row.tap()
+        print("Disclosure closed: \(row.frame); \(String(describing: scroll.value))")
+        saveScreenshot(app, name: "Web-disclosure-closed")
         XCTAssertLessThan(abs(row.frame.minY - before), 24)
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
         composer.tap(); composer.typeText("A saved draft")
@@ -271,6 +280,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
     func testSourcesThinkingAndPhotoPicker() {
+        executionTimeAllowance = 180
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo", "--ui-workspace", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -475,6 +485,8 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
         app.staticTexts["sample.csv"].tap()
         app.buttons["Attach to current chat"].tap()
+        print("After Library attachment, app state: \(app.state.rawValue)\n" + app.debugDescription)
+        saveScreenshot(app, name: "After-library-attachment")
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "File-attachment")
         app.buttons["Assistant menu"].tap()
@@ -527,8 +539,8 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Send message"].tap()
         XCTAssertTrue(app.staticTexts["Your synthetic request started without another connection prompt."].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["Allow for this conversation"].exists)
-        let actions = app.descendants(matching: .any).matching(identifier: "final-response-actions").allElementsBoundByIndex.last!
-        actions.buttons["Copy message"].tap()
+        let copy = app.buttons.matching(NSPredicate(format: "identifier == %@ AND label == %@", "final-response-actions", "Copy message")).allElementsBoundByIndex.last!
+        copy.tap()
         XCTAssertTrue(app.buttons["Copied"].waitForExistence(timeout: 2))
         saveScreenshot(app, name: "Copied-confirmation")
         app.buttons["Choose model"].tap(); app.buttons["Working context"].tap()

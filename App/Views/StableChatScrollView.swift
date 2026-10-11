@@ -72,6 +72,10 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private var lastOffset: CGFloat = 0
     private var reachedBottomDuringGesture = false
     private var disclosureAnchor: (id: UUID, offset: CGFloat)?
+    #if DEBUG
+    private var disclosurePins = 0
+    private var missingDisclosurePins = 0
+    #endif
 
     init(viewport: ChatViewport) { self.viewport = viewport; super.init(nibName: nil, bundle: nil); viewport.controller = self }
     required init?(coder: NSCoder) { fatalError("Use init(viewport:)") }
@@ -131,7 +135,12 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         if streaming { startFollowingFrames() }
     }
     func pinDisclosure(_ id: UUID) {
+        #if DEBUG
+        disclosurePins += 1
+        if scroll.markers[id]?.value == nil { missingDisclosurePins += 1 }
+        #endif
         guard let marker = scroll.markers[id]?.value else { return }
+        scroll.setContentOffset(scroll.contentOffset, animated: false)
         disclosureAnchor = (id, marker.convert(.zero, to: scroll).y - scroll.contentOffset.y)
         follow.beginReading(); displayLink?.isPaused = true; pendingJump = false; rememberPosition()
     }
@@ -217,7 +226,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private func publishPosition() {
         #if DEBUG
         let screenY = anchor.flatMap { scroll.markers[$0.id]?.value }.map { $0.convert(.zero, to: scroll.window).y } ?? 0
-        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))|\(scroll.isDragging || scroll.isDecelerating ? "moving" : "idle")|\(Int(screenY.rounded()))"
+        scroll.accessibilityValue = "\(follow.isFollowing ? "following" : "reading")|\(Int(scroll.contentOffset.y.rounded()))|\(Int(maximumOffset.rounded()))|\(scroll.isDragging || scroll.isDecelerating ? "moving" : "idle")|\(Int(screenY.rounded()))|pins:\(disclosurePins)/\(missingDisclosurePins)|padding:\(Int(scroll.contentInset.bottom.rounded()))|pinned:\(disclosureAnchor != nil)"
         #endif
         let value = follow.isFollowing || nearBottom
         DispatchQueue.main.async { [weak self] in

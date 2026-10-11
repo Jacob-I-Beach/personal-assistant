@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full UI suite, streaming repair, or a single capped EventKit/Release repair job
         type: choice
-        options: [full, streaming-repair, planning-repair]
+        options: [full, streaming-repair, planning-repair, interaction-diagnostics]
         default: full
 permissions:
   contents: read
@@ -152,7 +152,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || '["workflows","reading","files","coherence"]') }}
+        suite: ${{ fromJSON(inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]')) }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -181,6 +181,12 @@ jobs:
           test -n "$bundle"
           test_options=()
           case "${{ matrix.suite }}" in
+            disclosure)
+              scenarios="testKeyboardAndDisclosurePreserveReadingPosition"
+              ;;
+            attachment)
+              scenarios="testFreshLaunchSidebarFoldersAndAttachmentActions"
+              ;;
             coherence)
               scenarios="testFullWidthComposerContextAndImmediateConnectedSend testToolExpansionAndLatestButtonPreserveIntentionalPosition"
               ;;
@@ -195,7 +201,10 @@ jobs:
               scenarios="testKeyboardAndDisclosurePreserveReadingPosition testStreamingFollowsDetachesAndReturnsToFollowing testHomeActionsOpenRealWorkflowsAndKeepTheUsersWords testDarkAndLargeTextControlsRemainUsable testWelcomeCatalogAndSettings"
               ;;
             files)
-              scenarios="testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testConnectedFolderAndFilesOutputs testRichConversationArtifactAndHistory testFreshLaunchSidebarFoldersAndAttachmentActions testSourcesThinkingAndPhotoPicker"
+              scenarios="testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testConnectedFolderAndFilesOutputs testRichConversationArtifactAndHistory"
+              ;;
+            library)
+              scenarios="testFreshLaunchSidebarFoldersAndAttachmentActions testSourcesThinkingAndPhotoPicker"
               ;;
           esac
           for scenario in $scenarios; do
@@ -209,6 +218,11 @@ jobs:
           if [ -d .build/UITests.xcresult ]; then
             xcrun xcresulttool export attachments --path .build/UITests.xcresult --output-path .build/ui-attachments
           fi
+      - name: Preserve synthetic app crash reports
+        if: always()
+        run: |
+          mkdir -p .build/app-crashes
+          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 2 -type f \( -name 'PersonalAssistant*.ips' -o -name 'PersonalAssistant*.crash' \) -mmin -30 -exec cp {} .build/app-crashes/ \; 2>/dev/null || true
       - name: Preserve native test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -218,4 +232,5 @@ jobs:
           path: |
             .build/ui-tests.log
             .build/ui-attachments
+            .build/app-crashes
           retention-days: 7
