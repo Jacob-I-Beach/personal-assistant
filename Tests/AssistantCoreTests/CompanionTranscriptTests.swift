@@ -35,5 +35,11 @@ final class CompanionTranscriptTests: XCTestCase, @unchecked Sendable {
         let saved = try await store.companionRun(id)
         XCTAssertEqual(saved?.jobID, record.jobID); XCTAssertEqual(saved?.payload, record.payload)
         XCTAssertEqual(saved?.stopRequested, false)
+        record.stopRequested = true; record.status = "cancelled"
+        try await store.saveCompanionRun(record)
+        var late = saved!; late.status = "running"
+        try await store.saveCompanionRun(late)
+        let stopped = try await store.companionRun(id)
+        XCTAssertEqual(stopped?.stopRequested, true); XCTAssertEqual(stopped?.status, "cancelled")
     }
 }

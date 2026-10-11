@@ -10,6 +10,18 @@ enum ComputerScheduleTools {
     ])
 }
 extension AppModel {
+    func flushComputerStops() async {
+        guard let connection = settings.companion, let store,
+              let client = try? CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount)),
+              let pending = try? await store.pendingCompanionStops(connectionID: connection.destination) else { return }
+        for var record in pending {
+            do {
+                let result = try await client.json("/v1/cancel-request", method: "POST", body: .object(["request_key": record.payload["request_key"] ?? .string(record.turnID.uuidString)]))
+                record.status = result["status"]?.stringValue ?? record.status
+                try await store.saveCompanionRun(record)
+            } catch { return }
+        }
+    }
     func executeScheduleTool(_ call: ToolCall) async throws -> ToolResult {
         guard settings.useComputer, let connection = settings.companion, let turn = ToolExecutionContext.current?.turnID,
               let source = try await store?.companionRun(turn), let jobID = source.jobID else { throw AssistantError.invalidTool("Connect your computer and run this task there before scheduling follow-up work.") }
@@ -23,7 +35,8 @@ extension AppModel {
         let times = try (0..<count).map { offset -> Date in
             guard let date = calendar.date(byAdding: .day, value: offset * (cadence == "weekly" ? 7 : 1), to: first), date.timeIntervalSinceNow <= 90 * 86400 else { throw AssistantError.invalidTool("Keep this schedule within the next 90 days.") }; return date
         }
-        let summary = "\(title)\n\n\(task)\n\nFirst: \(first.formatted(date: .abbreviated, time: .shortened))\nTime zone: \(zone.identifier)\n\(cadence.capitalized) · \(count) run(s)\n\nEach run can research and create a draft for up to 10 minutes and 12 tool steps. It uses the input snapshots already shared with your PC and your ChatGPT allowance. It cannot send messages or change your phone's data. Your PC must stay on."
+        let formatter = DateFormatter(); formatter.dateStyle = .medium; formatter.timeStyle = .short; formatter.timeZone = zone
+        let summary = "\(title)\n\n\(task)\n\nFirst: \(formatter.string(from: first))\nTime zone: \(zone.identifier)\n\(cadence.capitalized) · \(count) run(s)\n\nEach run can research and create a draft for up to 10 minutes and 12 tool steps. It uses the input snapshots already shared with your PC and your ChatGPT allowance. It cannot send messages or change your phone's data. Your PC must stay on."
         guard try await reviewNativeAction(.init(kind: .approval, title: "Schedule this work?", detail: summary, arguments: args)) == "approved" else { return .init(callID: call.id, name: call.name, succeeded: false, output: .object(["status": .string("cancelled"), "scheduled": .bool(false)])) }
         let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
         let result = try await client.json("/v1/schedules", method: "POST", body: .object([
@@ -43,7 +56,7 @@ extension AppModel {
         try saveSettings(next)
         if let existing = try? await store.loadConversation(chatID) {
             conversation = existing; await refresh()
-            if let work = try await store.workTurn(turnID), work.phase != .completed { await resumeReply(work) }
+            if let work = try await store.workTurn(turnID), [.running, .interrupted].contains(work.phase) { await resumeReply(work, reconnectOnly: true) }
             return
         }
         guard payload["schedule_id"]?.stringValue != nil, let prompt = payload["display_prompt"]?.stringValue else { throw AssistantError.provider("The original chat is not on this iPhone. Reconnect from the device that started it.") }
@@ -58,12 +71,12 @@ extension AppModel {
         var record = CompanionRunRecord(turnID: turnID, connectionID: connection.destination, payload: payload)
         record.jobID = id; record.status = info["job"]?["status"]?.stringValue ?? "interrupted"
         try await store.save(chat); try await store.saveWorkTurn(work); try await store.saveCompanionRun(record)
-        conversation = chat; await refresh(); await resumeReply(work)
+        conversation = chat; await refresh(); await resumeReply(work, reconnectOnly: true)
     }
 }
 
 struct ComputerTasksView: View {
-    var openedTask: (() -> Void)?
+    var openedTask: ((String) -> Void)?
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var schedules: [JSONValue] = []
@@ -89,10 +102,11 @@ struct ComputerTasksView: View {
             }
             Section("Task results") {
                 ForEach(Array(jobs.enumerated()), id: \.offset) { _, job in
-                    Button { Task {
-                        do { try await model.openComputerJob(job["id"]?.stringValue ?? ""); if let openedTask { openedTask() } else { dismiss() } }
-                        catch { self.error = error.localizedDescription }
-                    } } label: {
+                    Button {
+                        let id = job["id"]?.stringValue ?? ""
+                        if let openedTask { openedTask(id) }
+                        else { Task { do { try await model.openComputerJob(id); dismiss() } catch { self.error = error.localizedDescription } } }
+                    } label: {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(job["title"]?.stringValue ?? "Assistant task").font(.headline)
                             Text((job["status"]?.stringValue ?? "").replacingOccurrences(of: "_", with: " ").capitalized).font(.subheadline).foregroundStyle(.secondary)

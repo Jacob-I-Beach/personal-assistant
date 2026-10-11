@@ -43,7 +43,13 @@ struct ConnectionsView: View {
                     case .folders: NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { self.destination = nil } } } }
                     case .models: ModelLibraryView()
                     case .watch: WatchRequestsView()
-                    case .computer: ComputerConnectionView(openedTask: { self.destination = nil; dismiss() })
+                    case .computer: ComputerConnectionView(openedTask: { id in
+                        self.destination = nil; dismiss()
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            do { try await model.openComputerJob(id) } catch { model.errorMessage = error.localizedDescription }
+                        }
+                    })
                     case .contacts: ContactsConnectionView()
                     }
                 }

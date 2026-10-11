@@ -39,8 +39,16 @@ extension LocalStore {
     }
     public func saveCompanionRun(_ value: CompanionRunRecord) throws {
         var value = value
-        if try companionRun(value.turnID)?.stopRequested == true { value.stopRequested = true }
+        if let old = try companionRun(value.turnID), old.stopRequested {
+            value.stopRequested = true
+            if ["cancelled", "completed"].contains(old.status) { value.status = old.status }
+        }
         try database.execute("INSERT INTO companion_runs(id,payload) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", [.text(value.turnID.uuidString), .blob(try Self.encode(value))])
+    }
+    public func pendingCompanionStops(connectionID: String) throws -> [CompanionRunRecord] {
+        _ = try companionRun(UUID())
+        return try database.execute("SELECT payload FROM companion_runs WHERE json_extract(CAST(payload AS TEXT),'$.stopRequested')=1 AND json_extract(CAST(payload AS TEXT),'$.connectionID')=? AND json_extract(CAST(payload AS TEXT),'$.status') NOT IN ('completed','cancelled') LIMIT 12", [.text(connectionID)])
+            .map { try Self.decode(CompanionRunRecord.self, $0[0].data!) }
     }
 }
 
@@ -69,7 +77,8 @@ public struct CompanionTranscript: Sendable {
     public mutating func apply(_ event: JSONValue) throws -> (ToolCall, ToolResult)? {
         guard let value = event["seq"]?.numberValue, let sequence = Int(exactly: value), sequence > cursor else { return nil }
         guard sequence == cursor + 1 else { throw AssistantError.provider("Some computer progress is missing. Reconnect to recover the saved sequence.") }
-        let date = event["recordedAt"]?.stringValue.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+        let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = event["recordedAt"]?.stringValue.flatMap { formatter.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) } ?? Date()
         defer { cursor = sequence }
         switch event["type"]?.stringValue {
         case "response_begin":

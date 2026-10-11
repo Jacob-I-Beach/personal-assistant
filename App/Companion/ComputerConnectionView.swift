@@ -3,7 +3,7 @@ import VisionKit
 import AssistantCore
 
 struct ComputerConnectionView: View {
-    var openedTask: (() -> Void)?
+    var openedTask: ((String) -> Void)?
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var showScanner = false

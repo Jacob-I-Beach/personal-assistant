@@ -205,6 +205,7 @@ final class AppModel: ObservableObject {
     }
     func becameActive() {
         contextRefresh += 1
+        Task { await flushComputerStops() }
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
         Task {
             do { try await waitUntilReady() } catch { return }
@@ -440,10 +441,11 @@ final class AppModel: ObservableObject {
             Task {
                 guard var saved = try? await store.companionRun(turn) else { return }
                 saved.stopRequested = true; try? await store.saveCompanionRun(saved)
-                guard let id = saved.jobID else { return }
                 do {
                     let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
-                    _ = try await client.json("/v1/jobs/" + id + "/cancel", method: "POST", body: .object([:]))
+                    let result = try await client.json("/v1/cancel-request", method: "POST", body: .object(["request_key": saved.payload["request_key"] ?? .string(turn.uuidString)]))
+                    saved.status = result["status"]?.stringValue ?? saved.status
+                    try await store.saveCompanionRun(saved)
                 } catch { noticeMessage = "Stop is saved on this iPhone. The computer could not be reached; it may still be working until the stop request reconnects." }
             }
         }
@@ -459,7 +461,7 @@ final class AppModel: ObservableObject {
               work.automaticResumeCount < 3, work.needsChangedRequest != true, Date().timeIntervalSince(work.updatedAt) < 86_400 else { return }
         await resumeReply(work, automatic: true)
     }
-    func resumeReply(_ work: WorkTurn, automatic: Bool = false) async {
+    func resumeReply(_ work: WorkTurn, automatic: Bool = false, reconnectOnly: Bool = false) async {
         guard !isRunning, let store, UIApplication.shared.applicationState == .active else { return }
         do {
             let restored = try await store.loadConversation(work.conversationID)
@@ -478,7 +480,7 @@ final class AppModel: ObservableObject {
             guard !settings.localOnly || selected.networkDestination == nil else { throw AssistantError.networkNotAuthorized }
             guard conversation.id == work.conversationID, !isRunning, settings == selectedSettings, !automatic || !userRequestedStop else { return }
             conversation = restored
-            startResponse("", resuming: work, automaticResume: automatic)
+            startResponse("", resuming: work, automaticResume: automatic, reconnectOnly: reconnectOnly)
         } catch {
             if automatic { noticeMessage = "The saved reply needs your attention. Open it and choose Continue when ready." }
             else { errorMessage = error.localizedDescription }
@@ -496,7 +498,7 @@ final class AppModel: ObservableObject {
         if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections }
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
-    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false) {
+    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false) {
         guard let engine else { return }
         let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
@@ -522,7 +524,11 @@ final class AppModel: ObservableObject {
             do {
                 if selection.taskNotifications { await taskAttention.requestPermission() }
                 try Task.checkCancellation()
-                let selectedBackend = try await backend(for: selection)
+                var selectedBackend = try await backend(for: selection)
+                if var computer = selectedBackend as? CompanionModelBackend {
+                    computer.allowJobRestart = savedWork != nil && !automaticResume && !reconnectOnly
+                    selectedBackend = computer
+                }
                 titleBackend = selectedBackend
                 try Task.checkCancellation()
                 if savedWork == nil, let editID, let store {
@@ -608,7 +614,9 @@ final class AppModel: ObservableObject {
             requiresManualResume = !completedTurn
             isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
             completionWindow.end(success: completedTurn || pausedForInput || pausedForWorkBudget || responseAwaitingAttention)
-            replyActivity.finish(completed: completedTurn, detached: !completedTurn && !userRequestedStop && selection.useComputer && selection.companion != nil)
+            let savedComputerRun = if let id = activeTurnID { try? await store?.companionRun(id) } else { nil as CompanionRunRecord? }
+            let computerStillWorking = !completedTurn && !userRequestedStop && selection.useComputer && selection.companion != nil && !["failed", "cancelled", "completed"].contains(savedComputerRun?.status ?? "unknown")
+            replyActivity.finish(completed: completedTurn, detached: computerStillWorking)
             if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear() }
             if responseWasBackgrounded, !userRequestedStop, selection.taskNotifications, UIApplication.shared.applicationState != .active,
                completedTurn || !selection.useComputer || pausedForInput || responseAwaitingAttention {
@@ -1039,7 +1047,7 @@ final class AppModel: ObservableObject {
         ReplyReturnRoute.clear()
         if let work = unfinishedReplies.first(where: { $0.conversationID == id }),
            let record = try? await store?.companionRun(work.id), !record.stopRequested {
-            await resumeReply(work); return
+            await resumeReply(work, reconnectOnly: true); return
         }
         if let work = unfinishedReplies.first(where: { $0.conversationID == id }),
            let evidence = try? await store?.workEvidence(work.id, conversationID: id, remote: settings.networkDestination != nil, workspaceEnabled: settings.workspaceSearchEnabled),

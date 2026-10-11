@@ -125,7 +125,7 @@ private struct TextMessageEditor: UIViewControllerRepresentable {
         let controller = MFMessageComposeViewController()
         let recipients = (arguments["recipients"]?.stringValue ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         controller.recipients = recipients; controller.body = arguments["body"]?.stringValue; controller.messageComposeDelegate = context.coordinator
-        for url in attachments where !controller.addAttachmentURL(url, withAlternativeFilename: url.lastPathComponent) {
+        for url in attachments where !controller.addAttachmentURL(url, withAlternateFilename: url.lastPathComponent) {
             Task { @MainActor in complete("failed") }; break
         }
         return controller

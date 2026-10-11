@@ -23,6 +23,16 @@ test('work and progress survive a disconnected subscriber without creating anoth
   assert.equal(Buffer.from(raw).includes(Buffer.from('private synthetic')), false);
   store.close();
 });
+test('Stop arriving before a lost create response prevents that request from starting later',()=>{
+  const store=new JobStore(':memory:',new Vault(randomBytes(32)));
+  assert.equal(store.cancelRequest('phone','lost-request'),null);
+  const job=store.create('phone','lost-request',{title:'Stopped request',body:{model:'synthetic',input:[{text:'private input'}]}}).job;
+  assert.equal(job.status,'cancelled');
+  assert.equal(store.list('phone')[0].payload.body.input,undefined);
+  assert.equal(store.metadata(job.id,'phone').status,'cancelled');
+  assert.throws(()=>store.metadata(job.id,'different-phone'));
+  store.close();
+});
 
 test('pending phone operations and versioned artifacts reject conflicting replays', () => {
   const store = new JobStore(':memory:', new Vault(randomBytes(32)));

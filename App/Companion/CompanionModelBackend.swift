@@ -7,6 +7,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
     let client: CompanionClient
     let wire: NetworkModelBackend
     let store: LocalStore
+    var allowJobRestart = false
     var id: String { "companion:" + connection.serverID + ":" + connection.profileID + ":" + wire.id }
     var networkDestination: String? { connection.destination }
     var contextLimits: ContextLimits { wire.contextLimits }
@@ -58,6 +59,11 @@ struct CompanionModelBackend: RemoteTaskBackend {
             let value = try await client.json("/v1/jobs", method: "POST", body: record.payload)
             guard let id = value["id"]?.stringValue, UUID(uuidString: id) != nil else { throw AssistantError.provider("The computer did not return a saved task identifier.") }
             record.jobID = id; record.status = value["status"]?.stringValue ?? "queued"
+            // The original request is needed only until the durable job ID is
+            // acknowledged. Avoid retaining another base64 copy of attachments.
+            if var payload = record.payload.objectValue, var body = payload["body"]?.objectValue {
+                body["input"] = .array([]); payload["body"] = .object(body); record.payload = .object(payload)
+            }
             try await store.saveCompanionRun(record)
         }
         let jobID = record.jobID!, path = "/v1/jobs/" + jobID
@@ -76,7 +82,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 ]))
             }
         }
-        if ["queued", "failed", "interrupted"].contains(status) {
+        if status == "queued" || (allowJobRestart && ["failed", "interrupted"].contains(status)) {
             _ = try await client.json(path + "/start", method: "POST", body: .object([:]))
         }
         var transcript = CompanionTranscript(jobID: UUID(uuidString: jobID)!, providerID: id, health: identity.containsHealthData)

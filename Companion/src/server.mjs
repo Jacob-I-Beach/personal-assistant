@@ -70,6 +70,11 @@ export async function startCompanion(options={}) {
         return jsonReply(response,200,{...device,server_id:serverId,profile_id:session.profileId??null});
       }
       const owner=pairing.authenticate(request.headers.authorization);
+      if(url.pathname==='/v1/cancel-request'&&request.method==='POST'){
+        const body=await jsonBody(request,4096),job=store.cancelRequest(owner,body.request_key);
+        if(job)runner.cancel(job.id,owner);
+        return jsonReply(response,200,{status:job?.status==='completed'?'completed':'cancelled',notice:'Stop recorded for this request. Any already-started action retains its actual receipt.'});
+      }
       if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.0',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
       if(url.pathname==='/v1/models'&&request.method==='GET')return jsonReply(response,200,{models:await provider.listModels()});
       if(url.pathname==='/v1/metadata'&&request.method==='POST'){
@@ -94,23 +99,23 @@ export async function startCompanion(options={}) {
       }
       const match=url.pathname.match(/^\/v1\/jobs\/([a-zA-Z0-9-]+)(?:\/(.*))?$/);
       if(!match)return jsonReply(response,404,{error:'That action is not available.'});
-      const id=match[1],action=match[2]??'',job=store.get(id,owner);
+      const id=match[1],action=match[2]??'',job=store.metadata(id,owner);
       if(!action&&request.method==='GET')return jsonReply(response,200,publicJob(job));
-      if(action==='resume-info'&&request.method==='GET')return jsonReply(response,200,{job:publicJob(job),payload:job.payload});
-      if(action==='start'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(await startJob(job)));}
+      if(action==='resume-info'&&request.method==='GET')return jsonReply(response,200,{job:publicJob(job),payload:store.get(id,owner).payload});
+      if(action==='start'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(await startJob(store.get(id,owner))));}
       if(action==='cancel'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(runner.cancel(id,owner)));}
       if(action==='events'&&request.method==='GET'){
         const after=Number(url.searchParams.get('after')??0),wait=Math.min(25000,Math.max(0,Number(url.searchParams.get('wait_ms'))||0));
         let events=store.events(id,owner,after);
         if(!events.length&&!terminal.has(job.status)&&wait){
           await new Promise(resolveWait=>{
-            let timer;const finish=()=>{clearTimeout(timer);runner.off('event',changed);request.off('close',finish);resolveWait();};
+            let timer;const finish=()=>{clearTimeout(timer);runner.off('event',changed);response.off('close',finish);resolveWait();};
             const changed=jobId=>{if(jobId===id)finish();};
-            runner.on('event',changed);request.once('close',finish);timer=setTimeout(finish,wait);
+            runner.on('event',changed);response.once('close',finish);timer=setTimeout(finish,wait);
           });
           events=store.events(id,owner,after);
         }
-        if(!response.destroyed)return jsonReply(response,200,{job:publicJob(store.get(id,owner)),events});
+        if(!response.destroyed)return jsonReply(response,200,{job:publicJob(store.metadata(id,owner)),events});
         return;
       }
       if(action==='files'&&request.method==='POST'){
@@ -180,14 +185,14 @@ export async function startCompanion(options={}) {
         const job=store.list().find(job=>job.id===body.job_id);if(!job)throw new Error('Task not found.');runner.cancel(job.id,job.owner);return jsonReply(response,200,{stopped:true});
       }
       if(url.pathname==='/api/revoke'){
-        pairing.revoke(body.device_id);scheduler.stopOwner(body.device_id);for(const job of store.list(body.device_id))if(!terminal.has(job.status))runner.cancel(job.id,job.owner);
+        pairing.revoke(body.device_id);scheduler.stopOwner(body.device_id);for(const job of store.incomplete(body.device_id))runner.cancel(job.id,job.owner);
         return jsonReply(response,200,{disconnected:true});
       }
       return jsonReply(response,404,{error:'That setup action is not available.'});
     }catch(error){if(!response.headersSent)jsonReply(response,error.status??400,{error:String(error.message??'Setup could not finish.').slice(0,500)});else response.destroy();}
   });
   await listen(setup,options.setupPort??48680,'127.0.0.1');setupOrigin=`http://127.0.0.1:${setup.address().port}`;
-  for(const job of store.list())if(['running','waiting_for_phone','waiting_for_input'].includes(job.status))store.status(job.id,'interrupted','The computer restarted. Saved work is ready to continue.');
+  for(const job of store.incomplete())store.status(job.id,'interrupted','The computer restarted. Saved work is ready to continue.');
   const scheduleTimer=setInterval(()=>scheduler.tick().catch(()=>{lastError='A scheduled task needs attention. Its saved record is kept.';}),15000);scheduleTimer.unref();
   let powerLease;
   if(options.keepAwake!==false&&process.platform==='win32'){
