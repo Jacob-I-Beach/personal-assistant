@@ -51,9 +51,10 @@ struct WelcomeWorkspaceView: View {
             if !model.unfinishedReplies.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Ready to continue").font(.subheadline.weight(.semibold))
-                    ForEach(model.unfinishedReplies.prefix(2)) { SavedWorkCard(work: $0) }
+                    ForEach(model.unfinishedReplies.filter { work in !model.pendingQuestions.contains { $0.turnID == work.id } }.prefix(2)) { SavedWorkCard(work: $0) }
                 }
             }
+            TodayOverviewView(planning: model.planning)
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Your workspace").font(.subheadline.weight(.semibold))

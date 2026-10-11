@@ -61,6 +61,8 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var citations: [WebCitation]
     public var responseParts: [ResponsePart]
     public var imageSelections: [String: [ImagePoint]] = [:]
+    public var replyToTaskID: UUID?
+    public var isRequest: Bool { role == .user && replyToTaskID == nil }
 
     public init(id: UUID = UUID(), role: MessageRole, text: String, state: MessageState = .complete,
                 captureIDs: [UUID] = [], fileIDs: [UUID] = [], toolCalls: [ToolCall] = [], toolCallID: String? = nil,
@@ -75,7 +77,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         self.citations = citations
         self.responseParts = responseParts
     }
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts, imageSelections }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts, imageSelections, replyToTaskID }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
@@ -91,6 +93,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         citations = try c.decodeIfPresent([WebCitation].self, forKey: .citations) ?? []
         responseParts = try c.decodeIfPresent([ResponsePart].self, forKey: .responseParts) ?? []
         imageSelections = try c.decodeIfPresent([String: [ImagePoint]].self, forKey: .imageSelections) ?? [:]
+        replyToTaskID = try c.decodeIfPresent(UUID.self, forKey: .replyToTaskID)
     }
     public var toolFailureDescription: String? {
         guard role == .tool else { return nil }

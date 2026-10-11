@@ -18,6 +18,11 @@ public enum ToolResultPresentation {
         case "present_surface": return "Building an interactive view"
         case "get_current_location": return "Reading your location"
         case "get_device_info", "get_app_context": return "Checking device context"
+        case "request_input": return "Waiting for your answer"
+        case "read_inbox": return "Reading saved captures"
+        case "read_schedule", "find_available_time": return "Checking your schedule"
+        case "read_reminders", "list_planning_sources": return "Checking your planning context"
+        case "save_calendar_event", "save_reminder", "complete_reminder": return "Preparing a change for review"
         case "export_artifact": return "Preparing export"
         default: return "Working on your request"
         }

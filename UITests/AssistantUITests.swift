@@ -2,6 +2,45 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-daily-work", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Assistant menu"].waitForExistence(timeout: 15))
+        app.buttons["Assistant menu"].tap(); app.buttons["Assistant inbox"].tap()
+        let note = app.descendants(matching: .any).matching(identifier: "inbox-note").firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5)); note.tap(); note.typeText("Keep this synthetic note")
+        if !app.buttons["Capture"].isHittable { app.swipeUp() }
+        app.buttons["Capture"].tap()
+        XCTAssertTrue(app.staticTexts["Saved without a model response."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Stop response"].exists)
+        saveScreenshot(app, name: "Inbox-save-only")
+        app.buttons["Done"].tap()
+        app.buttons["Send message"].tap()
+        XCTAssertTrue(app.staticTexts["When should we work on it?"].waitForExistence(timeout: 8))
+        saveScreenshot(app, name: "Task-question-with-choices")
+        app.buttons["Later"].tap()
+        let ready = NSPredicate { _, _ in app.buttons["New chat"].isEnabled }
+        expectation(for: ready, evaluatedWith: app); waitForExpectations(timeout: 8)
+        app.buttons["New chat"].tap()
+        let question = app.staticTexts["When should we work on it?"].firstMatch
+        for _ in 0..<7 { if question.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(question.isHittable); saveScreenshot(app, name: "Today-and-needs-you"); question.tap()
+        XCTAssertTrue(app.buttons["Afternoon"].waitForExistence(timeout: 5)); app.buttons["Afternoon"].tap()
+        app.buttons["Answer and continue"].tap()
+        XCTAssertTrue(app.staticTexts["Save event?"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Example work session")).firstMatch.exists)
+        saveScreenshot(app, name: "Reviewed-calendar-change")
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.staticTexts["Your example session is saved."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Continue reply"].exists)
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+        app.buttons["New chat"].tap()
+        let event = app.staticTexts["Example work session"]
+        for _ in 0..<7 { if event.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(event.isHittable); saveScreenshot(app, name: "Today-with-created-event")
+    }
     func testGroupedHistoryReadableDetailsRetryAndNoStaleContinueCard() {
         continueAfterFailure = false
         let app = XCUIApplication()

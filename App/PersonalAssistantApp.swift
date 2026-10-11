@@ -8,6 +8,7 @@ struct PersonalAssistantApp: App {
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
         AppDependencyManager.shared.add(dependency: model)
+        AssistantShortcuts.updateAppShortcutParameters()
     }
     var body: some Scene {
         WindowGroup { RootView().environmentObject(model) }

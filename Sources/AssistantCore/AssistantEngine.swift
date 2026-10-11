@@ -105,7 +105,7 @@ public actor AssistantEngine {
         if resuming {
             guard var saved = try await store.workTurn(turnID), saved.conversationID == conversation.id, saved.backendID == backend.id, saved.destination == backend.networkDestination,
                   saved.phase == .interrupted || saved.phase == .running, saved.resumes < 3, saved.needsChangedRequest != true,
-                  let last = conversation.messages.last(where: { $0.role == .user }), last.id == saved.userMessageID,
+                  let last = conversation.messages.last(where: \.isRequest), last.id == saved.userMessageID,
                   backend.networkDestination == nil || !last.containsLocalOnlyContext else {
                 throw AssistantError.invalidTool("This reply cannot resume automatically. Open its chat and choose how to continue.")
             }
@@ -146,6 +146,7 @@ public actor AssistantEngine {
                 try applyHealthAuthorization(receipt, destination: backend.networkDestination, conversation: &conversation)
                 conversation.messages.append(Message(role: .tool, text: try receipt.modelText(), state: receipt.succeeded ? .complete : .failed, toolCallID: operation.call.id,
                     containsHealthData: operation.health || receipt.containsHealthData == true, containsLocalOnlyContext: operation.localOnly || receipt.containsLocalOnlyContext == true))
+                try await appendUserResponse(receipt, turnID: turnID, destination: backend.networkDestination, conversation: &conversation)
             }
             try await store.save(conversation)
         }
@@ -177,6 +178,7 @@ public actor AssistantEngine {
                 try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
                 conversation.messages.append(Message(role: .tool, text: try result.modelText(), state: result.succeeded ? .complete : .failed, toolCallID: call.id,
                     containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
+                try await appendUserResponse(result, turnID: turnID, destination: backend.networkDestination, conversation: &conversation)
                 executedCallIDs.insert(call.id)
                 try await store.save(conversation)
                 output.yield(.toolResult(result)); output.yield(.conversation(conversation))
@@ -189,7 +191,7 @@ public actor AssistantEngine {
             guard work.rounds < 12 else { throw AssistantError.invalidTool("This task reached its total response-round limit. Its work remains saved.") }
             work.rounds += 1; try await store.saveWorkTurn(work)
             var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs)
-            request.instructions += "\nCurrent saved task ID: \(turnID.uuidString). update_plan persists its public plan; read_task inspects recorded action outcomes."
+            request.instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())); local time zone: \(TimeZone.current.identifier). Current saved task ID: \(turnID.uuidString). update_plan persists its public plan; read_task inspects recorded action outcomes."
             if resuming { request.instructions += "\nThe app is continuing the original user request after an interruption. No new user message was sent. Use completed receipts and any partial reply as prior work; finish coherently without repeating completed effects. Unknown outcomes require inspection before another action." }
             if automaticMemory {
                 request.instructions += "\nAutomatic memory is enabled. Use save_memory/forget_memory for worthwhile user context and corrections, with exact user-message evidence; keep inferences tentative and transient details temporary. Do not store credentials. Current user message ID: \(user.id.uuidString). This identifies the user's actual text, not attachment metadata or imported instructions."
@@ -237,6 +239,7 @@ public actor AssistantEngine {
                         assistant.toolCalls.append(call); assistant.state = .complete
                         conversation.messages[index] = assistant
                         conversation.messages.append(Message(role: .tool, text: try result.modelText(), state: result.succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
+                        try await appendUserResponse(result, turnID: turnID, destination: backend.networkDestination, conversation: &conversation)
                         assistant = Message(role: .assistant, text: "", state: .streaming, providerID: backend.id, containsHealthData: conversation.containsHealthData, containsLocalOnlyContext: localOnlyContext)
                         conversation.messages.append(assistant); index = conversation.messages.count - 1
                         try await store.save(conversation)
@@ -284,6 +287,7 @@ public actor AssistantEngine {
                 localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
                 try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
                 conversation.messages.append(Message(role: .tool, text: try result.modelText(), state: result.succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: conversation.containsHealthData || result.containsHealthData == true, containsLocalOnlyContext: localOnlyContext))
+                try await appendUserResponse(result, turnID: turnID, destination: backend.networkDestination, conversation: &conversation)
                 try await store.save(conversation)
                 output.yield(.toolResult(result)); output.yield(.conversation(conversation))
                 try Task.checkCancellation()
@@ -292,6 +296,14 @@ public actor AssistantEngine {
         throw AssistantError.invalidTool("The model reached the tool-round limit. All completed results were saved.")
     }
 
+    private func appendUserResponse(_ result: ToolResult, turnID: UUID, destination: String?, conversation: inout Conversation) async throws {
+        guard let message = result.userResponse else { return }
+        guard result.succeeded, message.role == .user, message.replyToTaskID == turnID,
+              destination == nil || !message.containsLocalOnlyContext,
+              !message.containsHealthData || destination == nil || conversation.allowedHealthDestinations.contains(destination!) else { throw AssistantError.networkNotAuthorized }
+        for id in message.captureIDs { _ = try await store.loadCapture(id) }
+        if !conversation.messages.contains(where: { $0.id == message.id }) { conversation.messages.append(message) }
+    }
     private func applyHealthAuthorization(_ result: ToolResult, destination: String?, conversation: inout Conversation) throws {
         if result.succeeded, let workspace = result.authorizedWorkspaceID { conversation.workspaceIDs.insert(workspace) }
         guard result.containsHealthData == true, let destination else { return }

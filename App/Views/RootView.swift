@@ -50,6 +50,8 @@ struct RootView: View {
                             Button("Health overview", systemImage: "heart.text.square") { voice.stopAll(); showHealth = true }
                             Button("Watch requests", systemImage: "applewatch") { voice.stopAll(); showWatchRequests = true }
                             Button("Task activity", systemImage: "list.bullet.rectangle") { showTaskActivity = true }
+                            Button("Assistant inbox", systemImage: "tray") { model.showInbox = true }
+                            Button("Planning access", systemImage: "calendar") { model.showPlanningAccess = true }
                             Button("Settings", systemImage: "slider.horizontal.3") { voice.stopAll(); showSettings = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Assistant menu")
                     }
@@ -96,7 +98,9 @@ struct RootView: View {
         .sheet(isPresented: $showHealth) { HealthOverviewView() }
         .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
         .sheet(isPresented: $showTaskActivity) { TaskActivityView() }
-        .sheet(item: $model.nativeAction) { NativeActionView(request: $0) }
+        .sheet(isPresented: $model.showInbox) { AssistantInboxView() }
+        .sheet(isPresented: $model.showPlanningAccess) { PlanningAccessView(service: model.planning) }
+        .sheet(item: $model.nativeAction, onDismiss: { model.nativeReviewDidDismiss() }) { NativeActionView(request: $0) }
         .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
@@ -178,8 +182,18 @@ struct ChatView: View {
                         ActiveWorkRow(title: activity)
                     }
                     if !model.isRunning, !model.conversation.messages.isEmpty,
-                       let work = model.unfinishedReplies.first(where: { $0.conversationID == model.conversation.id && $0.userMessageID == model.conversation.messages.last(where: { $0.role == .user })?.id }) {
+                       let work = model.unfinishedReplies.first(where: { work in work.conversationID == model.conversation.id && work.userMessageID == model.conversation.messages.last(where: \.isRequest)?.id && !model.pendingQuestions.contains(where: { $0.turnID == work.id }) }) {
                         SavedWorkCard(work: work)
+                    }
+                    ForEach(model.pendingQuestions.filter { $0.conversationID == model.conversation.id }) { question in
+                        Button { model.openQuestion(question) } label: {
+                            VStack(alignment: .leading, spacing: 8) { Label("Needs your answer", systemImage: "bubble.left").font(.caption); Text(question.title).font(.subheadline.weight(.medium)); Text("Open question").font(.caption) }
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+                        }.buttonStyle(.plain)
+                    }
+                    let savedInputs = model.inbox.filter { $0.conversationID == model.conversation.id && $0.handledAt == nil }
+                    if !savedInputs.isEmpty {
+                        Button { model.showInbox = true } label: { Label("\(savedInputs.count) saved \(savedInputs.count == 1 ? "capture" : "captures") for this chat", systemImage: "tray").font(.footnote) }
                     }
                     Color.clear.frame(height: 10).id("conversation-bottom")
                 }.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 12)

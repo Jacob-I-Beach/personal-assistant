@@ -21,7 +21,7 @@ public enum ContextPlanner {
         guard budget > 0 else { throw AssistantError.provider("The selected model cannot fit these tools. Choose a model with more context.") }
         var turns: [[Message]] = []
         for message in messages {
-            if message.role == .user || turns.isEmpty { turns.append([]) }
+            if message.isRequest || turns.isEmpty { turns.append([]) }
             turns[turns.count - 1].append(message)
         }
         var chosen: [[Message]] = [], used = 0, compacted = 0

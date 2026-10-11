@@ -68,7 +68,7 @@ extension LocalStore {
             WHERE json_extract(CAST(w.payload AS TEXT),'$.phase') IN ('running','interrupted')
             AND json_extract(CAST(c.payload AS TEXT),'$.archivedAt') IS NULL
             AND NOT EXISTS(SELECT 1 FROM messages newer WHERE newer.conversation_id=c.id AND newer.ordinal>m.ordinal
-                AND json_extract(CAST(newer.payload AS TEXT),'$.role')='user')
+                AND json_extract(CAST(newer.payload AS TEXT),'$.role')='user' AND json_extract(CAST(newer.payload AS TEXT),'$.replyToTaskID') IS NULL)
             ORDER BY w.updated_at DESC LIMIT 30
             """)
             .map { try Self.decode(WorkTurn.self, $0[0].data!) }
@@ -101,7 +101,7 @@ extension LocalStore {
         let operations = try toolOperations(id)
         let chat = try loadConversation(work.conversationID)
         guard let start = chat.messages.firstIndex(where: { $0.id == work.userMessageID }) else { throw AssistantError.invalidTool("The task's source request no longer exists.") }
-        let end = chat.messages[(start + 1)...].firstIndex(where: { $0.role == .user }) ?? chat.messages.endIndex
+        let end = chat.messages[(start + 1)...].firstIndex(where: \.isRequest) ?? chat.messages.endIndex
         let messages = Array(chat.messages[start..<end])
         let knownStatuses: Set<String> = ["saved", "sent", "handed_to_system", "cancelled", "approved", "opened", "failed", "outcome_unknown", "interrupted", "completed", "prepared", "ready"]
         return .object([

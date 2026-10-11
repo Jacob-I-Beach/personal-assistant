@@ -5,7 +5,7 @@ import MessageUI
 import SwiftUI
 
 struct NativeActionRequest: Identifiable, Sendable {
-    enum Kind: Sendable, Equatable { case approval, calendar, message, folder, exportFile, fileEdit, placeSelection }
+    enum Kind: Sendable, Equatable { case approval, calendar, message, folder, exportFile, fileEdit, placeSelection, planningConnection, question }
     let id = UUID()
     var kind: Kind
     var title: String
@@ -14,6 +14,7 @@ struct NativeActionRequest: Identifiable, Sendable {
     var fileURL: URL?
     var proposal: FileEditProposal?
     var places: [RoutePlace] = []
+    var questionID: UUID?
 }
 
 struct NativeActionView: View {
@@ -22,6 +23,10 @@ struct NativeActionView: View {
     var body: some View {
         Group {
             switch request.kind {
+            case .planningConnection:
+                PlanningAccessView(service: model.planning) { model.resolveNativeAction($0, for: request.id) }
+            case .question:
+                if let id = request.questionID { TaskQuestionView(questionID: id) }
             case .placeSelection:
                 NavigationStack {
                     List {

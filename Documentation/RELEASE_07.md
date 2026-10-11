@@ -2,6 +2,17 @@
 
 Source candidate, not a verified iPhone package. The 0.6 IPA and installed data are preserved. New user evidence is five phone screenshots plus design suggestions; the screenshots do not show About, so they do not independently confirm the installed version.
 
+## Authorized expansion
+
+Jacob approved the four proposed additions and USD 12.68 of remaining hosted validation on October 10. That supersedes the previous USD 20 stop. The ledger preserves the old USD 19.902 estimate and separately records this incremental allowance; the arithmetic ceiling is USD 32.582, not a claim about actual GitHub billing.
+
+- Calendar/Reminders: chosen sources, separate connected-model sharing choice, bounded schedule/reminder reads, time-zone-aware availability inside requested daily hours, reviewed creates/updates/completion, fresh version checks and read-back receipts. Recurring-series and all-day-event edits remain in the native apps. EventKit requires full OS access to read; app selection narrows what these tools use. Cloud sync, another person's availability, travel time and notification delivery are not inferred.
+- Questions: one focused text/choice/photo/measurement request, free-text alternatives, skip and Later. Questions survive interruption and remain bound to the original task. Actual answers are saved as user input; they do not become new tasks or new external-action approvals. Answered photos remain authorized attachments. Older task questions cannot alter a newer request.
+- Inbox: save-only, for-later and answer-now inputs with optional existing-chat destinations. Save-only invokes no model and creates no memory. Routing preserves existing drafts and never silently substitutes a missing destination. A new App Intent exposes named chat entities and handling choices to Siri/Shortcuts; it uses the current foreground app entry point. A full Share Sheet extension remains a later milestone.
+- Home: real Today events/due reminders, pending questions under Needs you, continued work, an Inbox entry point and recent generated files. Tapping items opens their details or related work. Empty states offer connection/capture actions without invented schedule data.
+
+The Calendar review and question-resume interface scenario uses a clearly synthetic provider and synthetic planning store, excluded from Release. Core tests independently verify gap computation, DST/weekend behavior, inbox permissions, deletion, question replay, skip and photo/answer continuity. Native compilation checks the EventKit/App Intents calls; live permission, sync and delivery behavior remains a phone check.
+
 ## Reproduced mechanisms and fixes
 
 - The local planner treated the latest user turn and every accumulated tool result as indivisible. The ChatGPT route used a conservative 128,000-byte request-text budget, not the provider's token limit. Continue resent the same oversized turn. The planner now reduces request-only tool observations and removes incompatible opaque continuation state while preserving call/result pairs. If completed code arguments are too large, the entire work block becomes a clearly labeled saved-evidence record with source references. Original user text and the full database record remain unchanged. Oversized user input fails explicitly and does not offer an ineffective retry.
@@ -32,8 +43,8 @@ Synthetic tests cover context pressure, recursive history, stale task cards, vis
 | Decision | Ideas | How to make them useful |
 | --- | --- | --- |
 | Implement in 0.7 | Long-task recovery, grouped evidence, action outcomes, background attention, diagnostics and rehearsal | Address observed failures together and preserve evidence about exactly what happened. |
-| Next coherent feature batch | Calendar availability and Reminders | Start with reading an authorized time range, conflict checks and reviewed creates/changes; retain stable event IDs and before/after receipts. Do not promise multi-person availability without their calendar access. |
-| Next coherent feature batch | Capture-to-action, evidence requests, Share Sheet/Siri inbox | Route a deliberate input to an existing chat/project, support save-only capture, and let a task ask for a specific missing photo/text/measurement. A targeted evidence request is more useful than a generic camera button. |
+| Expanded 0.7 | Calendar availability and Reminders | Start with reading an authorized time range, conflict checks and reviewed creates/changes; retain stable event IDs and before/after receipts. Do not promise multi-person availability without their calendar access. |
+| Expanded 0.7, except Share extension | Capture-to-action, evidence requests, Siri inbox | Route a deliberate input to an existing chat/project, support save-only capture, and let a task ask for a specific missing photo/text/measurement. A targeted evidence request is more useful than a generic camera button. |
 | Build on existing objects | Shared attention, mini-tools, source-linked project context | Reuse existing file/capture/route/surface identifiers and versions. Add selection references and project associations rather than another parallel notes database. Existing charts, checklists and parameter surfaces already provide part of this capability. |
 | Worth a distinct milestone | Reusable procedures and tested saved transformations | Store inputs, steps, examples, completion criteria and allowed operations. Generated functions keep the existing sandbox limits; a saved function does not receive extra device access. |
 | Worth a distinct milestone | Task completion definitions, revisions, assumptions and recovery | Add explicit goal outcomes and dependency/version checks. Withdrawing an outdated proposal is different from undoing an action already completed. Keep unknown outcomes explicit. |
@@ -53,4 +64,4 @@ Synthetic tests cover context pressure, recursive history, stale task cards, vis
 
 ## Release gate
 
-Windows core tests and syntax parsing are separate from an Xcode typecheck, native interaction test and device archive. Mac runs remain capped at 20 minutes. The recorded total is USD 19.902 against the user-approved USD 20 ceiling, leaving no room for another hosted validation job. Source and local verification are complete before requesting another budget decision. No 0.7 IPA is claimed until native validation and archive inspection succeed.
+Windows core tests and syntax parsing are separate from an Xcode typecheck, native interaction test and device archive. Mac runs remain capped at 20 minutes. Jacob authorized USD 12.68 remaining from the recorded USD 19.902 estimate. Every new hosted job must fit that incremental allowance. The source checkpoint passes 161 core tests; 22 native platform tests and 15 interface scenarios await execution. No 0.7 IPA is claimed until native validation and archive inspection succeed.

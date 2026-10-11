@@ -349,6 +349,15 @@
   "standard_rate_usd_per_minute": 0.062,
   "estimated_compute_usd_if_fully_billable": 19.902,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
-  "authorized_compute_budget_usd": 20,
-  "authorization_note": "Jacob explicitly raised the total hosted-Mac ceiling to USD 20 on 2026-10-10 and authorized continued validation and release work. Every job remains capped at 20 minutes."
+  "authorized_compute_budget_usd": 32.582,
+  "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",
+  "remaining_budget_authorization": {
+    "authorized_by": "Jacob, direct message",
+    "user_date": "2026-10-10",
+    "remaining_usd": 12.68,
+    "baseline_estimate_usd": 19.902,
+    "baseline_run_id": 38089667633,
+    "scope": "expanded 0.7 implementation, native validation and IPA",
+    "per_job_maximum_minutes": 20
+  }
 }

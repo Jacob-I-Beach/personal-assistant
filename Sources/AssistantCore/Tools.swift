@@ -19,6 +19,7 @@ public struct ToolResult: Codable, Equatable, Sendable {
     public var authorizedHealthDestination: String?
     public var containsLocalOnlyContext: Bool?
     public var authorizedWorkspaceID: UUID?
+    public var userResponse: Message?
     public init(callID: String, name: String, succeeded: Bool, output: JSONValue) {
         self.callID = callID; self.name = name; self.succeeded = succeeded; self.output = output; self.completedAt = Date()
     }

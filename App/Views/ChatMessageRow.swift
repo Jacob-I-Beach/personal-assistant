@@ -75,7 +75,7 @@ struct MessageRow: View {
             }
             if message.role == .assistant {
                 Button { voice.speak(MarkdownContent(message.answerText).renderPlainText()) } label: { Image(systemName: "speaker.wave.2").frame(width: 32, height: 32) }.accessibilityLabel("Read response aloud")
-            } else {
+            } else if message.isRequest {
                 Button { model.beginEditing(message) } label: { Image(systemName: "pencil").frame(width: 32, height: 32) }
                     .accessibilityLabel("Edit message").disabled(model.isRunning)
             }

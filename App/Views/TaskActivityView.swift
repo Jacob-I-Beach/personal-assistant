@@ -22,7 +22,7 @@ struct TaskActivityView: View {
             }.navigationTitle("Task activity").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
                 .task {
-                    guard let id = model.conversation.messages.last(where: { $0.role == .user })?.id else { note = "Send a request to start a task record."; return }
+                    guard let id = model.conversation.messages.last(where: \.isRequest)?.id else { note = "Send a request to start a task record."; return }
                     do { report = try await model.store?.taskDiagnostics(id) }
                     catch { note = "This older conversation has no task record. New requests record their progress here." }
                 }

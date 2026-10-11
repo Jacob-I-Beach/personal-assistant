@@ -2,9 +2,9 @@
 
 ## Current source candidate: 0.7.0 build 7
 
-New phone feedback exposed oversized current-turn context, repeated Continue failures, stale saved-work cards, crowded tools and unreadable details. The [0.7 scope and idea decisions](Documentation/RELEASE_07.md) describe request compaction, history filtering, bounded visible retries, grouped readable activity, supported continued background processing, local attention notifications and a redacted task diagnostic view. **152 Windows core tests pass; Swift syntax parsing passes. Native tests and a 0.7 IPA are pending.** This is not an iOS build claim. The user supplied new app screenshots without an About screen; preserve that distinction from explicit installed-version confirmation.
+New phone feedback exposed oversized current-turn context, repeated Continue failures, stale saved-work cards, crowded tools and unreadable details. The [0.7 scope and idea decisions](Documentation/RELEASE_07.md) describe request compaction, history filtering, bounded visible retries, grouped readable activity, supported continued background processing, local attention notifications and a redacted task diagnostic view. **161 Windows core tests pass; Swift syntax parsing passes. Native tests and a 0.7 IPA are pending.** The authorized expansion also adds selected Calendar/Reminders access, durable question cards, routed quiet capture and a useful Today home view. This is not an iOS build claim. The user supplied new app screenshots without an About screen; preserve that distinction from explicit installed-version confirmation.
 
-The recorded hosted-Mac estimate remains USD 19.902 under the authorized USD 20 ceiling. No new hosted job has run for 0.7. Current validation and package evidence below applies to 0.6 only.
+Jacob authorized USD 12.68 remaining for this expanded release, from the recorded USD 19.902 baseline. The bookkeeping ceiling is USD 32.582. No new hosted job has run at this source checkpoint. Current package evidence below applies to 0.6 only.
 
 ## Previous verified package
 

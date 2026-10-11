@@ -103,6 +103,7 @@ private struct SceneCameraView: UIViewRepresentable {
 }
 
 struct SceneCaptureSheet: View {
+    var onCapture: ((CaptureObservation, Data) async throws -> Void)? = nil
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @StateObject private var controller = SceneCaptureController()
@@ -121,7 +122,8 @@ struct SceneCaptureSheet: View {
                     Task {
                         do {
                             let (capture, jpeg) = try await controller.snapshot()
-                            if await model.saveCapture(capture, jpeg: jpeg) { dismiss() }
+                            if let onCapture { try await onCapture(capture, jpeg); dismiss() }
+                            else if await model.saveCapture(capture, jpeg: jpeg) { dismiss() }
                         } catch { model.errorMessage = error.localizedDescription }
                     }
                 } label: {

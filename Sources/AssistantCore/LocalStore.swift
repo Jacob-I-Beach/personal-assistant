@@ -162,10 +162,13 @@ public actor LocalStore {
         try database.transaction {
             for artifact in generated { try database.execute("DELETE FROM metadata WHERE key = ?", [.text("artifact-draft:" + artifact.id.uuidString)]) }
             // Optional tables may not exist in an older installation until their feature is used.
-            for table in ["work_turns", "tool_operations", "prepared_routes"] {
+            for table in ["work_turns", "tool_operations", "prepared_routes", "task_questions"] {
                 if !(try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [.text(table)])).isEmpty {
                     try database.execute("DELETE FROM \(table) WHERE conversation_id=?", [.text(id.uuidString)])
                 }
+            }
+            if !(try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='assistant_inbox'")).isEmpty {
+                try database.execute("DELETE FROM assistant_inbox WHERE json_extract(CAST(payload AS TEXT),'$.conversationID')=?", [.text(id.uuidString)])
             }
             try database.execute("DELETE FROM artifacts WHERE conversation_id = ?", [.text(id.uuidString)])
             try database.execute("DELETE FROM memories WHERE json_extract(CAST(payload AS TEXT),'$.conversationID') = ?", [.text(id.uuidString)])

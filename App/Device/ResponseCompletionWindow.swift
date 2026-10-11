@@ -62,6 +62,7 @@ final class ResponseCompletionWindow {
         continued.progress.completedUnitCount = units
         continued.updateTitle("Personal Assistant", subtitle: String(subtitle.prefix(90)))
     }
+    func status(_ text: String) { continued?.updateTitle("Personal Assistant", subtitle: String(text.prefix(90))) }
     func end(success: Bool = true) {
         let oldID = requestID; requestID = nil; expiration = nil
         if let task = continued {

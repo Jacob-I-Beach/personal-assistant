@@ -15,6 +15,8 @@
     <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>$(PRODUCT_BUNDLE_IDENTIFIER).reply.*</string></array>
     <key>UIBackgroundModes</key><array><string>processing</string></array>
     <key>NSCameraUsageDescription</key><string>Capture an image and available depth data when you ask the assistant to inspect something.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>Read calendars you select to find available time and review event changes. You choose whether the assistant's connected model can use this information.</string>
+    <key>NSRemindersFullAccessUsageDescription</key><string>Read reminder lists you select and create, edit or complete reminders after your review.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>Read one current location when you approve an assistant request. The app shows which model will receive the location and does not track it in the background.</string>
     <key>NSMicrophoneUsageDescription</key><string>Transcribe your voice into an editable message when you tap the microphone.</string>
     <key>NSSpeechRecognitionUsageDescription</key><string>Turn speech into an editable draft. Voice input is enabled only when on-device recognition is available.</string>

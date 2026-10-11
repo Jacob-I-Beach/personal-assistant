@@ -32,6 +32,9 @@ public enum ChatTimeline {
         case "get_capabilities", "find_tools", "get_device_info", "get_app_context": "Available context & tools"
         case "run_javascript": "Calculations"
         case "read_task", "update_plan": "Task progress"
+        case "request_input": "Your answers"
+        case "read_inbox": "Saved captures"
+        case "list_planning_sources", "read_schedule", "find_available_time", "read_reminders", "save_calendar_event", "save_reminder", "complete_reminder": "Calendar & Reminders"
         case "create_artifact", "create_pdf", "create_file", "read_file", "list_files", "search_files", "export_artifact", "apply_file_edit", "propose_file_edit": "Files"
         default: "Device actions"
         }
