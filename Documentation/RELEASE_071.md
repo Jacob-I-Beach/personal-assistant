@@ -24,3 +24,7 @@ References: [Apple EventKit fetch API](https://developer.apple.com/documentation
 ## Completed build evidence
 
 [Run 38115961045](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38115961045), source `7f76edb3ead452167ebd1e3702cb8d329ef38193`, passed 161 core and eight EventKit tests and built the physical Release archive. The staged 0.7.1 build 8 package has SHA-256 `af8d2567181ccb26cfed578b3198fe23aa39908b32671a17b50f6dba40e277c1`. Estimated repair compute: USD 0.620; remaining allowance: USD 0.404. Installation and real-account relaunch checks are still pending.
+
+## Physical acceptance
+
+On October 11, Jacob confirmed 0.7.1 build 8 works, previous chats remain, and saving/reopening succeeds with both Calendar and Reminders enabled. The requested test included two cold reopens. The follow-up USB lookup/crash pull was unavailable; no claim is made that post-update device logs were inspected.

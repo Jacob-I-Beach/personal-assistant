@@ -1,6 +1,6 @@
 # Implementation status
 
-**0.7.1 build 8 is built and verified for an in-place repair of the Reminders startup crash.** Installation and the final real-account check remain user-operated and pending. Eight 0.7.0 build 7 phone reports identified a Swift main-actor assertion inside the Reminders callback. Jacob confirmed that temporarily disabling planning permissions restores launch. Preserve the installation and chats.
+**0.7.1 build 8 is built and verified for an in-place repair of the Reminders startup crash.** Jacob confirms the in-place update works with both Calendar and Reminders enabled: Save succeeds, close/reopen checks succeed, and previous chats remain. Eight 0.7.0 build 7 phone reports identified a Swift main-actor assertion inside the Reminders callback. Jacob confirmed that temporarily disabling planning permissions restores launch. Preserve the installation and chats.
 
 ## Current repair evidence
 
@@ -8,7 +8,7 @@
 
 The iPhone-only input is `../PersonalAssistant-iPhone/0.7.1/PersonalAssistant-iPhone-only.ipa`, 20,846,311 bytes, SHA-256 `af8d2567181ccb26cfed578b3198fe23aa39908b32671a17b50f6dba40e277c1`. Package inspection verifies the existing bundle identity, physical ARM64/iOS binary, dependency pins, Metal assets, Siri metadata, privacy/background configuration, and absence of debug backends. See [repair scope](Documentation/RELEASE_071.md), [build evidence](Documentation/ReleaseValidation071.json), and [physical checklist](Documentation/DeviceValidation071.json).
 
-Install over the current app with the same iLoader account, verify About 0.7.1 build 8, then restore Calendar/Reminders permissions, save selected sources, and close/reopen twice. Physical repair confirmation remains pending. Raw device reports remain outside Git.
+Install over the current app with the same iLoader account, verify About 0.7.1 build 8, then restore Calendar/Reminders permissions, save selected sources, and close/reopen twice. Jacob completed this checklist successfully on October 11. A subsequent USB lookup/crash pull was unavailable, so physical acceptance is based on his direct test confirmation, not a claimed post-update log inspection. Raw device reports remain outside Git.
 
 ## Validation budget
 

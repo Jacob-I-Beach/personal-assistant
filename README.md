@@ -4,11 +4,11 @@ A private native iPhone application for Jacob's iPhone on iOS 27. The app owns c
 
 Source repository: [Jacob-I-Beach/personal-assistant](https://github.com/Jacob-I-Beach/personal-assistant).
 
-Jacob confirms that **0.5.0 build 5 opens on his iPhone and preserves his previous chats** (October 10, 2026). ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
+Jacob confirms that **0.7.1 build 8 opens, preserves his previous chats, and saves Calendar/Reminders access without crashing** (October 11, 2026). ChatGPT account connection is the primary experience; downloaded and Apple on-device models provide offline choices. The app follows [the product design](Documentation/PRODUCT_DESIGN.md), with implemented scope and remaining device checks recorded below.
 
 ## Current source: 0.7.1 crash repair
 
-[0.7.1 build 8](Documentation/RELEASE_071.md) repairs the confirmed Reminders callback crash after Save and on relaunch. [Native run 38115961045](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38115961045) passes 161 core and eight EventKit regression tests and builds the iPhone update. Install in place with the same signing account; physical repair confirmation is pending. See [STATUS](STATUS.md).
+[0.7.1 build 8](Documentation/RELEASE_071.md) repairs the confirmed Reminders callback crash after Save and on relaunch. [Native run 38115961045](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38115961045) passes 161 core and eight EventKit regression tests and builds the iPhone update. Jacob confirms 0.7.1 build 8 preserves his chats and Save/relaunch now work with Calendar and Reminders enabled. See [STATUS](STATUS.md).
 
 ## 0.7 feature batch
 

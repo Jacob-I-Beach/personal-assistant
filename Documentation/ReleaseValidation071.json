@@ -28,10 +28,11 @@
     "testValidEventSnapshotPreservesVersionAndBusyState"
   ],
   "simulator_tests_repeated": 0,
-  "physical_device_validation": "pending",
+  "physical_device_validation": "User confirmed 0.7.1 build 8 installed, prior chats retained, Calendar/Reminders Save and two requested reopens succeed.",
   "diagnosis": "Eight 0.7.0 device reports confirm MainActor assertion in the Reminders callback on the EventKit background queue.",
   "sha256": "af8d2567181ccb26cfed578b3198fe23aa39908b32671a17b50f6dba40e277c1",
   "bytes": 20846311,
   "dependency_pins_verified": 20,
-  "debug_models_excluded": true
+  "debug_models_excluded": true,
+  "post_update_crash_log_inspection": "Unavailable because device was disconnected; no clean-log claim."
 }
