@@ -563,7 +563,7 @@ final class AppModel: ObservableObject {
             if let requestID = activeWatchRequestID {
                 activeWatchRequestID = nil
                 let answer = conversation.messages.last(where: { $0.role == .assistant })
-                let successful = errorMessage == nil && !Task.isCancelled && answer?.state == .complete && answer.map { !previousIDs.contains($0.id) } == true
+                let successful = completedTurn && errorMessage == nil && !Task.isCancelled && answer?.state == .complete && answer.map { !previousIDs.contains($0.id) } == true
                 let text = successful ? String((answer?.text ?? "Completed on iPhone.").prefix(1000)) : "The task stopped or needs attention. Continue on your iPhone."
                 await publishWatch(WatchReply(requestID: requestID, conversationID: conversation.id,
                     state: successful ? .complete : .needsPhone, message: text, modelName: modelTitle))
