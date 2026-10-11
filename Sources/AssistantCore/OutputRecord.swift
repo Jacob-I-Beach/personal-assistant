@@ -62,6 +62,20 @@ extension LocalStore {
         try storeOutput(record)
         return record
     }
+    public func refreshPublishedOutput(id: UUID, filename: String, previous: Data, replacement: Data, conversationID: UUID) throws -> OutputRecord? {
+        guard let outputsRoot, var record = try outputRecord(id) else { return try publishOutput(id: id, filename: filename, data: replacement, conversationID: conversationID) }
+        guard record.conversationID == conversationID else { throw AssistantError.invalidTool("This output belongs to another chat.") }
+        let url = try WorkspacePath.resolve(record.filename, inside: outputsRoot)
+        guard record.status == "saved_local", try Data(contentsOf: url) == previous else {
+            record.status = "needs_attention"; record.warning = "The Library revision is saved. The Files copy changed separately and was kept; export the current revision to choose where to save it."
+            try storeOutput(record); return record
+        }
+        record.status = "writing"; try storeOutput(record)
+        try replacement.write(to: url, options: .atomic)
+        guard try Data(contentsOf: url) == replacement else { throw AssistantError.invalidTool("The Library revision is saved, but its Files copy could not be verified.") }
+        record.byteCount = replacement.count; record.status = "saved_local"; record.verifiedAt = Date(); record.warning = nil
+        try storeOutput(record); return record
+    }
     private func storeOutput(_ record: OutputRecord) throws {
         let text = String(decoding: try JSONEncoder().encode(record), as: UTF8.self)
         try database.execute("INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",

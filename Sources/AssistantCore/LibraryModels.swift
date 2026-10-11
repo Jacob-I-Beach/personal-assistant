@@ -27,6 +27,7 @@ public struct HistoryMatch: Codable, Identifiable, Equatable, Sendable {
     public var createdAt: Date
 }
 public struct ArtifactRecord: Codable, Identifiable, Equatable, Sendable {
+    public var revision = 1
     public var id: UUID
     public var conversationID: UUID
     public var filename: String
@@ -43,7 +44,7 @@ public struct ArtifactRecord: Codable, Identifiable, Equatable, Sendable {
         self.createdAt = Date(); self.sourceCallID = sourceCallID; self.previousRevisionID = previousRevisionID
         self.containsLocalOnlyContext = containsLocalOnlyContext; self.containsHealthData = containsHealthData
     }
-    enum CodingKeys: String, CodingKey { case id, conversationID, filename, content, createdAt, sourceCallID, previousRevisionID, containsLocalOnlyContext, containsHealthData }
+    enum CodingKeys: String, CodingKey { case id, conversationID, filename, content, createdAt, sourceCallID, previousRevisionID, containsLocalOnlyContext, containsHealthData, revision }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); conversationID = try c.decode(UUID.self, forKey: .conversationID)
@@ -52,5 +53,6 @@ public struct ArtifactRecord: Codable, Identifiable, Equatable, Sendable {
         previousRevisionID = try c.decodeIfPresent(UUID.self, forKey: .previousRevisionID)
         containsLocalOnlyContext = try c.decodeIfPresent(Bool.self, forKey: .containsLocalOnlyContext) ?? false
         containsHealthData = try c.decodeIfPresent(Bool.self, forKey: .containsHealthData) ?? false
+        revision = try c.decodeIfPresent(Int.self, forKey: .revision) ?? 1
     }
 }

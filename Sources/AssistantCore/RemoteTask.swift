@@ -38,7 +38,8 @@ extension LocalStore {
         return try Self.decode(CompanionRunRecord.self, data)
     }
     public func saveCompanionRun(_ value: CompanionRunRecord) throws {
-        _ = try companionRun(value.turnID)
+        var value = value
+        if try companionRun(value.turnID)?.stopRequested == true { value.stopRequested = true }
         try database.execute("INSERT INTO companion_runs(id,payload) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", [.text(value.turnID.uuidString), .blob(try Self.encode(value))])
     }
 }

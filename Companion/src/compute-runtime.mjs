@@ -106,7 +106,7 @@ export class ComputeRuntime {
       }
       let stateFile = null;
       if (result.state != null) stateFile = this.store.saveFile(job.id, {filename: 'intermediate-state.json', role: 'state', source_operation_id: call.id,contains_health_data:containsHealthData}, Buffer.from(JSON.stringify(result.state)));
-      return {callID: call.id, name: call.name, succeeded: result.succeeded, completedAt: new Date().toISOString(),
+      return {callID: call.id, name: call.name, succeeded: result.succeeded, completedAt: new Date().toISOString(),containsHealthData:containsHealthData,
         output: {status: result.succeeded ? 'completed' : 'failed', execution_location: 'your computer', result: result.result,
           output: result.stdout, output_truncated: result.stdout_truncated === true, error: result.error,
           files: outputs, state_file: stateFile, source_files: files.map(({id,sha256,version}) => ({id,sha256,version})),

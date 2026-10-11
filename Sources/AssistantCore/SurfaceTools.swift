@@ -8,6 +8,7 @@ public enum SurfaceTools {
         definition("get_surface_schema", "Get the exact format for native in-chat charts, metrics, tables, comparisons, checklists, timelines or parameter scenarios. These are persistent working objects, not arbitrary HTML or code.", ["kind": "metrics, chart, table, comparison, checklist, timeline, scenario, or all"]),
         definition("present_surface", "Create a validated native working surface in this conversation. Use get_surface_schema first. For calculated metrics/charts/tables pass a successful run_javascript call ID so displayed data comes from that exact result. User interaction is saved locally; it does not send a message or execute device actions.", ["spec_json": "JSON specification matching the chosen kind.", "data_call_id": "Successful JavaScript call ID to supply the data array, or empty for source/model-supplied data and declarative scenarios."]),
         definition("read_surface", "Read the latest selections/parameters and displayed data of a working surface in this conversation. The timestamp and revision distinguish user changes from the originally proposed state.", ["surface_id": "UUID returned by present_surface"]),
+        definition("update_surface", "Revise a working surface in place using its current revision from read_surface. Preserves its ID, compatible selections and revision history. Stale updates are rejected. Calculated values need a successful calculation receipt, as when creating a surface.", ["surface_id": "Existing surface UUID", "expected_revision": "Exact revision returned by read_surface", "spec_json": "Full revised surface specification", "data_call_id": "Successful run_javascript or run_python call ID, or empty for source-supplied data"]),
     ]
     public static func schema(_ kind: String) throws -> JSONValue {
         guard kind == "all" || SurfaceKind(rawValue: kind) != nil else { throw AssistantError.invalidTool("Choose a supported surface kind.") }
@@ -27,9 +28,9 @@ public enum SurfaceTools {
         var localOnly = localOnly, health = health
         switch call.name {
         case "get_surface_schema": output = try schema(call.arguments["kind"]!.stringValue!)
-        case "present_surface":
+        case "present_surface", "update_surface":
             let existing = try await store.surfaces(conversationID: conversationID, remote: remote)
-            if let original = existing.first(where: { $0.sourceCallID == call.id }) {
+            if call.name == "present_surface", let original = existing.first(where: { $0.sourceCallID == call.id }) {
                 return ToolResult(callID: call.id, name: call.name, succeeded: true, output: .object(["surface_id": .string(original.id.uuidString), "title": .string(original.title), "status": .string("displayed")]))
             }
             let raw = call.arguments["spec_json"]!.stringValue!
@@ -40,7 +41,7 @@ public enum SurfaceTools {
                 guard let source = conversation.messages.first(where: { $0.role == .tool && $0.toolCallID == sourceID && $0.state == .complete }),
                       !remote || !source.containsLocalOnlyContext,
                       let sourceCall = conversation.messages.flatMap(\.toolCalls).first(where: { $0.id == sourceID }),
-                      sourceCall.name == "run_javascript" || (sourceCall.name == "use_tool" && sourceCall.arguments["name"] == .string("run_javascript")),
+                      ["run_javascript", "run_python"].contains(sourceCall.name) || (sourceCall.name == "use_tool" && ["run_javascript", "run_python"].contains(sourceCall.arguments["name"]?.stringValue ?? "")),
                       let receipt = try? JSONValue.parse(source.text), receipt["tool_succeeded"] == .bool(true), let data = receipt["result"] else {
                     throw AssistantError.invalidTool("Use a successful JavaScript result from this conversation for surface data.")
                 }
@@ -48,9 +49,12 @@ public enum SurfaceTools {
                 else { spec["data"] = data }
                 localOnly = localOnly || source.containsLocalOnlyContext; health = health || source.containsHealthData
             }
-            let surface = try WorkSurface(conversationID: conversationID, sourceCallID: call.id, spec: .object(spec), localOnly: localOnly, health: health, dataCallID: sourceID.isEmpty ? nil : sourceID)
-            try await store.saveSurface(surface)
-            output = .object(["surface_id": .string(surface.id.uuidString), "title": .string(surface.title), "kind": .string(surface.kind.rawValue), "status": .string("displayed"), "data_source": .string(sourceID.isEmpty ? "Supplied data and declared assumptions; not independently verified" : "Exact saved JavaScript result"), "interaction": .string("Selections and parameter changes remain local until the user sends another request; read_surface returns the latest state.")])
+            var surface = try WorkSurface(conversationID: conversationID, sourceCallID: call.id, spec: .object(spec), localOnly: localOnly, health: health, dataCallID: sourceID.isEmpty ? nil : sourceID)
+            if call.name == "update_surface" {
+                guard let id = call.arguments["surface_id"]?.stringValue.flatMap(UUID.init(uuidString:)), let revision = Int(call.arguments["expected_revision"]?.stringValue ?? "") else { throw AssistantError.invalidTool("Read the surface and supply its current revision.") }
+                surface = try await store.reviseSurface(id: id, conversationID: conversationID, expectedRevision: revision, replacement: surface)
+            } else { try await store.saveSurface(surface) }
+            output = .object(["surface_id": .string(surface.id.uuidString), "title": .string(surface.title), "revision": .number(Double(surface.revision)), "kind": .string(surface.kind.rawValue), "status": .string("displayed"), "data_source": .string(sourceID.isEmpty ? "Supplied data and declared assumptions; not independently verified" : "Exact saved calculation result"), "interaction": .string("Selections stay in this object. Ask about these changes explicitly sends a follow-up; read_surface returns the current revision.")])
         case "read_surface":
             guard let id = UUID(uuidString: call.arguments["surface_id"]!.stringValue!),
                   let surface = try await store.surfaces(conversationID: conversationID, remote: remote).first(where: { $0.id == id }) else { throw AssistantError.invalidTool("This surface is not available in the current conversation.") }

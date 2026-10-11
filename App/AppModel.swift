@@ -381,11 +381,8 @@ final class AppModel: ObservableObject {
     func reviseArtifact(_ artifact: ArtifactRecord, content: String) async -> ArtifactRecord? {
         do {
             guard let store else { return nil }
-            let revised = ArtifactRecord(conversationID: artifact.conversationID, filename: artifact.filename,
-                content: content, previousRevisionID: artifact.id, containsLocalOnlyContext: artifact.containsLocalOnlyContext,
-                containsHealthData: artifact.containsHealthData)
-            try await store.saveArtifact(revised)
-            _ = try await store.publishOutput(id: revised.id, filename: revised.filename, data: Data(content.utf8), conversationID: revised.conversationID)
+            let revised = try await store.reviseArtifact(id: artifact.id, expectedRevision: artifact.revision, content: content)
+            _ = try await store.refreshPublishedOutput(id: revised.id, filename: revised.filename, previous: Data(artifact.content.utf8), replacement: Data(content.utf8), conversationID: revised.conversationID)
             try await store.saveArtifactDraft(id: artifact.id, text: nil)
             await refresh()
             return revised
@@ -532,11 +529,14 @@ final class AppModel: ObservableObject {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
-                let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request] + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
+                let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request]
+                    + (selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create] : [])
+                    + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selection.networkDestination
                 let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
                     planningSharedWithModel: selection.planningConnectedAccess, locationEnabled: selection.locationContextEnabled,
-                    healthAvailable: HealthOverviewService.isEnabledInThisBuild, backgroundEnabled: selection.continueInBackground)
+                    healthAvailable: HealthOverviewService.isEnabledInThisBuild, backgroundEnabled: selection.continueInBackground,
+                    computerEnabled: selection.choice == .chatGPT && selection.useComputer && selection.companion != nil, contactsEnabled: selection.contactsConnected && ContactsConnection.allowed)
                 let execute: @Sendable (ToolCall) async throws -> ToolResult = { [weak self, conversationID = original.id] call in
                         guard let self else { throw CancellationError() }
                         return try await self.executeNativeTool(call, conversationID: conversationID, destination: destination)
@@ -650,7 +650,7 @@ final class AppModel: ObservableObject {
             }
         }
     }
-    private func backend(for selection: ModelSettings) async throws -> any ModelBackend {
+    func backend(for selection: ModelSettings) async throws -> any ModelBackend {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { return UIInteractionBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { return UIStreamingBackend() }
@@ -828,6 +828,7 @@ final class AppModel: ObservableObject {
         if call.name == QuestionTools.request.name { return try await executeQuestionTool(call, conversationID: conversationID) }
         if WorkspaceTools.names.contains(call.name) { return try await executeWorkspaceTool(call, conversationID: conversationID, destination: destination) }
         if CommunicationTools.names.contains(call.name) { return try await executeCommunicationTool(call, conversationID: conversationID) }
+        if call.name == ComputerScheduleTools.create.name { return try await executeScheduleTool(call) }
         func nativeResult(_ value: JSONValue) -> ToolResult {
             ToolResult(callID: call.id, name: call.name, succeeded: !["failed", "outcome_unknown", "interrupted"].contains(value["status"]?.stringValue ?? ""), output: value)
         }

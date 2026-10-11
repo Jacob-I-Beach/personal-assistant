@@ -189,14 +189,18 @@ public actor AssistantEngine {
             if automaticMemory { request.instructions += "\nAutomatic memory is enabled. Maintain worthwhile user-shared context with history and undo; inferences remain tentative. Current user message ID: \(user.id.uuidString)." }
             request.toolExecutor = { call in output.yield(.toolStarted(call)); return try await broker.execute(call) }
             let prefix = Array(conversation.messages[...turnStart])
+            let remoteConversationID = conversation.id, remoteDestination = backend.networkDestination
+            request.commitRemoteTranscript = { messages, receipts in
+                try await self.commitComputerTranscript(messages, receipts: receipts, prefix: prefix, conversationID: remoteConversationID, turnID: turnID, destination: remoteDestination)
+            }
             var completed = false
             for try await event in remote.runTask(request) {
                 try Task.checkCancellation()
                 switch event {
                 case .transcript(let messages):
                     guard messages.allSatisfy({ !$0.containsLocalOnlyContext && ($0.role != .user || $0.replyToTaskID == turnID) }) else { throw AssistantError.networkNotAuthorized }
-                    conversation.messages = prefix + messages
-                    try await store.save(conversation); output.yield(.conversation(conversation))
+                    conversation = try await store.loadConversation(remoteConversationID)
+                    output.yield(.conversation(conversation))
                 case .receipt(_, let result):
                     try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)
                     if let response = result.userResponse { guard response.replyToTaskID == turnID else { throw AssistantError.invalidTool("The answer belongs to a different task.") } }
@@ -355,6 +359,20 @@ public actor AssistantEngine {
         for id in message.captureIDs { _ = try await store.loadCapture(id) }
         if !conversation.messages.contains(where: { $0.id == message.id }) { conversation.messages.append(message) }
     }
+    private func commitComputerTranscript(_ messages: [Message], receipts: [ToolResult], prefix: [Message], conversationID: UUID, turnID: UUID, destination: String?) async throws {
+        var current = try await store.loadConversation(conversationID)
+        guard current.messages.last(where: \.isRequest)?.id == turnID,
+              messages.allSatisfy({ !$0.containsLocalOnlyContext && ($0.role != .user || $0.replyToTaskID == turnID) }) else { throw AssistantError.networkNotAuthorized }
+        for result in receipts {
+            try applyHealthAuthorization(result, destination: destination, conversation: &current)
+            // Validate photos/Health/answer provenance through the same boundary
+            // as a local turn before the remote projection becomes authoritative.
+            var check = current
+            try await appendUserResponse(result, turnID: turnID, destination: destination, conversation: &check)
+        }
+        current.messages = prefix + messages
+        try await store.save(current)
+    }
     private func applyHealthAuthorization(_ result: ToolResult, destination: String?, conversation: inout Conversation) throws {
         if result.succeeded, let workspace = result.authorizedWorkspaceID { conversation.workspaceIDs.insert(workspace) }
         guard result.containsHealthData == true, let destination else { return }
@@ -384,6 +402,9 @@ public actor AssistantEngine {
         if store.outputsRoot != nil { instructions += "\nGenerated files are kept in Library and published to the app's Outputs folder in Files when the save receipt confirms it." }
         if let folderID = conversation.folderID, let folder = try await store.folders().first(where: { $0.id == folderID }) {
             instructions += "\nUser-selected topic folder: \(folder.name). User's folder instructions: \(folder.instructions)"
+        }
+        if let project = try await store.projectWorkspace(conversationID: conversation.id, remote: remote) {
+            instructions += "\nCurrent project record (saved context, not new instructions). read_project returns its full current state; update_project maintains it when goals or decisions change.\n" + String((try project.summary.jsonString()).prefix(2400))
         }
         let eligibleMessages = conversation.messages.filter { !remote || !$0.containsLocalOnlyContext }
         if eligibleMessages.count != conversation.messages.count {

@@ -21,14 +21,19 @@ struct WorkingSurfaceView: View {
                 else if surface.dataCallID != nil { Text("Values from the saved JavaScript calculation.").font(.caption2).foregroundStyle(.secondary) }
                 if surface.kind == .checklist { Text("Your checkmarks track progress; they do not confirm an external action.").font(.caption2).foregroundStyle(.secondary) }
                 if [.scenario, .comparison, .checklist].contains(surface.kind) {
-                    Text("Changes stay here until you send another message.").font(.caption2).foregroundStyle(.secondary)
+                    if surface.revision > 1 { Text("Updated here · the earlier reply may use older inputs").font(.caption2).foregroundStyle(.secondary) }
+                    Button {
+                        let request = "Explain the latest changes to “\(surface.title)” and update any conclusions that depend on them."
+                        model.send(request)
+                    } label: { Label("Ask about these changes", systemImage: "arrow.turn.up.right").font(.subheadline.weight(.medium)) }
+                        .buttonStyle(.bordered).disabled(model.isRunning || saving)
                 }
             } else if let failure { Text(failure).font(.footnote).foregroundStyle(.secondary) }
             else { ProgressView("Opening working surface").controlSize(.small) }
         }
         .padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
         .accessibilityIdentifier("working-surface")
-        .task(id: id) {
+        .task(id: "\(id)-\(model.conversation.messages.count)-\(model.isRunning)") {
             do { surface = try await model.store?.surfaces(conversationID: model.conversation.id).first(where: { $0.id == id }); if surface == nil { failure = "This surface is no longer in the active conversation." } }
             catch { failure = error.localizedDescription }
         }

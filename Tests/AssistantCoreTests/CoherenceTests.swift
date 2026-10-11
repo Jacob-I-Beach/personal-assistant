@@ -69,7 +69,8 @@ final class CoherenceTests: XCTestCase, @unchecked Sendable {
         XCTAssertLessThan(state.instructions.utf8.count, 3_300)
         XCTAssertTrue(state.instructions.contains("connected-model planning sharing: off"))
         XCTAssertTrue(state.instructions.contains("requires a capability-provisioned installation"))
-        XCTAssertTrue(state.instructions.contains("not a future scheduler"))
+        XCTAssertTrue(state.instructions.contains("iOS processing time"))
+        XCTAssertTrue(AssistantAppContext(computerEnabled: true).instructions.contains("connected computer owns this task"))
     }
     func testReceiptProseIsRecognizedAndInternalFieldsStayOutOfReadableResult() {
         let nodes = ReceiptDetails.nodes(.object(["text": .string("## A useful answer\n\n**Selected evidence**"), "role": .string("assistant"), "total_characters": .number(8_532), "completed_at": .string("2026-10-11T00:00:00Z")]))

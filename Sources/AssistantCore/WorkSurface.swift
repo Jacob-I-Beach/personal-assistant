@@ -118,6 +118,30 @@ public struct WorkSurface: Codable, Equatable, Identifiable, Sendable {
 }
 
 extension LocalStore {
+    private func rememberSurface(_ surface: WorkSurface) throws {
+        try database.execute("CREATE TABLE IF NOT EXISTS surface_history(id TEXT NOT NULL,revision INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(id,revision))")
+        try database.execute("INSERT INTO surface_history(id,revision,payload) VALUES(?,?,?)", [.text(surface.id.uuidString), .integer(Int64(surface.revision)), .blob(try Self.encode(surface))])
+    }
+    public func reviseSurface(id: UUID, conversationID: UUID, expectedRevision: Int, replacement: WorkSurface) throws -> WorkSurface {
+        guard let original = try surfaces(conversationID: conversationID).first(where: { $0.id == id }), original.revision == expectedRevision,
+              replacement.conversationID == conversationID else { throw AssistantError.invalidTool("This working object changed. Read the current revision before updating it.") }
+        try WorkSurface.validate(replacement.spec)
+        var updated = replacement
+        updated.id = original.id; updated.createdAt = original.createdAt; updated.sourceCallID = original.sourceCallID
+        updated.revision = original.revision + 1; updated.updatedAt = Date()
+        updated.containsLocalOnlyContext = original.containsLocalOnlyContext || replacement.containsLocalOnlyContext
+        updated.containsHealthData = original.containsHealthData || replacement.containsHealthData
+        if updated.kind == original.kind {
+            updated.selectedIDs = original.selectedIDs.intersection(Set(updated.rows.compactMap { $0["id"]?.stringValue }))
+            for input in updated.inputs {
+                let key = input["id"]!.stringValue!
+                if let value = original.inputValues[key], let low = input["min"]?.numberValue, let high = input["max"]?.numberValue, (low...high).contains(value) { updated.inputValues[key] = value }
+            }
+        }
+        try rememberSurface(original)
+        try database.execute("UPDATE work_surfaces SET payload=? WHERE id=?", [.blob(try Self.encode(updated)), .text(id.uuidString)])
+        return updated
+    }
     private func prepareSurfaces() throws { try database.execute("CREATE TABLE IF NOT EXISTS work_surfaces(id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, payload BLOB NOT NULL)") }
     public func surfaces(conversationID: UUID, remote: Bool = false) throws -> [WorkSurface] {
         try prepareSurfaces()
@@ -140,6 +164,7 @@ extension LocalStore {
         for input in surface.inputs {
             guard let number = inputs[input["id"]!.stringValue!], number.isFinite, (input["min"]!.numberValue!...input["max"]!.numberValue!).contains(number) else { throw AssistantError.invalidTool("A parameter is outside its allowed range.") }
         }
+        try rememberSurface(surface)
         surface.selectedIDs = selected; surface.inputValues = inputs; surface.updatedAt = Date(); surface.revision += 1
         try database.execute("UPDATE work_surfaces SET payload = ? WHERE id = ?", [.blob(try Self.encode(surface)), .text(id.uuidString)])
         return surface

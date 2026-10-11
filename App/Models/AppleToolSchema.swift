@@ -13,7 +13,10 @@ enum AppleToolSchema {
             return DynamicGenerationSchema(name: name, anyOf: try variants.enumerated().map { try schema($0.element, name: name + "Variant" + String($0.offset), depth: depth + 1) })
         }
         if let types = value["type"]?.arrayValue?.compactMap(\.stringValue) {
-            return DynamicGenerationSchema(name: name, anyOf: try types.map { try schema(.object(["type": .string($0)]), name: name + $0, depth: depth + 1) })
+            return DynamicGenerationSchema(name: name, anyOf: try types.map { type in
+                var variant = value.objectValue ?? [:]; variant["type"] = .string(type)
+                return try schema(.object(variant), name: name + type, depth: depth + 1)
+            })
         }
         switch value["type"]?.stringValue {
         case "string":

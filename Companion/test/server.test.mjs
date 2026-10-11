@@ -12,7 +12,7 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
   const root=await mkdtemp(join(tmpdir(),'assistant-host-test-'));
   let release;
   const waiting=new Promise(resolve=>{release=resolve;});
-  const host=await startCompanion({root,apiHost:'127.0.0.1',apiPort:0,setupPort:0,vault:new Vault(randomBytes(32)),
+  const host=await startCompanion({root,apiHost:'127.0.0.1',apiPort:0,setupPort:0,keepAwake:false,vault:new Vault(randomBytes(32)),
     provider:{getSession:async()=>({status:'connected',sharing:true,profileId:'synthetic'}),streamTurn:async()=>{await waiting;return {output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'Completed without the phone.'}]}]};}},
     runtime:{definitions:[],available:async()=>true,supports:()=>false,summary:()=>''}});
   const request=(path,body,token)=>new Promise((resolve,reject)=>{

@@ -26,6 +26,7 @@ struct ComputerConnectionView: View {
                         })).disabled(model.isRunning)
                         Text("The computer uses its own ChatGPT sign-in. The selected model stays the same; unavailable connections do not silently switch providers.").font(.footnote).foregroundStyle(.secondary)
                         Button("Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }
+                        NavigationLink { ComputerTasksView() } label: { Label("Tasks & schedules", systemImage: "clock.arrow.circlepath") }
                         if let state { Text(state).font(.subheadline).foregroundStyle(.secondary) }
                         Button("Disconnect this iPhone", role: .destructive) {
                             do {

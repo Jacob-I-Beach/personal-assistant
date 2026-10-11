@@ -1313,11 +1313,51 @@
         "xcode-27"
       ],
       "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38180634054,
+      "attempt": 1,
+      "job_id": 114592265583,
+      "source_revision": "40a73f6ee8951a39a0665fd5a522ae92182c0763",
+      "completed_at": "2026-10-11T22:37:45Z",
+      "conclusion": "failure",
+      "name": "ios",
+      "started_at": "2026-10-11T22:29:51Z",
+      "status": "completed",
+      "rounded_minutes": 8
+    },
+    {
+      "run_id": 38180634054,
+      "attempt": 1,
+      "job_id": 114592266410,
+      "source_revision": "40a73f6ee8951a39a0665fd5a522ae92182c0763",
+      "completed_at": "2026-10-11T22:29:43Z",
+      "conclusion": "skipped",
+      "name": "device-package",
+      "started_at": "2026-10-11T22:29:43Z",
+      "status": "completed",
+      "rounded_minutes": 0,
+      "runner_started": false,
+      "note": "No runner execution occurred for this skipped or rejected job."
+    },
+    {
+      "run_id": 38180634054,
+      "attempt": 1,
+      "job_id": 114593869641,
+      "source_revision": "40a73f6ee8951a39a0665fd5a522ae92182c0763",
+      "completed_at": "2026-10-11T22:37:45Z",
+      "conclusion": "skipped",
+      "name": "simulator-tests",
+      "started_at": "2026-10-11T22:37:46Z",
+      "status": "completed",
+      "rounded_minutes": 0,
+      "runner_started": false,
+      "note": "No runner execution occurred for this skipped or rejected job."
     }
   ],
-  "rounded_runner_minutes": 917,
+  "rounded_runner_minutes": 925,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 56.854,
+  "estimated_compute_usd_if_fully_billable": 57.35,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",

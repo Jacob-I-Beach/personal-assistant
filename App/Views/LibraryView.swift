@@ -15,6 +15,7 @@ struct LibraryView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink { ProjectsView() } label: { Label("Projects", systemImage: "square.stack.3d.up") }
                     NavigationLink { ConnectedFoldersView() } label: { Label("Connected folders", systemImage: "folder") }
                     NavigationLink { OutputsView() } label: { Label("Outputs in Files", systemImage: "externaldrive") }
                     NavigationLink { CaptureLibraryView() } label: { Label("Captures · \(model.captures.count)", systemImage: "viewfinder") }
@@ -74,6 +75,8 @@ struct ArtifactDetailView: View {
     @State private var showExport = false
     @State private var exportNotice: String?
     @State private var draftTask: Task<Void, Never>?
+    @State private var history: [ArtifactRecord] = []
+    @State private var showHistory = false
     init(artifact: ArtifactRecord) { _artifact = State(initialValue: artifact) }
     var body: some View {
         Group {
@@ -100,6 +103,9 @@ struct ArtifactDetailView: View {
                     }.disabled(saving || text == artifact.content)
                 } else {
                     Button("Edit", systemImage: "pencil") { editing = true }
+                    Button("Revision history", systemImage: "clock.arrow.circlepath") {
+                        Task { history = (try? await model.store?.artifactHistory(artifact.id)) ?? []; showHistory = true }
+                    }
                     if let exportURL {
                         Menu {
                             ShareLink(item: exportURL) { Label("Share", systemImage: "square.and.arrow.up") }
@@ -115,6 +121,22 @@ struct ArtifactDetailView: View {
                     exportNotice = status == "completed" ? "Export completed. Cloud synchronization was not checked." : "Export cancelled."
                     showExport = false
                 }
+            }
+        }
+        .sheet(isPresented: $showHistory) {
+            NavigationStack {
+                List {
+                    Text("Current revision \(artifact.revision)").font(.headline)
+                    if history.isEmpty { Text("Earlier revisions will appear here after a saved change.").foregroundStyle(.secondary) }
+                    ForEach(history, id: \.revision) { earlier in
+                        DisclosureGroup("Revision \(earlier.revision)") {
+                            Text(earlier.content).font(.subheadline).textSelection(.enabled)
+                            Button("Restore as a new revision") {
+                                Task { if let revised = await model.reviseArtifact(artifact, content: earlier.content) { artifact = revised; text = revised.content; exportURL = await model.artifactURL(revised); showHistory = false } }
+                            }
+                        }
+                    }
+                }.navigationTitle("Document history").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showHistory = false } } }
             }
         }
         .safeAreaInset(edge: .bottom) {

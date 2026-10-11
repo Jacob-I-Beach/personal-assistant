@@ -160,8 +160,9 @@ private struct EmailEditor: UIViewControllerRepresentable {
     @MainActor final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
         let complete: (String) -> Void
         init(_ complete: @escaping (String) -> Void) { self.complete = complete }
-        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: (any Error)?) {
-            complete(error != nil ? "failed" : result == .sent ? "sent" : result == .saved ? "saved_draft" : result == .cancelled ? "cancelled" : "failed")
+        nonisolated func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: (any Error)?) {
+            let outcome = error != nil ? "failed" : result == .sent ? "sent" : result == .saved ? "saved_draft" : result == .cancelled ? "cancelled" : "failed"
+            Task { @MainActor [weak self] in self?.complete(outcome) }
         }
     }
 }

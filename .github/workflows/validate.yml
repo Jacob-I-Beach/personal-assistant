@@ -146,6 +146,9 @@ jobs:
           if [ -d "$app_path/Watch/PersonalAssistantWatch.app" ]; then
             codesign --force --sign - "$app_path/Watch/PersonalAssistantWatch.app"
           fi
+          if [ -d "$app_path/PlugIns" ]; then
+            find "$app_path/PlugIns" -maxdepth 1 -name '*.appex' -exec codesign --force --sign - {} \;
+          fi
           codesign --force --sign - --entitlements App/PersonalAssistant.entitlements "$app_path"
           mkdir -p .build/device/Payload
           ditto DerivedData/Build/Products/Release-iphoneos/PersonalAssistant.app .build/device/Payload/PersonalAssistant.app
@@ -218,6 +221,7 @@ jobs:
           test_options=()
           case "${{ matrix.suite }}" in
             companion-10)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests/PlanningPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests")
               scenarios="testComputerAndContactsHaveNativeConnectionControls"
               ;;
             foundation-10)

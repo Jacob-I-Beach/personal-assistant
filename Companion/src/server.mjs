@@ -15,6 +15,7 @@ import {ComputeRuntime,computerTools} from './compute-runtime.mjs';
 import {Pairing} from './pairing.mjs';
 import {certificate} from './certificate.mjs';
 import {jsonBody,jsonReply,validateJob} from './http-helpers.mjs';
+import {Scheduler} from './scheduler.mjs';
 
 const assets=fileURLToPath(new URL('../ui/',import.meta.url));
 const terminal=new Set(['completed','failed','cancelled','interrupted']);
@@ -40,6 +41,7 @@ export async function startCompanion(options={}) {
   const runner=new JobRunner(store,provider,runtime);
   const serverId=createHash('sha256').update(tls.cert).digest('hex').slice(0,32);
   let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0;
+  const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
   provider.subscribe?.(value=>{session=value;});
   const setupSessions=new Map();
   const listen=(server,port,host)=>new Promise((resolveListen,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.off('error',reject);resolveListen();});});
@@ -63,12 +65,17 @@ export async function startCompanion(options={}) {
       const url=new URL(request.url,'https://computer.invalid');
       if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.0',server_id:serverId,name:'Personal Assistant Computer'});
       if(url.pathname==='/v1/pair'&&request.method==='POST'){
+        if(session.status!=='connected'||!session.sharing)throw new Error('Sign in to ChatGPT on the computer before connecting a phone.');
         const body=await jsonBody(request,4096),device=pairing.redeem(body.pairing_code,body.device_name);
         return jsonReply(response,200,{...device,server_id:serverId,profile_id:session.profileId??null});
       }
       const owner=pairing.authenticate(request.headers.authorization);
       if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.0',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
       if(url.pathname==='/v1/models'&&request.method==='GET')return jsonReply(response,200,{models:await provider.listModels()});
+      if(url.pathname==='/v1/schedules'&&request.method==='GET')return jsonReply(response,200,{schedules:scheduler.list(owner)});
+      if(url.pathname==='/v1/schedules'&&request.method==='POST')return jsonReply(response,201,scheduler.create(owner,await jsonBody(request,16384)));
+      const schedule=url.pathname.match(/^\/v1\/schedules\/([a-zA-Z0-9-]+)$/);
+      if(schedule&&request.method==='POST'){const body=await jsonBody(request,4096);return jsonReply(response,200,scheduler.setEnabled(owner,schedule[1],body.enabled));}
       if(url.pathname==='/v1/jobs'&&request.method==='GET')return jsonReply(response,200,{jobs:store.list(owner).map(publicJob)});
       if(url.pathname==='/v1/jobs'&&request.method==='POST'){
         const payload=validateJob(await jsonBody(request,40*1024*1024));
@@ -81,6 +88,7 @@ export async function startCompanion(options={}) {
       if(!match)return jsonReply(response,404,{error:'That action is not available.'});
       const id=match[1],action=match[2]??'',job=store.get(id,owner);
       if(!action&&request.method==='GET')return jsonReply(response,200,publicJob(job));
+      if(action==='resume-info'&&request.method==='GET')return jsonReply(response,200,{job:publicJob(job),payload:job.payload});
       if(action==='start'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(await startJob(job)));}
       if(action==='cancel'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(runner.cancel(id,owner)));}
       if(action==='events'&&request.method==='GET'){
@@ -164,7 +172,7 @@ export async function startCompanion(options={}) {
         const job=store.list().find(job=>job.id===body.job_id);if(!job)throw new Error('Task not found.');runner.cancel(job.id,job.owner);return jsonReply(response,200,{stopped:true});
       }
       if(url.pathname==='/api/revoke'){
-        pairing.revoke(body.device_id);for(const job of store.list(body.device_id))if(!terminal.has(job.status))runner.cancel(job.id,job.owner);
+        pairing.revoke(body.device_id);scheduler.stopOwner(body.device_id);for(const job of store.list(body.device_id))if(!terminal.has(job.status))runner.cancel(job.id,job.owner);
         return jsonReply(response,200,{disconnected:true});
       }
       return jsonReply(response,404,{error:'That setup action is not available.'});
@@ -172,8 +180,13 @@ export async function startCompanion(options={}) {
   });
   await listen(setup,options.setupPort??48680,'127.0.0.1');setupOrigin=`http://127.0.0.1:${setup.address().port}`;
   for(const job of store.list())if(['running','waiting_for_phone','waiting_for_input'].includes(job.status))store.status(job.id,'interrupted','The computer restarted. Saved work is ready to continue.');
+  const scheduleTimer=setInterval(()=>scheduler.tick().catch(()=>{lastError='A scheduled task needs attention. Its saved record is kept.';}),15000);scheduleTimer.unref();
+  let powerLease;
+  if(options.keepAwake!==false&&process.platform==='win32'){
+    powerLease=spawn(join(process.env.SystemRoot??'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'),['-NoProfile','-NonInteractive','-File',fileURLToPath(new URL('../scripts/keep-awake.ps1',import.meta.url))],{windowsHide:true,stdio:['pipe','ignore','ignore']});powerLease.on('error',()=>{lastError='Keep this computer awake manually; the app could not obtain a power lease.';});
+  }
   return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,
-    close:async()=>{for(const job of store.list())if(runner.active.has(job.id))runner.cancel(job.id,job.owner);await Promise.all([...runner.active.values()].map(value=>value.promise));await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();}};
+    close:async()=>{clearInterval(scheduleTimer);powerLease?.stdin.end();for(const job of store.list())if(runner.active.has(job.id))runner.interrupt(job.id);await Promise.all([...runner.active.values()].map(value=>value.promise));await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();}};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){

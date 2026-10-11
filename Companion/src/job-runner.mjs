@@ -44,8 +44,9 @@ export class JobRunner extends EventEmitter {
     if (['completed','cancelled'].includes(job.status)) return Promise.resolve();
     const abort = new AbortController();
     const promise = this.run(job, abort.signal).catch(error => {
-      const cancelled = abort.signal.aborted;
-      this.status(id, cancelled ? 'cancelled' : 'failed', cancelled ? 'Stopped. Completed work is kept.' : safeError(error).message,
+      const shuttingDown=abort.signal.reason?.code==='host_shutdown';
+      const cancelled = abort.signal.aborted&&!shuttingDown;
+      this.status(id, shuttingDown?'interrupted':cancelled ? 'cancelled' : 'failed', shuttingDown?'The computer stopped. Progress is saved for reconnection.':cancelled ? 'Stopped. Completed work is kept.' : safeError(error).message,
         cancelled ? {} : {error: safeError(error)});
     }).finally(() => { this.active.delete(id); this.emit('settled', id); });
     this.active.set(id, {abort, promise});
@@ -66,8 +67,9 @@ export class JobRunner extends EventEmitter {
     const catalog = new Map([...(payload.catalog ?? []), ...(this.runtime.definitions ?? [])].map(tool => [tool.name, tool]));
     const budget = Math.min(60, Math.max(1, payload.limits?.maximum_tool_calls ?? 40));
     let checkpoint = job.checkpoint ?? {input: payload.body.input, round: 0, calls: 0, pending: [], final: null};
-    const firstRound = checkpoint.round, firstCall = checkpoint.calls;
-    let activeMilliseconds = 0;
+    if(checkpoint.containsHealthData)job.payload.contains_health_data=true;
+    const firstRound = payload.schedule_id?0:checkpoint.round, firstCall = payload.schedule_id?0:checkpoint.calls;
+    let activeMilliseconds = payload.schedule_id?(checkpoint.activeMilliseconds??0):0;
     const activeLimit = Math.min(7200, Math.max(60, payload.limits?.maximum_seconds ?? 3600)) * 1000;
     const active = async action => {
       const remaining = activeLimit - activeMilliseconds;
@@ -77,7 +79,7 @@ export class JobRunner extends EventEmitter {
       catch (error) {
         if (!signal.aborted && lease.aborted) throw Object.assign(new Error(), {publicMessage: 'This work session reached its time allowance. Saved work can continue in another session.'});
         throw error;
-      } finally { activeMilliseconds += Date.now() - began; }
+      } finally { activeMilliseconds += Date.now() - began;checkpoint.activeMilliseconds=activeMilliseconds;this.store.checkpoint(job.id,checkpoint); }
     };
     this.status(job.id, 'running', 'Working on your computer');
     if (checkpoint.final) {
@@ -148,11 +150,12 @@ export class JobRunner extends EventEmitter {
           result = {callID: original.id, name: original.name, succeeded: false, output: {status: 'failed', error: 'The tool could not complete this request. Check the argument schema and current connection.', detail: error.publicMessage ?? String(error.message).slice(0,600)}};
         }
         result={...result,callID:original.id,name:original.name};
+        if(result.containsHealthData===true){checkpoint.containsHealthData=true;job.payload.contains_health_data=true;}
         const modelResult = Array.isArray(result.output) ? {result: result.output} : {...(result.output ?? {})};
         modelResult.tool_succeeded = result.succeeded;
         modelResult.operation_id = original.id;
         let modelOutput=JSON.stringify(modelResult);
-        if(effectiveCall(original).name==='inspect_document'&&result.succeeded){
+        if(result.succeeded&&effectiveCall(original).name==='inspect_document'){
           const preview=(result.output?.files??[]).find(file=>file.filename===result.output?.result?.preview_image);
           if(preview){
             const image=this.store.file(job.id,job.owner,preview.id);
@@ -205,4 +208,5 @@ export class JobRunner extends EventEmitter {
     else this.status(jobId, 'cancelled', 'Stopped. Completed work is kept.');
     return this.store.get(jobId, owner);
   }
+  interrupt(jobId){this.active.get(jobId)?.abort.abort(Object.assign(new Error('Computer service stopped'),{code:'host_shutdown'}));}
 }

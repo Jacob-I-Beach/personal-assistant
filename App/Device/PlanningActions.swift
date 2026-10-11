@@ -3,7 +3,9 @@ import Foundation
 
 extension AppModel {
     func executePlanningTool(_ call: ToolCall, destination: String?) async throws -> ToolResult {
-        let kind = ["read_reminders", "save_reminder", "complete_reminder"].contains(call.name) ? "reminder" : "calendar"
+        if PlanningBatchTools.names.contains(call.name) { return try await executePlanningBatch(call, destination: destination) }
+        let kind = call.name == "delete_planning_item" ? call.arguments["kind"]?.stringValue ?? "" : ["read_reminders", "save_reminder", "complete_reminder"].contains(call.name) ? "reminder" : "calendar"
+        guard ["calendar", "reminder"].contains(kind) else { throw AssistantError.invalidTool("Choose calendar or reminder.") }
         func permitted() -> Bool { (kind == "calendar" ? !settings.calendarSourceIDs.isEmpty : !settings.reminderSourceIDs.isEmpty) && (destination == nil || settings.planningConnectedAccess) }
         if !permitted(), call.name != PlanningTools.sources.name {
             let choice = try await reviewNativeAction(.init(kind: .planningConnection, title: "Planning access", detail: "", arguments: .object([:])))
@@ -28,7 +30,18 @@ extension AppModel {
             let query = args["query"]!.stringValue!.lowercased()
             let items = try await planning.reminders(sourceIDs: sourceIDs).filter { query.isEmpty || $0.title.lowercased().contains(query) }
             output = .object(["reminders": .array(items.prefix(80).map(\.modelValue)), "total_reminders": .number(Double(items.count)), "coverage_complete": .bool(items.count <= 80)])
+        case PlanningTools.remove.name:
+            var fields = args.objectValue ?? [:]
+            if fields["occurrence_start"] == .string("") { fields["occurrence_start"] = .null }
+            let deletion = JSONValue.object(fields)
+            guard let item = try planning.validateChange(deletion, kind: kind, settings: settings) else { throw AssistantError.invalidTool("Read the item before removing it.") }
+            let scope = item.recurring ? (args["scope"]?.stringValue ?? "") : "This item"
+            let review = try await reviewNativeAction(.init(kind: .approval, title: "Remove \(kind == "calendar" ? "event" : "reminder")?", detail: item.title + "\n\n" + (item.start?.formatted(date: .abbreviated, time: .shortened) ?? "No due date") + "\n\n" + scope.replacingOccurrences(of: "_", with: " ") + "\n\nFrom " + item.sourceTitle, arguments: deletion))
+            guard review == "approved", permitted() else { return .init(callID: call.id, name: call.name, succeeded: false, output: .object(["status": .string("cancelled"), "changed": .bool(false)])) }
+            output = try planning.delete(deletion, kind: kind, settings: settings)
+            await planning.refreshHome(settings: settings)
         default:
+            _ = try PlanningRecurrence.rule(args["recurrence"])
             let existing = try planning.validateChange(args, kind: kind, settings: settings)
             let completing = call.name == PlanningTools.complete.name
             let title = completing ? "Complete reminder?" : existing == nil ? "Save \(kind == "calendar" ? "event" : "reminder")?" : "Update \(kind == "calendar" ? "event" : "reminder")?"
@@ -45,6 +58,10 @@ extension AppModel {
             }
             if let old = existing, !completing { lines.append("Currently: " + old.title + (old.start.map { " · " + $0.formatted(date: .abbreviated, time: .shortened) } ?? "")) }
             if let notes = args["notes"]?.stringValue, !notes.isEmpty { lines.append(notes) }
+            if args["all_day"] == .bool(true) { lines.append("All-day event · end date is exclusive") }
+            if let zone = args["time_zone"]?.stringValue { lines.append("Time zone: " + zone) }
+            if let recurrence = PlanningRecurrence.description(args) { lines.append(recurrence) }
+            if let scope = args["scope"]?.stringValue { lines.append("Applies to: " + scope.replacingOccurrences(of: "_", with: " ")) }
             if let source = planning.sources.first(where: { $0.id == (args["source_id"]?.stringValue ?? existing?.sourceID) }) { lines.append("In " + source.title) }
             let approved = try await reviewNativeAction(.init(kind: .approval, title: title, detail: lines.joined(separator: "\n\n"), arguments: args))
             guard approved == "approved" else { return .init(callID: call.id, name: call.name, succeeded: false, output: .object(["status": .string(approved == "cancelled" ? "cancelled" : "interrupted"), "saved": .bool(false)])) }

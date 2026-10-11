@@ -83,12 +83,14 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 try await Task.sleep(for: .seconds(min(10, retries * 2))); continue
             }
             let events = batch["events"]?.arrayValue ?? []
+            var receipts: [ToolResult] = []
             for event in events {
                 if event["type"] == .string("phone_request"), let call = event["call"] {
                     let value = try JSONDecoder().decode(ToolCall.self, from: JSONEncoder().encode(call)); pending[value.id] = value
                 }
                 if let (call, result) = try transcript.apply(event) {
                     answered.insert(call.id); pending.removeValue(forKey: call.id)
+                    receipts.append(result)
                     output.yield(.receipt(call, result))
                 }
                 if event["type"] == .string("activity"), let title = event["title"]?.stringValue { output.yield(.activity(title)) }
@@ -96,18 +98,27 @@ struct CompanionModelBackend: RemoteTaskBackend {
             }
             // Persist one coherent projection per batch, including exact action
             // receipts and visible questions/answers, before moving the cursor.
-            if !events.isEmpty { output.yield(.transcript(transcript.messages)) }
+            if !events.isEmpty {
+                try await request.commitRemoteTranscript?(transcript.messages, receipts)
+                output.yield(.transcript(transcript.messages))
+            }
             record.status = batch["job"]?["status"]?.stringValue ?? record.status
             try await store.saveCompanionRun(record)
             let caughtUp = transcript.cursor >= Int(batch["job"]?["cursor"]?.numberValue ?? 0)
             if !caughtUp { continue }
             if record.status == "completed" {
-                try await importOutputs(path: path, identity: identity)
+                let files = try await importOutputs(path: path, identity: identity)
+                var messages = transcript.messages
+                if let index = messages.lastIndex(where: { $0.role == .assistant }), !files.isEmpty {
+                    messages[index].fileIDs = files
+                    try await request.commitRemoteTranscript?(messages, [])
+                    output.yield(.transcript(messages))
+                }
                 output.yield(.completed); return
             }
             if record.status == "cancelled" { throw CancellationError() }
             if ["failed", "interrupted"].contains(record.status) {
-                try await importOutputs(path: path, identity: identity)
+                _ = try await importOutputs(path: path, identity: identity)
                 throw AssistantError.provider(events.last(where: { $0["type"] == .string("status") })?["text"]?.stringValue ?? "Your computer saved this task. Continue when ready.")
             }
             for call in pending.values.sorted(by: { $0.id < $1.id }) where !answered.contains(call.id) {
@@ -122,11 +133,13 @@ struct CompanionModelBackend: RemoteTaskBackend {
             }
         }
     }
-    private func importOutputs(path: String, identity: ModelWorkIdentity) async throws {
+    private func importOutputs(path: String, identity: ModelWorkIdentity) async throws -> [UUID] {
         let catalog = try await client.json(path + "/files")
+        var imported: [UUID] = []
         for entry in catalog["files"]?.arrayValue ?? [] {
             guard ["artifact", "inspection"].contains(entry["role"]?.stringValue ?? ""), let rawID = entry["id"]?.stringValue, let id = UUID(uuidString: rawID),
                   let name = entry["filename"]?.stringValue else { continue }
+            imported.append(id)
             if (try? await store.workspaceFile(id)) != nil { continue }
             let data = try await client.data(path + "/files/" + rawID)
             let type = UTType(filenameExtension: URL(fileURLWithPath: name).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
@@ -136,5 +149,6 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 containsHealthData: identity.containsHealthData || entry["contains_health_data"] == .bool(true))
             try await store.saveWorkspaceFile(file, data: data)
         }
+        return imported
     }
 }

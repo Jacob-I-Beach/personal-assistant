@@ -43,7 +43,7 @@ public struct AssistantTools: Sendable {
     }
     public var availableDefinitions: [ToolDefinition] {
         (captureIDs.isEmpty && !additionalDefinitions.contains(where: { $0.name == "request_input" }) ? [] : [CaptureToolBroker.definition, DepthInspection.tool]) + [Self.capabilities, Self.search, Self.read, Self.script, Self.artifact, Self.workspaceSearch, Self.workspaceRead, Self.plan, Self.memory]
-        + [Self.listConversations, Self.readConversation, Self.readTask, Self.readInbox] + (automaticMemory ? AutomaticMemoryTools.definitions : []) + SurfaceTools.definitions + additionalDefinitions
+        + [Self.listConversations, Self.readConversation, Self.readTask, Self.readInbox, Self.unifiedSearch] + (automaticMemory ? AutomaticMemoryTools.definitions : []) + SurfaceTools.definitions + ArtifactRevisionTools.definitions + ProjectTools.definitions + additionalDefinitions
     }
     private static func definition(_ name: String, _ description: String, fields: [String: String]) -> ToolDefinition {
         ToolDefinition(name: name, description: description, parameters: .object([
@@ -66,6 +66,7 @@ public struct AssistantTools: Sendable {
     static let discover = definition("find_tools", "Find app tools for code, files, history, memory, captures, device information and enabled native actions. Discover the exact schema before calling use_tool.", fields: ["query": "Words describing the capability needed, or an exact tool name."])
     static let invoke = ToolDefinition(name: "use_tool", description: "Run an app tool whose schema was returned by find_tools. Supply a structured list of named parameter values. All permissions and execution limits still apply.", parameters: CompactToolInvocation.parameters)
     static let capabilities = definition("get_capabilities", "Inspect the app tools available in this conversation, processing location, review requirements, and limits. Capability descriptions are not permission grants; application checks still apply.", fields: [:])
+    static let unifiedSearch = definition("search_context", "Search this chat, permitted Library/other chats, eligible saved memory and Inbox in one call. Each source retains its existing access rules. Returns stable source IDs and explicit coverage/truncation. Connected folders still use search_files with a selected folder ID.", fields: ["query": "A concise keyword or phrase; empty lists available context where supported."])
 
     public func execute(_ call: ToolCall) async throws -> ToolResult {
         if compactCatalog && [Self.discover.name, Self.invoke.name].contains(call.name) {
@@ -235,7 +236,7 @@ public struct AssistantTools: Sendable {
                     if file.containsHealthData { await classification.includeHealth() }
                 case "artifact":
                     guard let artifact = try await store.readableArtifacts(conversationID: conversationID, workspace: workspaceEnabled, remote: remote).first(where: { $0.id == id }) else { throw AssistantError.invalidTool("That artifact is outside the available workspace.") }
-                    text = artifact.content; note = "Original text artifact."
+                    text = artifact.content; note = "Editable text artifact. Current revision: \(artifact.revision)."
                     if artifact.containsLocalOnlyContext { await classification.includeLocalOnly() }
                     if artifact.containsHealthData { await classification.includeHealth() }
                 case "message":
@@ -313,8 +314,36 @@ public struct AssistantTools: Sendable {
                     "change": .string(change.action), "revision": .number(Double(current.revision)), "memory_status": .string(current.status.rawValue),
                     "notice": .string("Saved locally with source history. The user can inspect or undo this change in Saved memory.")])
             default:
+                if call.name == "search_context" {
+                    let query = call.arguments["query"]?.stringValue ?? ""
+                    var sections: [String: JSONValue] = [:], truncated: [JSONValue] = []
+                    let requests: [(String, String, [String: JSONValue])] = [
+                        ("this_chat", "search_history", ["query": .string(query)]),
+                        ("library_and_chats", "search_workspace", ["query": .string(query)]),
+                        ("memory", "read_memory", ["query": .string(query), "memory_id": .string(""), "offset": .string("0")]),
+                        ("inbox", "read_inbox", ["query": .string(query)])
+                    ]
+                    for (source, name, arguments) in requests {
+                        let found = try await executeUnrecorded(ToolCall(id: call.id + ":" + source, name: name, arguments: .object(arguments)))
+                        let value = found.output
+                        if (try? value.jsonString().utf8.count) ?? 0 > 10_000 { truncated.append(.string(source)); sections[source] = .object(["coverage": .string("The source returned more than this combined preview can hold. Use \(name) to retrieve its bounded results.")]) }
+                        else { sections[source] = value }
+                    }
+                    output = .object(["sources": .object(sections), "workspace_enabled": .bool(workspaceEnabled), "truncated_sources": .array(truncated), "excluded": .array([.string("Unpermitted, archived and protected sources"), .string("Connected folders: search_files requires a selected folder"), .string("Other apps and external mailboxes")])])
+                    return await classify(ToolResult(callID: call.id, name: call.name, succeeded: true, output: output))
+                }
+                if ProjectTools.definitions.contains(where: { $0.name == call.name }) {
+                    let flags = await classification.values()
+                    return await classify(try await ProjectTools.execute(call, store: store, conversationID: conversationID, workspace: workspaceEnabled, remote: remote, localOnly: flags.localOnly, health: flags.health))
+                }
+                if ArtifactRevisionTools.definitions.contains(where: { $0.name == call.name }) {
+                    let canWrite = await execution.canAuthorArtifact
+                    guard call.name != "update_artifact" || canWrite else { throw AssistantError.invalidTool("Repair the failed calculation before revising its document.") }
+                    let flags = await classification.values()
+                    return await classify(try await ArtifactRevisionTools.execute(call, store: store, conversationID: conversationID, remote: remote, localOnly: flags.localOnly, health: flags.health))
+                }
                 if SurfaceTools.definitions.contains(where: { $0.name == call.name }) {
-                    if call.name == "present_surface", !(await execution.canAuthorArtifact) { throw AssistantError.invalidTool("Repair the failed calculation before presenting its results.") }
+                    if ["present_surface", "update_surface"].contains(call.name), !(await execution.canAuthorArtifact) { throw AssistantError.invalidTool("Repair the failed calculation before presenting its results.") }
                     let flags = await classification.values()
                     let result = try await SurfaceTools.execute(call, store: store, conversationID: conversationID, remote: remote, localOnly: flags.localOnly, health: flags.health)
                     if result.containsLocalOnlyContext == true { await classification.includeLocalOnly() }
@@ -355,7 +384,7 @@ public struct AssistantTools: Sendable {
                                       containsLocalOnlyContext: flags.localOnly, containsHealthData: flags.health)
         try await store.saveArtifact(artifact)
         let copy = try await store.publishOutput(id: artifact.id, filename: artifact.filename, data: Data(content.utf8), conversationID: conversationID)
-        return .object(["artifact_id": .string(artifact.id.uuidString), "filename": .string(artifact.filename), "bytes": .number(Double(content.utf8.count)),
+        return .object(["artifact_id": .string(artifact.id.uuidString), "filename": .string(artifact.filename), "revision": .number(1), "bytes": .number(Double(content.utf8.count)),
                         "saved_to": .string(copy?.status == "saved_local" ? copy!.location : "App Library"),
                         "verification": .string(copy?.status ?? "stored_in_library"),
                         "warning": copy?.warning.map(JSONValue.string) ?? .null])

@@ -16,7 +16,7 @@ import WidgetKit
                     Text(title(context)).font(.headline).lineLimit(2)
                     Text(detail(context)).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                 }
-            }.padding(18).activityBackgroundTint(Color(white: 0.10)).activitySystemActionForegroundColor(.white)
+            }.padding(18).environment(\.colorScheme, .dark).activityBackgroundTint(Color(white: 0.10)).activitySystemActionForegroundColor(.white)
                 .widgetURL(destination(context.attributes.conversationID))
         } dynamicIsland: { context in
             DynamicIsland {

@@ -4,6 +4,11 @@ import XCTest
 @testable import PersonalAssistant
 
 final class AppleToolSchemaPlatformTests: XCTestCase {
+    func testNullableObjectsKeepTheirNestedFields() throws {
+        let schema = try AppleToolSchema.make(PlanningTools.saveEvent)
+        let text = String(decoding: try JSONEncoder().encode(schema), as: UTF8.self)
+        XCTAssertTrue(text.contains("frequency")); XCTAssertTrue(text.contains("interval")); XCTAssertTrue(text.contains("occurrence_start"))
+    }
     func testCompactToolSchemaKeepsAnArrayOfNamedArguments() throws {
         let schema = try AppleToolSchema.make(ToolDefinition(name: "use_tool", description: "Synthetic invocation", parameters: CompactToolInvocation.parameters))
         let value = try JSONValue.parse(String(decoding: JSONEncoder().encode(schema), as: UTF8.self))
