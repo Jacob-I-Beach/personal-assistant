@@ -130,6 +130,9 @@ final class PlanningService: ObservableObject {
         let item = try readItem(id: id, kind: kind, sourceIDs: selected)
         guard item.version == args["version"]?.stringValue else { throw AssistantError.invalidTool("The item changed since it was read. Refresh it and prepare a new review.") }
         guard !item.recurring, !item.allDay || kind == "reminder" else { throw AssistantError.invalidTool("Recurring and all-day events can be read; change their series or date handling in the native app.") }
+        if kind == "calendar", let event = events.event(withIdentifier: id), !(event.attendees?.isEmpty ?? true) {
+            throw AssistantError.invalidTool("This event has attendees. Review changes in Calendar so you can control invitation updates.")
+        }
         guard sources.contains(where: { $0.calendarIdentifier == item.sourceID && $0.allowsContentModifications }) else { throw AssistantError.invalidTool("This source is read-only.") }
         return item
     }
@@ -138,7 +141,7 @@ final class PlanningService: ObservableObject {
         let sourceID = args["source_id"]?.stringValue ?? existing?.sourceID ?? ""
         let title = args["title"]?.stringValue ?? existing?.title ?? ""
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, title.count <= 300,
-              (args["notes"]?.stringValue?.count ?? 0) <= 4000 else { throw AssistantError.invalidTool("Use a title up to 300 characters and notes up to 4,000 characters.") }
+              (args["notes"]?.stringValue?.count ?? 0) <= 4000, (args["location"]?.stringValue?.count ?? 0) <= 500 else { throw AssistantError.invalidTool("Use a title up to 300 characters, notes up to 4,000 and a location up to 500.") }
         #if DEBUG
         if fixtureItems != nil {
             let start = try (kind == "calendar" ? Self.date(args["start"]!.stringValue!) : (args["due"]?.stringValue).flatMap { $0.isEmpty ? nil : try Self.date($0) })
@@ -159,6 +162,7 @@ final class PlanningService: ObservableObject {
             try events.save(event, span: .thisEvent, commit: true)
             guard let id = event.eventIdentifier, let saved = events.event(withIdentifier: id), saved.title == title,
                   abs(saved.startDate.timeIntervalSince(start)) < 1, abs(saved.endDate.timeIntervalSince(end)) < 1,
+                  (saved.notes ?? "") == (args["notes"]?.stringValue ?? ""), (saved.location ?? "") == (args["location"]?.stringValue ?? ""),
                   saved.calendar.calendarIdentifier == sourceID else { throw PlanningWriteUnverified(itemID: event.eventIdentifier ?? event.calendarItemIdentifier) }
             return Self.snapshot(saved)
         }
@@ -170,15 +174,24 @@ final class PlanningService: ObservableObject {
             reminder.isCompleted = true
         } else {
             guard let calendar = events.calendar(withIdentifier: sourceID) else { throw AssistantError.invalidTool("The destination list is unavailable.") }
-            reminder.calendar = calendar; reminder.title = title; reminder.notes = args["notes"]?.stringValue
             let raw = args["due"]?.stringValue ?? ""
-            if raw.isEmpty { reminder.dueDateComponents = nil; reminder.alarms = nil }
+            let due = try raw.isEmpty ? nil : Self.date(raw)
+            let changesDue = due != existing?.start
+            if existing != nil, changesDue {
+                let oldDue = existing?.start
+                guard (reminder.alarms ?? []).allSatisfy({ alarm in
+                    guard let oldDue, let absolute = alarm.absoluteDate else { return false }
+                    return alarm.structuredLocation == nil && abs(absolute.timeIntervalSince(oldDue)) < 1
+                }) else { throw AssistantError.invalidTool("This reminder has custom alerts. Change its timing in Reminders; title and note edits can keep those alerts here.") }
+            }
+            reminder.calendar = calendar; reminder.title = title; reminder.notes = args["notes"]?.stringValue
+            if raw.isEmpty { reminder.dueDateComponents = nil; if changesDue { reminder.alarms = nil } }
             else {
-                let date = try Self.date(raw)
+                let date = due!
                 var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
                 var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
                 components.timeZone = calendar.timeZone; reminder.dueDateComponents = components
-                reminder.alarms = [EKAlarm(absoluteDate: date)]
+                if existing == nil || changesDue { reminder.alarms = [EKAlarm(absoluteDate: date)] }
             }
         }
         try events.save(reminder, commit: true)

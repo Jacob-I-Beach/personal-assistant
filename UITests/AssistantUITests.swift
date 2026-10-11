@@ -11,8 +11,10 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Assistant menu"].tap(); app.buttons["Assistant inbox"].tap()
         let note = app.descendants(matching: .any).matching(identifier: "inbox-note").firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 5)); note.tap(); note.typeText("Keep this synthetic note")
-        if !app.buttons["Capture"].isHittable { app.swipeUp() }
-        app.buttons["Capture"].tap()
+        let save = app.buttons["inbox-save"]
+        XCTAssertTrue(save.isEnabled)
+        if !save.isHittable { app.swipeUp() }
+        save.tap()
         XCTAssertTrue(app.staticTexts["Saved without a model response."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Stop response"].exists)
         saveScreenshot(app, name: "Inbox-save-only")
@@ -426,7 +428,9 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-library"]
         app.launch()
         XCTAssertTrue(app.staticTexts["home-greeting"].waitForExistence(timeout: 15))
-        XCTAssertFalse(app.staticTexts["study-plan.md"].exists)
+        XCTAssertFalse(app.staticTexts["user-message-text"].exists)
+        XCTAssertFalse(app.buttons["Read response aloud"].exists)
+        XCTAssertTrue(app.staticTexts["Recently created"].exists)
         app.buttons["Add to message"].tap()
         XCTAssertTrue(app.buttons["Choose files"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["From Library"].exists)

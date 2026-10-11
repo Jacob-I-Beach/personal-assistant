@@ -47,14 +47,20 @@ struct NativeActionView: View {
                 }
             case .approval:
                 NavigationStack {
-                    VStack(alignment: .leading, spacing: 22) {
-                        Text(request.title).font(.title2.weight(.semibold))
-                        Text(request.detail).foregroundStyle(.secondary)
-                        Spacer()
-                        Button { model.resolveNativeAction("approved", for: request.id) } label: { Text("Continue").fontWeight(.semibold).frame(maxWidth: .infinity).padding(8).foregroundStyle(Color(uiColor: .systemBackground)) }
-                            .buttonStyle(.borderedProminent).tint(.primary)
-                        Button("Cancel", role: .cancel) { model.resolveNativeAction("cancelled", for: request.id) }.frame(maxWidth: .infinity)
-                    }.padding(24).toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.resolveNativeAction("cancelled", for: request.id) } } }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            Text(request.title).font(.title2.weight(.semibold))
+                            Text(request.detail).foregroundStyle(.secondary).textSelection(.enabled)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(24)
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        VStack(spacing: 12) {
+                            Button { model.resolveNativeAction("approved", for: request.id) } label: { Text("Continue").fontWeight(.semibold).frame(maxWidth: .infinity).padding(8).foregroundStyle(Color(uiColor: .systemBackground)) }
+                                .buttonStyle(.borderedProminent).tint(.primary)
+                            Button("Cancel", role: .cancel) { model.resolveNativeAction("cancelled", for: request.id) }.frame(maxWidth: .infinity)
+                        }.padding(20).background(.bar)
+                    }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { model.resolveNativeAction("cancelled", for: request.id) } } }
                 }.presentationDetents([.medium, .large])
             case .calendar:
                 CalendarEventEditor(arguments: request.arguments) { model.resolveNativeAction($0, for: request.id) }

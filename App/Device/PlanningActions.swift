@@ -39,7 +39,10 @@ extension AppModel {
                 let conflicts = try planning.schedule(from: start, to: end, sourceIDs: sourceIDs).filter { $0.id != existing?.id && $0.blocksTime }
                 lines += [start.formatted(date: .abbreviated, time: .shortened) + " – " + end.formatted(date: .abbreviated, time: .shortened), TimeZone.current.identifier]
                 if !conflicts.isEmpty { lines.append("Overlaps: " + conflicts.prefix(4).map(\.title).joined(separator: ", ")) }
-            } else if let due = args["due"]?.stringValue, !due.isEmpty { lines.append("Due " + (try PlanningService.date(due)).formatted(date: .abbreviated, time: .shortened)) }
+            } else if !completing {
+                if let due = args["due"]?.stringValue, !due.isEmpty { lines.append("Due " + (try PlanningService.date(due)).formatted(date: .abbreviated, time: .shortened)) }
+                else { lines.append("No due time") }
+            }
             if let old = existing, !completing { lines.append("Currently: " + old.title + (old.start.map { " · " + $0.formatted(date: .abbreviated, time: .shortened) } ?? "")) }
             if let notes = args["notes"]?.stringValue, !notes.isEmpty { lines.append(notes) }
             if let source = planning.sources.first(where: { $0.id == (args["source_id"]?.stringValue ?? existing?.sourceID) }) { lines.append("In " + source.title) }

@@ -20,14 +20,14 @@ struct AssistantInboxView: View {
                     }
                     Picker("What should happen", selection: $handling) { ForEach(InboxHandling.allCases, id: \.self) { Text($0.title).tag($0) } }
                     Text(handling == .saveOnly ? "Keeps the note without asking a model to respond." : handling == .later ? "Keeps this in your waiting work until you choose to ask about it." : "Starts a reply in the chosen chat when the assistant is available.").font(.caption).foregroundStyle(.secondary)
-                    Button(saving ? "Saving…" : "Capture") {
+                    Button(saving ? "Saving…" : handling == .saveOnly ? "Save note" : handling == .later ? "Save for later" : "Start reply") {
                         saving = true
                         Task {
                             defer { saving = false }
                             do { _ = try await model.captureInbox(text: text, destination: destination, handling: handling); text = ""; notice = handling == .saveOnly ? "Saved without a model response." : "Captured." }
                             catch { notice = error.localizedDescription }
                         }
-                    }.disabled(saving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }.disabled(saving || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("inbox-save")
                     if let notice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
                 }
                 if !model.inbox.isEmpty {
