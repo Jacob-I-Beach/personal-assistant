@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "build": "11",
+  "installed_baseline": "0.9.0 build 10, established by the relevant device crash reports and user's supplied screens",
+  "installation": "Pending user-operated in-place signing and installation",
+  "retained_chats": "Preservation is an implementation requirement; confirm after installation",
+  "health_connect_all": "Specific correlation authorization and callback repairs have native evidence; actual Health permission flow remains a phone check",
+  "computer_chatgpt_authorization": "User-operated browser authorization pending; no live or paid model test was made",
+  "pairing": "Synthetic paired HTTPS and actual Windows service launch verified; real iPhone QR pairing pending",
+  "background_and_lock": "Computer task ownership and disconnected completion verified with a synthetic model; real selected-model work with the app backgrounded and phone locked remains pending",
+  "activity": "Native extension builds; on-device presentation, return gesture and current free-signing provisioning remain pending",
+  "communications": "Native composition and outcome handling implemented; no real email or text was sent for testing",
+  "planning": "Native recurrence, schema and version/permission checks verified without writing personal calendars",
+  "acceptance": [
+    "Install in place using the same Apple account; confirm 1.0.0 build 11 and retained chats.",
+    "Connect selected Health data including all available types, then close and reopen the app.",
+    "Authorize ChatGPT on the PC and pair the iPhone. Start one useful request, go Home and lock the phone, then reopen the same chat and verify the saved result and any required question/review."
+  ],
+  "source": "04b5737405591c8ec548623c989ec6dc8fd489c5",
+  "build_run": "38188054967"
+}

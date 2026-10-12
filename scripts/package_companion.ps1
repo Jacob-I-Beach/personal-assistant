@@ -16,6 +16,15 @@ Copy-Item -LiteralPath $nodePath -Destination (Join-Path $target 'Runtime\node.e
 Push-Location $target
 try { & npm.cmd ci --omit=dev --ignore-scripts; if ($LASTEXITCODE -ne 0) { throw 'Production dependencies did not install.' } }
 finally { Pop-Location }
+$sdkLink = Join-Path $target 'node_modules\@siwc\local'
+$sdkSource = [IO.Path]::GetFullPath((Join-Path $target 'vendor\siwc-local'))
+$sdkEntry = Get-Item -LiteralPath $sdkLink
+if ($sdkEntry.LinkType -eq 'Junction') {
+    if ([IO.Path]::GetFullPath([string]$sdkEntry.Target) -ne $sdkSource -or -not $sdkSource.StartsWith($target + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected local SDK link target.' }
+    # Remove this package's junction only, preserving its verified source.
+    [IO.Directory]::Delete($sdkLink)
+    Copy-Item -LiteralPath $sdkSource -Destination $sdkLink -Recurse
+}
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 & $compiler /nologo /target:winexe /optimize+ /reference:System.Windows.Forms.dll (('/out:' + (Join-Path $target 'PersonalAssistant-Computer.exe'))) (Join-Path $source 'Launcher.cs')
 if ($LASTEXITCODE -ne 0) { throw 'The Windows launcher did not compile.' }

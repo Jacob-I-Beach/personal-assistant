@@ -1,0 +1,90 @@
+{
+  "version": "1.0.0",
+  "build": "11",
+  "source": "04b5737405591c8ec548623c989ec6dc8fd489c5",
+  "build_run": "38188054967",
+  "core_tests": 185,
+  "native_eventkit_tests": 8,
+  "focused_native_evidence": {
+    "run": "38185837305",
+    "source": "9bc43ad77638b91ff7290f9503eab75274ac9a3f",
+    "platform_tests": 7,
+    "ui_tests": 1,
+    "screenshots_reviewed": [
+      "Computer connection",
+      "Contacts connection"
+    ],
+    "scenario": "testComputerAndContactsHaveNativeConnectionControls"
+  },
+  "retained_foundation_evidence": {
+    "run": "38174111615",
+    "source": "10015ef457346b6784665890c074d9d70a52fbac",
+    "platform_tests": 40,
+    "ui_tests": 3,
+    "scope": [
+      "Health authorization plan and callback boundary",
+      "Main-thread notification completion",
+      "Short user text/image alignment",
+      "Contextual Home greeting"
+    ]
+  },
+  "evidence_scope": "Focused changed-path checks; retained screenshots cover unchanged views. Final archive recompiles the Live Activity lifecycle correction. The entire legacy UI suite was not repeated.",
+  "companion": {
+    "source": "51b24c3",
+    "unit_and_protocol_tests": 10,
+    "real_computation_test": "CSV total, generated XLSX formula/cache, real PDF output, actual PDF/Office page rendering and container access limits passed",
+    "windows_launcher_exit_code": 0,
+    "executable_sha256": "434e218b2f9562690fb0722d63789ac86d0ce6301933967294be3fbab0026f88",
+    "manifest_sha256": "ffe96287d37ec397a8363f682d34ce6317c9c500ad2151873d8e4514781fb7e8",
+    "node_version": "v24.13.0",
+    "container_image": "sha256:a3385b437e2eecd1c036a0d4ca17ef9f078c41159a335332381e196ef320ff82",
+    "live_inference": "Not run; user account authorization remains pending"
+  },
+  "packages": {
+    "PersonalAssistant-HealthKit.ipa": {
+      "sha256": "c9561e0fed4cb08b6aec4c01e4dec92a88ce99290e9e6a7879505b9513c4a428",
+      "bytes": 21580111,
+      "live_activity_extensions": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.activity",
+          "extension": "WidgetKit",
+          "architecture": "arm64",
+          "platform": "iOS device"
+        }
+      ]
+    },
+    "PersonalAssistant-iPhone-only.ipa": {
+      "sha256": "43830d99b3d186e3cbc4b8f461f049509390a35056b66b555cc71759e3ab3053",
+      "bytes": 21580115,
+      "live_activity_extensions": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.activity",
+          "extension": "WidgetKit",
+          "architecture": "arm64",
+          "platform": "iOS device"
+        }
+      ]
+    },
+    "PersonalAssistant-unsigned.ipa": {
+      "sha256": "e295a8575aae57e940b554d8284385942a3c3010ab3bb1785f9521f804d82db2",
+      "bytes": 21674061,
+      "live_activity_extensions": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.activity",
+          "extension": "WidgetKit",
+          "architecture": "arm64",
+          "platform": "iOS device"
+        }
+      ]
+    }
+  },
+  "signing": "User-operated in-place signing with the existing r2 Health-capable iLoader and same Apple account",
+  "device_acceptance": "Pending; see DeviceValidation10.json",
+  "remaining": [
+    "User-operated computer ChatGPT authorization, QR pairing and in-place phone install",
+    "Actual phone Health connection and background/lock acceptance",
+    "Sustained APNs activity/notification delivery while the app is fully suspended",
+    "Private away-from-home network route",
+    "Full voice conversation, share extension, mailbox providers and general phone-control integrations"
+  ]
+}

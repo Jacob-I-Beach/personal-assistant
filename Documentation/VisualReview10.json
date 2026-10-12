@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "build": "11",
+  "reviewed": [
+    {
+      "run": "38174111615",
+      "source": "10015ef457346b6784665890c074d9d70a52fbac",
+      "scenarios": ["Short user text at the right edge", "Single user image at the right edge", "Contextual Home greeting"],
+      "result": "Native simulator screenshots inspected; no clipping or misplaced alignment in the covered views."
+    },
+    {
+      "run": "38185837305",
+      "source": "9bc43ad77638b91ff7290f9503eab75274ac9a3f",
+      "scenarios": ["Computer connection", "Contacts connection"],
+      "result": "Native simulator screenshots inspected; titles, grouped explanations, connection controls and Done actions are readable and correctly laid out. These screens remain unchanged in the final archive."
+    },
+    {
+      "environment": "Windows companion",
+      "scenarios": ["Setup without an account", "Computation ready", "Stop service from setup", "Restart using packaged executable"],
+      "result": "Actual local setup page inspected and screenshots retained outside Git. No account authorization or model inference was performed."
+    }
+  ],
+  "limits": "This is focused visual evidence, not a claim that every screen, Dynamic Island gesture or physical permission flow was exercised."
+}

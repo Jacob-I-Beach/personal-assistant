@@ -1,6 +1,6 @@
 # 1.0 — completing everyday work
 
-Status: integration and packaging. Version 1.0.0, build 11. Preserve the installed app, chats, signing identity, and all 0.9 packages. The sections below distinguish implemented source from device acceptance.
+Status: packaged candidate, version 1.0.0 build 11. Native archive source `04b5737405591c8ec548623c989ec6dc8fd489c5`, run `38188054967`. Preserve the installed app, chats, signing identity, and all 0.9 packages. Actual account authorization and phone acceptance remain pending; see ReleaseValidation10.json and DeviceValidation10.json.
 
 ## Direct defects to repair
 
