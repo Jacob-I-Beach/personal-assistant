@@ -1915,11 +1915,83 @@
       "started_at": "2026-10-12T05:04:32Z",
       "status": "completed",
       "rounded_minutes": 0
+    },
+    {
+      "run_id": 38206367024,
+      "attempt": 1,
+      "job_id": 114670632366,
+      "source_revision": "86135dec5b269d62b3a7f6ffc13898328ef0a5fb",
+      "completed_at": "2026-10-12T05:13:39Z",
+      "conclusion": "success",
+      "name": "ios",
+      "started_at": "2026-10-12T05:04:26Z",
+      "status": "completed",
+      "rounded_minutes": 10,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38206367024,
+      "attempt": 1,
+      "job_id": 114670632596,
+      "source_revision": "86135dec5b269d62b3a7f6ffc13898328ef0a5fb",
+      "completed_at": "2026-10-12T05:16:48Z",
+      "conclusion": "success",
+      "name": "device-package",
+      "started_at": "2026-10-12T05:04:25Z",
+      "status": "completed",
+      "rounded_minutes": 13,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38206367024,
+      "attempt": 1,
+      "job_id": 114672653760,
+      "source_revision": "86135dec5b269d62b3a7f6ffc13898328ef0a5fb",
+      "completed_at": "2026-10-12T05:19:31Z",
+      "conclusion": "failure",
+      "name": "simulator-tests (activity-103-chat)",
+      "started_at": "2026-10-12T05:13:46Z",
+      "status": "completed",
+      "rounded_minutes": 6,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38208549889,
+      "attempt": 1,
+      "job_id": 114677363829,
+      "source_revision": "8c635f136c0008d6dc9c6b22753349b9f6217047",
+      "completed_at": "2026-10-12T05:44:35Z",
+      "conclusion": "success",
+      "name": "scroll-check",
+      "started_at": "2026-10-12T05:35:04Z",
+      "status": "completed",
+      "rounded_minutes": 10,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
     }
   ],
-  "rounded_runner_minutes": 1132,
+  "rounded_runner_minutes": 1171,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 70.184,
+  "estimated_compute_usd_if_fully_billable": 72.602,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",
@@ -1947,5 +2019,5 @@
       "https://docs.github.com/en/actions/reference/runners/github-hosted-runners"
     ]
   },
-  "verified_free_public_runner_minutes": 613
+  "verified_free_public_runner_minutes": 652
 }

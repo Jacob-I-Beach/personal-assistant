@@ -1,0 +1,97 @@
+{
+  "version": "1.0.3",
+  "build": 14,
+  "state": "packaged; computer updated; physical iPhone acceptance pending",
+  "native_source": "86135dec5b269d62b3a7f6ffc13898328ef0a5fb",
+  "archive_run": 38206367024,
+  "archive_result": "success",
+  "windows_core_tests": 191,
+  "mac_core_tests": 191,
+  "companion_synthetic_tests": 16,
+  "platform_checks": {
+    "count": 3,
+    "run": 38204753846,
+    "source": "756aa2ec71b24d40d733400f9c31004b905f7e14",
+    "scope": [
+      "handoff preserves lease and progress",
+      "ready/waiting/stale states",
+      "attention completion and return routing"
+    ]
+  },
+  "ui_checks": [
+    {
+      "name": "Activity working/ready/waiting/reconnecting components",
+      "run": 38204753846,
+      "result": "passed",
+      "note": "Shared production layouts unchanged; final reconnecting copy shortened after visual review."
+    },
+    {
+      "name": "Live research survives app return and interactive cards remain usable",
+      "run": 38206367024,
+      "result": "passed"
+    },
+    {
+      "name": "Disclosure anchoring and jump-to-latest visibility",
+      "run": 38208549889,
+      "result": "passed",
+      "production_source_verified_unchanged": true,
+      "test_only_rebuild": true
+    }
+  ],
+  "recorded_iterations": [
+    {
+      "run": 38204753846,
+      "issue": "Two chat checks exposed inherited outer disclosure identifiers; corrected."
+    },
+    {
+      "run": 38206214699,
+      "issue": "Cancelled early to include shorter reconnecting copy."
+    },
+    {
+      "run": 38206367024,
+      "issue": "Scroll geometry and screenshot were correct; obsolete tappability assertion failed and was corrected in the final test-only run."
+    }
+  ],
+  "visual_review": {
+    "reviewed": true,
+    "previews": "Native shared components in a test gallery; native chat screens use synthetic content. Not photographs of a physical Dynamic Island."
+  },
+  "iphone_package": {
+    "file": "PersonalAssistant-HealthKit.ipa",
+    "sha256": "febd26285059cc0881cf2470b04f5ab9f2dd7f2baea78fc2a01bb93cde8c44b8",
+    "bytes": 21706859,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.0.3",
+    "build": "14",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [],
+    "requested_entitlements": {
+      "com.apple.developer.healthkit": true
+    },
+    "health_enabled_in_app": true,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing"
+  },
+  "activity_extension_verified": true,
+  "tailscale_policy_verified": true,
+  "computer_runtime": {
+    "version": "1.0.3",
+    "installed": true,
+    "windows_approval": "approved by user",
+    "pinned_https_status": 200,
+    "startup_verified": true,
+    "firewall_program_verified": true,
+    "retained_pairings": 2
+  },
+  "live_inference_by_agent": false,
+  "personal_health_records_collected": false,
+  "physical_acceptance": "iPhone install, real background handoff, motion, completion notification and Island return remain to confirm",
+  "platform_limits": [
+    "system-owned processing banner timing/gestures",
+    "system activity lifetime and motion policy",
+    "fully suspended remote updates require currently unprovisioned push support"
+  ]
+}

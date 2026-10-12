@@ -1,0 +1,27 @@
+{
+  "version": "1.0.3",
+  "build": 14,
+  "user_confirmed_baseline": {
+    "date": "2026-10-12",
+    "tailscale_pairing": "connected",
+    "background_execution": "user confirms response kept going after leaving the app"
+  },
+  "physical_acceptance": {
+    "in_place_install_preserves_chats": "pending",
+    "matching_computer_update": "installed and runtime verified after user approved the Windows prompt",
+    "handoff_avoids_early_system_completion": "pending",
+    "custom_activity_loading_and_ready_states": "pending",
+    "return_during_research_keeps_receipts": "pending",
+    "opening_ready_chat_acknowledges_activity": "pending"
+  },
+  "platform_limits": [
+    "iOS controls system processing banner and Island presentation",
+    "activity lifetime and motion are system-controlled",
+    "remote updates while fully suspended require unprovisioned push support"
+  ],
+  "not_requested_for_testing": [
+    "live paid inference",
+    "personal Health records",
+    "real message sending"
+  ]
+}

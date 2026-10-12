@@ -1,6 +1,6 @@
 # 1.0.3 — coherent activity and live results
 
-Candidate version 1.0.3, build 14. Jacob confirmed Tailscale pairing works and a response continues after leaving the iPhone app. His next three screenshots identify an early system completion checkmark, unclear custom Island state, and missing research receipts until a response finishes.
+Packaged version 1.0.3, build 14. The iPhone archive is from source `86135dec5b269d62b3a7f6ffc13898328ef0a5fb`, [run 38206367024](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38206367024). The computer companion is already updated and runtime-verified. Jacob confirmed the prior Tailscale pairing and continued off-app generation; this release addresses his three screenshots of an early system completion checkmark, unclear custom Island state, and research receipts appearing only after completion.
 
 ## Added
 
@@ -16,7 +16,7 @@ Candidate version 1.0.3, build 14. Jacob confirmed Tailscale pairing works and a
 - Tool groups summarize observed work and useful subjects rather than saying only “Activity” or “Web research.” Repeated chat/document reads receive counts, research distinguishes searches from page reads, and partial failures remain visible.
 - Disclosures have consistent touch areas, clearer nested backgrounds and smaller cumulative indentation while preserving the tapped reading position. Interactive working cards share an icon/title header, softer border and a clear next action.
 - A group containing only one category opens directly to its receipts; another category disclosure appears only when it helps organize mixed work. Research subjects lead the heading, with search/page/source counts underneath.
-- Completion notifications use a stable per-chat identity and clear old notifications when that chat is opened, including after a cold launch.
+- Completion notifications use a stable per-chat identity and clear older alerts for the same task when its notification is opened, including after a cold launch.
 
 ## Removed
 
@@ -28,7 +28,11 @@ Candidate version 1.0.3, build 14. Jacob confirmed Tailscale pairing works and a
 
 ## Validation and device limits
 
-191 Windows shared-core tests and 16 synthetic companion checks pass before native validation. New checks cover live research before completion, stable replay identity and ordering, preserved saved transcript boundaries, meaningful summaries, and refusal to expose opaque reasoning through public progress. Native lifecycle, visual components, live transcript return, interactive cards and disclosure anchoring use a focused validation scope.
+191 Windows and Mac shared-core tests and 16 synthetic companion checks pass. New checks cover live research before completion, stable replay identity and ordering, preserved saved transcript boundaries, meaningful summaries, and refusal to expose opaque reasoning through public progress.
+
+Three native lifecycle/attention checks and the four-state component preview passed in run 38204753846. Native screenshots were inspected. Two initial chat checks found inherited disclosure identifiers; those were corrected, and the live research/return/interactive-card flow passed on the final app source in run 38206367024. The remaining legacy check asserted tappability of noninteractive Markdown despite the captured answer being visible at the bottom. Its corrected bounds/visibility assertion passed in [run 38208549889](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38208549889), which rebuilt only the UI test bundle and verified that production source matched the existing app. No unchanged app or model bundle was rebuilt for that last check. The final coverage is three focused native platform checks and three focused UI flows, with exact provenance in `ReleaseValidation103.json`.
+
+The real iPhone archive is verified for ARM64, bundle identity, Health setting, Activity extension, version/build, checksum and the preserved Tailscale transport policy. Phone installation and actual system Island/background behavior remain physical acceptance checks.
 
 The large system processing banner and the custom ActivityKit view are separate iOS presentations. iOS controls their prominence, gestures and collapse timing; the app cannot force them to behave as one custom expandable sheet. This update fixes their task lifecycle and the presentation owned by the app.
 
@@ -38,4 +42,4 @@ The preserved background execution window permits live synchronization while iOS
 
 Install the iPhone build in place with the existing signing identity. The matching PC companion update preserves its certificate, device credential, account and task store; another pairing is not required.
 
-The PC package includes `Update-Companion.cmd`. It checks that the existing task list is idle, closes the companion through its reviewed local setup endpoint, requests administrator approval only to retarget the existing Tailscale firewall rule, starts the new companion as the normal Windows user and updates sign-in startup. Its read-only preflight passed against the installed service. Jacob is away from the PC, so the installed 1.0.1 service remains running and actual upgrade approval is pending.
+The PC package includes `Update-Companion.cmd`. It checks that the existing task list is idle, closes the companion through its reviewed local setup endpoint, requests administrator approval only to retarget the existing Tailscale firewall rule, starts the new companion as the normal Windows user and updates sign-in startup. Jacob subsequently approved the Windows prompt. Version 1.0.3 is now running on the PC; pinned Tailscale HTTPS, the startup path, firewall program and two retained pairings were verified. The iPhone update is ready for in-place installation after final validation is recorded.
