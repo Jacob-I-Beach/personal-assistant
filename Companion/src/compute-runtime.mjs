@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join, resolve, sep, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const IMAGE = 'personal-assistant-compute:1.0';
+const IMAGE = 'personal-assistant-compute:1.1';
 const safeName = name => typeof name === 'string' && name.length > 0 && name.length < 180 && !/[\\/:\x00-\x1f]/.test(name) && !['.','..'].includes(name) && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name);
 
 function processResult(executable, args, {signal, timeout = 15000, maximumBytes = 96 * 1024 * 1024, onStop} = {}) {
@@ -80,11 +80,13 @@ export class ComputeRuntime {
         await writeFile(join(inputs, filename), file.data, {flag: 'wx', mode: 0o600});
         files.push({id, filename, path: '/inputs/' + filename, sha256: file.metadata.sha, version: file.metadata.version});
       }
-      const timeout = Math.min(180, Math.max(1, Number(args.timeout_seconds) || 60));
+      const timeout = Math.min(1800, Math.max(1, Number(args.timeout_seconds) || 60));
+      const memory = Math.min(8192, Math.max(512, Number(args.memory_mib) || 2048));
+      const processors = Math.min(8, Math.max(1, Number(args.cpu_count) || 2));
       let state = null;
       if (args.state_file_id) state = JSON.parse(this.store.file(job.id, job.owner, args.state_file_id).data.toString('utf8'));
       const request = {mode: call.name === 'inspect_document' ? 'inspect' : 'python', files,
-        input: typeof args.input_json === 'string' ? JSON.parse(args.input_json) : null, state, timeout_seconds: timeout};
+        input: typeof args.input_json === 'string' ? JSON.parse(args.input_json) : null, state, timeout_seconds: timeout, cpu_count: processors};
       if (call.name === 'inspect_document') {
         request.document_path = files.find(file => file.id === args.file_id)?.path;
         if (!request.document_path) throw new Error('The document was not supplied to this task.');
@@ -96,9 +98,9 @@ export class ComputeRuntime {
       await writeFile(join(task,'request.json'), JSON.stringify(request));
       const data = await processResult(this.docker, ['--context','desktop-linux','run','--rm','--pull=never','--name',container,
         '--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=64',
-        '--memory=1536m','--memory-swap=1536m','--cpus=2','--user=65532:65532',
+        `--memory=${memory}m`,`--memory-swap=${memory}m`,`--cpus=${processors}`,'--user=65532:65532',
         '--tmpfs','/tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777',
-        '--tmpfs','/outputs:rw,nosuid,nodev,noexec,size=128m,mode=1777',
+        '--tmpfs','/outputs:rw,nosuid,nodev,noexec,size=256m,mode=1777',
         '--mount',`type=bind,source=${inputs},target=/inputs,readonly`,
         '--mount',`type=bind,source=${task},target=/task,readonly`, IMAGE],
         {signal, timeout: (timeout + 20) * 1000, onStop: stopContainer});
@@ -131,9 +133,9 @@ const object = properties => ({type: 'object', properties, required: Object.keys
 export const computerTools = [
   {name:'list_task_files',description:'List the actual files currently available to this task on the computer, with stable IDs and versions. Use after uploading a Library file or recovering an interrupted transfer.',parameters:object({})},
   {name:'read_task_output',description:'Read a bounded exact excerpt of a completed tool receipt in this computer task. Useful after working context was compacted. Does not rerun the operation.',parameters:object({call_id:{type:'string'},offset:{type:'integer',minimum:0}})},
-  {name: 'run_python', description: 'Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. No task network or general host filesystem. Default 60 seconds, maximum 180; 1536 MiB memory.',
+  {name: 'run_python', description: 'Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. Isolated from network and general host files. Default 60 seconds and 2 GiB; request up to 1800 seconds, 8 GiB and 8 CPU cores when warranted. Use reviewed run_computer_command for installed GPU programs or host resources.',
     parameters: object({code: {type: 'string'}, file_ids: {type:'array',items:{type:'string'},maxItems:12}, input_json: {...nullableString, description:'Optional JSON text parsed into assistant.input, or null. Use file IDs for datasets.'},
-      state_file_id: nullableString, timeout_seconds: {type:'integer',minimum:1,maximum:180}})},
+      state_file_id: nullableString, timeout_seconds: {type:'integer',minimum:1,maximum:1800},memory_mib:{type:['integer','null'],minimum:512,maximum:8192},cpu_count:{type:['integer','null'],minimum:1,maximum:8}})},
   {name: 'inspect_document', description: 'Open a task document, inspect page/sheet structure and render the requested actual page. Supports PDF, Word, Excel and PowerPoint. Formulas and cached values are separate; previews report coverage. Returns image evidence for the selected page and preserves the original.',
     parameters: object({file_id:{type:'string'},page:{type:'integer',minimum:1,maximum:500},file_ids:{type:'array',items:{type:'string'},maxItems:12}})}
 ];

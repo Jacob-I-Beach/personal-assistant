@@ -28,6 +28,11 @@ if ($sdkEntry.LinkType -eq 'Junction') {
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 & $compiler /nologo /target:winexe /optimize+ /reference:System.Windows.Forms.dll (('/out:' + (Join-Path $target 'PersonalAssistant-Computer.exe'))) (Join-Path $source 'Launcher.cs')
 if ($LASTEXITCODE -ne 0) { throw 'The Windows launcher did not compile.' }
+$desktopReferences = @('/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll','/reference:System.Web.Extensions.dll')
+$frameworkReferences = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\WPF'
+foreach ($assembly in @('UIAutomationClient.dll','UIAutomationTypes.dll','WindowsBase.dll')) { $desktopReferences += '/reference:' + (Join-Path $frameworkReferences $assembly) }
+& $compiler /nologo /target:exe /optimize+ @desktopReferences (('/out:' + (Join-Path $target 'Runtime\AssistantDesktop.exe'))) (Join-Path $source 'AssistantDesktop.cs')
+if ($LASTEXITCODE -ne 0) { throw 'The Windows desktop tool did not compile.' }
 $files = Get-ChildItem -LiteralPath $target -Recurse -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' }
 $lines = $files | ForEach-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $_.FullName.Substring($target.Length + 1).Replace('\','/') }
 $lines | Set-Content -LiteralPath (Join-Path $target 'SHA256SUMS.txt') -Encoding utf8

@@ -38,6 +38,9 @@ export interface LoginProfile {
 export interface ChatGPTModel {
   slug: string;
   displayName: string;
+  contextWindow?: number;
+  maximumContextWindow?: number;
+  reasoningEfforts?: string[];
 }
 
 /** Implement in the trusted local process with an OS-backed secret store. Never use plaintext or a hardcoded key. */

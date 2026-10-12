@@ -18,8 +18,10 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--ui-") }) { return }
         #endif
         let center = UNUserNotificationCenter.current()
-        guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        }
+        RemotePushRegistration.register()
     }
     func notify(conversationID: UUID, title: String, explanation: String) async {
         let center = UNUserNotificationCenter.current()

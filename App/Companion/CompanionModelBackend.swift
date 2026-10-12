@@ -8,6 +8,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
     let wire: NetworkModelBackend
     let store: LocalStore
     var allowJobRestart = false
+    var onJobAccepted: (@Sendable (String) async -> Void)?
     var id: String { "companion:" + connection.serverID + ":" + connection.profileID + ":" + wire.id }
     var networkDestination: String? { connection.destination }
     var contextLimits: ContextLimits { wire.contextLimits }
@@ -47,10 +48,13 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 "conversation_id": .string(identity.conversationID.uuidString), "profile_id": .string(connection.profileID),
                 "title": .string(String((request.messages.last(where: { $0.message.isRequest })?.message.text ?? "Assistant task").prefix(120))),
                 "contains_health_data": .bool(identity.containsHealthData), "body": try wire.responsesBody(request, includeFileContents: false),
+                "start_when_ready": .bool(true),
+                "expected_file_ids": .array(Array(Set(request.messages.flatMap(\.files).compactMap(\.id))).map { .string($0.uuidString) }),
                 "catalog": .array(request.toolCatalog.map { .object(["name": .string($0.name), "description": .string($0.description), "parameters": $0.parameters]) }),
                 "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40), "context_text_bytes": .number(Double(contextLimits.maximumTextBytes))])
             ]
             if let workspace = try await store.computerToolWorkspace(identity.turnID), workspace["destination"] == connection.destination, let job = workspace["job_id"] { fields["source_tool_session_id"] = .string(job) }
+            if let context = request.serverContext { fields["server_context"] = context }
             let payload = JSONValue.object(fields)
             record = CompanionRunRecord(turnID: identity.turnID, connectionID: connection.destination, payload: payload)
             // Save before POST: if its reply is lost, the original key and bytes
@@ -69,6 +73,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
             try await store.saveCompanionRun(record)
         }
         let jobID = record.jobID!, path = "/v1/jobs/" + jobID
+        await onJobAccepted?(jobID)
         if record.stopRequested {
             _ = try await client.json(path + "/cancel", method: "POST", body: .object([:]))
             throw CancellationError()
@@ -98,8 +103,9 @@ struct CompanionModelBackend: RemoteTaskBackend {
             do { batch = try await client.json(path + "/events?after=\(transcript.cursor)&wait_ms=25000"); retries = 0 }
             catch {
                 try Task.checkCancellation(); retries += 1
-                guard retries <= 5 else { throw AssistantError.provider("Your computer may still be working. Reconnect to retrieve the same task; completed actions will not be repeated.") }
-                output.yield(.activity("Reconnecting to your computer \(retries)/5"))
+                // The subscription cannot declare a server-owned job failed.
+                // Keep retrying the same ID until Stop or client suspension.
+                output.yield(.activity(retries <= 5 ? "Reconnecting \(retries)/5" : "Waiting for the connection to return"))
                 try await Task.sleep(for: .seconds(min(10, retries * 2))); continue
             }
             let events = batch["events"]?.arrayValue ?? []

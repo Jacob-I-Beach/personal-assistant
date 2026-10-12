@@ -10,6 +10,7 @@
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSSupportsLiveActivities</key><true/>
+    <key>AssistantPushEnvironment</key><string>$(ASSISTANT_PUSH_ENVIRONMENT)</string>
     <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Assistant tasks</string><key>CFBundleURLSchemes</key><array><string>personalassistant</string></array></dict></array>
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>

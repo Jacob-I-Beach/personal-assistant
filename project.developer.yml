@@ -1,0 +1,9 @@
+# Internal development only. Use after the paid team provisions these exact
+# entitlements. The normal personal-signing build remains project.yml.
+include: project.yml
+targets:
+  PersonalAssistant:
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: App/PersonalAssistant.Development.entitlements
+        ASSISTANT_PUSH_ENVIRONMENT: development

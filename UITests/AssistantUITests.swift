@@ -2,6 +2,21 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testLocalQwenContextAndMemoryControlsAreReachable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
+        app.buttons["Response settings"].tap()
+        let budget = app.staticTexts["Current working budget"]
+        for _ in 0..<4 { if budget.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(budget.exists)
+        XCTAssertTrue(app.staticTexts["Context at this budget"].exists)
+        saveScreenshot(app, name: "Qwen-local-context-and-memory-budget")
+        app.navigationBars["Response settings"].buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Choose model"].exists)
+    }
     func testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable() {
         continueAfterFailure = false
         let app = XCUIApplication()

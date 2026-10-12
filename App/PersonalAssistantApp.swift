@@ -3,6 +3,7 @@ import AppIntents
 
 @main
 struct PersonalAssistantApp: App {
+    @UIApplicationDelegateAdaptor(RemotePushRegistration.self) private var pushRegistration
     @StateObject private var model: AppModel
     init() {
         let model = AppModel()

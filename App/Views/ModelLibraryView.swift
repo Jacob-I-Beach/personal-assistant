@@ -12,13 +12,27 @@ struct ModelLibraryView: View {
         NavigationStack {
             List {
                 Section {
+                    Toggle("Allow cellular downloads", isOn: Binding(get: { model.settings.allowCellularDownloads }, set: { enabled in
+                        var settings = model.settings; settings.allowCellularDownloads = enabled
+                        do { try model.saveSettings(settings) } catch { model.errorMessage = error.localizedDescription }
+                    })).disabled(model.isDownloading || model.isRunning)
+                    Text("Downloads use Wi-Fi unless enabled here. Tap Download again after an interruption to reuse completed files and resume supported transfers.").font(.caption).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Your assistant. Your choice.").font(.title3.weight(.semibold))
                         Text("Keep the conversation, tools, and files as you change models.").font(.subheadline).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
                 }
                 Section("ChatGPT") {
-                    if model.accounts.contains(where: \.isConnected) {
+                    if model.settings.useComputer, let connection = model.settings.companion {
+                        Label("Your ChatGPT plan", systemImage: "person.crop.circle")
+                        Text("The account connected on \(connection.name) runs these models. Your task continues there when this app closes.").font(.caption).foregroundStyle(.secondary)
+                        ForEach(model.chatGPTModels) { entry in
+                            Button { model.chooseChatGPTModel(entry) } label: {
+                                HStack { Text(entry.displayName).foregroundStyle(.primary); Spacer(); if model.settings.choice == .chatGPT && model.settings.chatGPTModel == entry.id { Image(systemName: "checkmark") } }
+                            }.disabled(model.isRunning)
+                        }
+                        Button("Refresh models") { Task { await model.refreshAccounts() } }
+                    } else if model.accounts.contains(where: \.isConnected) {
                         Menu {
                             ForEach(model.accounts.filter(\.isConnected)) { account in
                                 Button(account.label) { Task { await model.switchAccount(account) } }

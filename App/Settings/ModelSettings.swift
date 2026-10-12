@@ -21,6 +21,8 @@ struct ModelSettings: Codable, Equatable {
     var localRepository = "mlx-community/Qwen3.5-4B-4bit"
     var localRevision = "0e7ffd5c629ef7719d4cbc04069232580bfa9d9c"
     var localResponseTokens = 2048
+    var localContextTokens: Int? = nil
+    var localMemoryGiB = 8
     var openAIModel = ""
     var compatibleBaseURL = ""
     var compatibleModel = ""
@@ -54,6 +56,7 @@ struct ModelSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case choice, localRepository, localRevision, localResponseTokens, openAIModel, compatibleBaseURL, compatibleModel
+        case localContextTokens, localMemoryGiB
         case allowCellularDownloads, chatGPTModel, chatGPTAccountID, includeInDeviceBackup, localOnly, healthToolsEnabled, chatGPTWebSearch
         case workspaceSearchEnabled, automaticMemory, continueInBackground, taskNotifications, locationContextEnabled, weatherFollowsLocation, weatherPlace, speakReplies, automaticChatTitles, reasoningByModel
         case calendarSourceIDs, reminderSourceIDs, planningConnectedAccess
@@ -69,6 +72,8 @@ struct ModelSettings: Codable, Equatable {
         localRepository = try values.decodeIfPresent(String.self, forKey: .localRepository) ?? localRepository
         localRevision = try values.decodeIfPresent(String.self, forKey: .localRevision) ?? localRevision
         localResponseTokens = try values.decodeIfPresent(Int.self, forKey: .localResponseTokens) ?? localResponseTokens
+        localContextTokens = try values.decodeIfPresent(Int.self, forKey: .localContextTokens)
+        localMemoryGiB = min(8, max(4, try values.decodeIfPresent(Int.self, forKey: .localMemoryGiB) ?? 8))
         openAIModel = try values.decodeIfPresent(String.self, forKey: .openAIModel) ?? ""
         compatibleBaseURL = try values.decodeIfPresent(String.self, forKey: .compatibleBaseURL) ?? ""
         compatibleModel = try values.decodeIfPresent(String.self, forKey: .compatibleModel) ?? ""
@@ -119,6 +124,7 @@ struct ModelSettings: Codable, Equatable {
     var networkDestination: String? {
         if choice == .appleCloud { return "apple-private-cloud-compute" }
         if choice == .chatGPT {
+            if useComputer, let companion { return companion.destination }
             return chatGPTAccountID.map { "chatgpt-account:" + $0 }
         }
         return endpoint?.absoluteString

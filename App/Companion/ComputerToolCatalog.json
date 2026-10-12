@@ -32,7 +32,7 @@
   },
   {
     "name": "run_python",
-    "description": "Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. No task network or general host filesystem. Default 60 seconds, maximum 180; 1536 MiB memory.",
+    "description": "Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. Isolated from network and general host files. Default 60 seconds and 2 GiB; request up to 1800 seconds, 8 GiB and 8 CPU cores when warranted. Use reviewed run_computer_command for installed GPU programs or host resources.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -62,7 +62,23 @@
         "timeout_seconds": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 180
+          "maximum": 1800
+        },
+        "memory_mib": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 512,
+          "maximum": 8192
+        },
+        "cpu_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 8
         }
       },
       "required": [
@@ -70,7 +86,9 @@
         "file_ids",
         "input_json",
         "state_file_id",
-        "timeout_seconds"
+        "timeout_seconds",
+        "memory_mib",
+        "cpu_count"
       ],
       "additionalProperties": false
     }

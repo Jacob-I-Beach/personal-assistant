@@ -26,6 +26,7 @@ __pycache__/
 # Companion dependencies, generated bundles and private runtime state.
 **/node_modules/
 Companion/dist/
+Companion/runtime/
 Companion/vendor/siwc-local/dist/
 Companion/.data/
 Companion/.test-data/

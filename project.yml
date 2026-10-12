@@ -42,7 +42,7 @@ targets:
     platform: iOS
     sources:
       - path: App
-        excludes: [Info.plist, PersonalAssistant.entitlements]
+        excludes: [Info.plist, "*.entitlements"]
       - path: Shared/AssistantActivityAttributes.swift
       - path: Shared/AssistantActivityViews.swift
     settings:
@@ -52,12 +52,13 @@ targets:
         INFOPLIST_FILE: App/Info.plist
         SWIFT_OBJC_BRIDGING_HEADER: App/Support/Assistant-Bridging-Header.h
         GENERATE_INFOPLIST_FILE: NO
+        ASSISTANT_PUSH_ENVIRONMENT: disabled
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: App/PersonalAssistant.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.0.3"
-        CURRENT_PROJECT_VERSION: "14"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "15"
     dependencies:
       - package: Textual
         product: Textual
@@ -100,11 +101,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jacob.personalassistant.activity
         INFOPLIST_FILE: ActivityWidget/Info.plist
         GENERATE_INFOPLIST_FILE: NO
+        ASSISTANT_PUSH_ENVIRONMENT: disabled
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
-        MARKETING_VERSION: "1.0.3"
-        CURRENT_PROJECT_VERSION: "14"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "15"
   PersonalAssistantWatch:
     type: application
     platform: watchOS
@@ -122,8 +124,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "4"
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
-        MARKETING_VERSION: "1.0.3"
-        CURRENT_PROJECT_VERSION: "14"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "15"
   PersonalAssistantUITests:
     type: bundle.ui-testing
     platform: iOS

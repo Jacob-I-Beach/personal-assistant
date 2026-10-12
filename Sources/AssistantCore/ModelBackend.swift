@@ -22,6 +22,7 @@ public struct ModelFile: Sendable {
 public struct ModelRequest: Sendable {
     public var workIdentity: ModelWorkIdentity?
     public var toolCatalog: [ToolDefinition] = []
+    public var serverContext: JSONValue?
     public var commitRemoteTranscript: (@Sendable ([Message], [ToolResult]) async throws -> Void)?
     public var instructions: String
     public var messages: [ModelInputMessage]

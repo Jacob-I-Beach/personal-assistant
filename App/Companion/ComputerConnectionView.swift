@@ -15,17 +15,17 @@ struct ComputerConnectionView: View {
         NavigationStack {
             List {
                 Section {
-                    Label("Extra capability when you need it", systemImage: "desktopcomputer").font(.title3.weight(.semibold))
-                    Text("Everyday replies connect directly to your model. Your computer provides stronger document and computation tools, scheduled work, and continuation when you leave an unfinished reply.").foregroundStyle(.secondary)
+                    Label("Your assistant keeps working", systemImage: "desktopcomputer").font(.title3.weight(.semibold))
+                    Text("Your computer manages connected tasks from the moment you send them. It adds files, computation, browser and desktop tools when useful, and keeps the same work saved while your iPhone is away.").foregroundStyle(.secondary)
                 }
                 if let connection = model.settings.companion {
                     Section("Connected computer") {
                         Label(connection.name, systemImage: "checkmark.shield")
-                        Toggle("Use for tools and background work", isOn: Binding(get: { model.settings.useComputer }, set: { enabled in
+                        Toggle("Keep connected tasks on this computer", isOn: Binding(get: { model.settings.useComputer }, set: { enabled in
                             var next = model.settings; next.useComputer = enabled
                             do { try model.saveSettings(next); AppFeedback.play(.selection) } catch { self.error = error.localizedDescription }
                         })).disabled(model.isRunning)
-                        Text("The selected model stays the same. The PC is contacted when a task uses its tools or needs to continue in the background. Keep it awake and online for those tasks.").font(.footnote).foregroundStyle(.secondary)
+                        Text("The selected GPT stays the same. This computer keeps each accepted task running, saves its progress and supplies computer tools when needed. Keep it awake and online. Local models run on this iPhone.").font(.footnote).foregroundStyle(.secondary)
                         Button("Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }
                         Button("Update network connection", systemImage: "qrcode.viewfinder") { showScanner = true }
                             .disabled(pairing || !DataScannerViewController.isSupported || model.isRunning)

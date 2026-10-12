@@ -1,10 +1,10 @@
 # Companion protocol and execution contract
 
-Version 1 design. Implement and verify the contract before claiming off-phone continuity.
+Version 1.1 contract. Physical phone and provisioned-push acceptance remain separate from synthetic protocol evidence.
 
 ## Ownership
 
-The computer owns a job after returning its durable job ID. Losing a phone subscription only disconnects that subscriber. Explicit Stop cancels the job. Enqueue uses a device-scoped idempotency key and content hash; a duplicate key with changed content is a conflict. Progress events have durable increasing sequence numbers so reconnects request only subsequent events.
+The computer durably accepts each enabled connected task at Send. `start_when_ready` starts it after the declared input IDs exist, independently of another phone start RPC. Losing a phone subscription only disconnects that subscriber. Explicit Stop cancels the job. Enqueue uses a device-scoped idempotency key and content hash; a duplicate key with changed content is a conflict. Progress events have durable increasing sequence numbers so reconnects request only subsequent events.
 
 The computer uses its own user-authorized ChatGPT plan profile. It keeps the model stream alive and executes supported file/computation tools. It never receives the phone's OAuth or Apple credentials. Phone-only tools become persistent device requests; their outcomes are deduplicated before work continues. Unknown consequential outcomes are inspected rather than repeated.
 
@@ -13,7 +13,7 @@ The computer uses its own user-authorized ChatGPT plan profile. It keeps the mod
 - Setup/account controls are loopback-only, with origin/CSRF checks.
 - Phone endpoints use TLS with explicit certificate verification and a revocable paired-device credential. Pairing codes are short-lived and single-use.
 - Job/data endpoints check ownership on every request. Inputs are explicit snapshots or granted file references, not arbitrary host paths.
-- The ordinary phone model path remains available. Computer execution is an explicit connection and should show its actual availability.
+- With Computer enabled, connected tasks use one server owner from Send. Disabling that connection explicitly selects the ordinary phone path; there is no automatic background handover.
 - A private connection is needed away from the home network. Tailscale is a candidate; do not publish an unauthenticated endpoint or silently change VPN/account permissions.
 
 ## Model and tool loop
@@ -35,3 +35,7 @@ Expose a Computer connection and pair flow, preserve model choices, and provide 
 ## Verification
 
 Use synthetic provider streams and phone-tool responses to prove disconnected work completion, replay/cancellation behavior, ownership checks and version conflicts. Run actual bounded computation and reopen/render its outputs. SDK account connection and a real user-selected model request remain user-operated checks, not paid automated tests.
+
+## Host tools and notifications
+
+Scoped file access uses canonical paths and task-specific grants. Host commands are reviewed with exact command/cwd before execution; awaiting-review and started are distinct persisted states. Uncertain started operations are never automatically repeated. Browser/desktop actions bind fresh observations and are not equivalent to an external delivery receipt. APNs configuration and tokens are encrypted; task state drives pushes and notification deduplication. The ordinary personal-signing app remains push-disabled until a matching developer-provisioned build is installed.

@@ -8,6 +8,7 @@ struct ReasoningEffortView: View {
     var focusContext = false
     @State private var effort: ReasoningEffort?
     @State private var context: Int?
+    @State private var memoryGiB = 8
     private var plan: ModelContextBudget? {
         var draft = model.settings
         draft.contextTokensByModel[draft.contextPreferenceKey] = context
@@ -50,13 +51,31 @@ struct ReasoningEffortView: View {
                             Text(plan.limitSource).font(.caption).foregroundStyle(.secondary)
                             Text("Reasoning shares the reply allowance. Images and tools also use context. The connection enforces the final limit.").font(.caption).foregroundStyle(.secondary)
                         }
+                    } else if model.settings.choice == .localMLX {
+                        let local = model.localContextBudget(memoryGiB: memoryGiB, tokens: context)
+                        Section {
+                            choice("Automatic", tokens: nil)
+                            ForEach(local.presets, id: \.self) { value in choice(value.formatted() + " tokens", tokens: value) }
+                        } header: { Text("Working context").id("context") } footer: {
+                            Text("Uses the model's compressed attention cache. These are estimated fitting sizes; actual speed and sustained memory use need measurement on this iPhone.")
+                        }
+                        Section("Local memory") {
+                            Picker("Use up to", selection: $memoryGiB) {
+                                Text("4 GB").tag(4); Text("6 GB").tag(6); Text("8 GB").tag(8)
+                            }
+                            LabeledContent("Current working budget", value: ByteCountFormatter.string(fromByteCount: local.workingBytes, countStyle: .memory))
+                            LabeledContent("Context at this budget", value: local.selectedContextTokens.formatted() + " tokens")
+                            Text("This is a ceiling, not a reservation. iOS decides the available memory; the app keeps headroom for the interface, images and generation. Development entitlements may increase the allowance on supported installations.").font(.caption).foregroundStyle(.secondary)
+                        }
                     } else {
                         Section("Working context") { Text("This model manages context through its on-device runtime and available memory.").foregroundStyle(.secondary) }
                     }
                 }
                 .onAppear {
                     effort = model.selectedReasoningEffort
+                    memoryGiB = model.settings.localMemoryGiB
                     context = model.settings.contextTokensByModel[model.settings.contextPreferenceKey].map { _ in model.contextBudget(for: model.settings)?.selectedInputTokens ?? 128_000 }
+                    if model.settings.choice == .localMLX { context = model.settings.localContextTokens }
                     if focusContext { proxy.scrollTo("context", anchor: .top) }
                 }
                 .onChange(of: model.settings.contextPreferenceKey) { _, _ in
@@ -73,6 +92,7 @@ struct ReasoningEffortView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") {
                     var next = model.settings
                     next.contextTokensByModel[next.contextPreferenceKey] = context
+                    if next.choice == .localMLX { next.localMemoryGiB = memoryGiB; next.localContextTokens = context }
                     if let effort, model.supportedReasoningEfforts.contains(effort) { next.reasoningByModel[next.contextModelID] = effort.rawValue }
                     do { try model.saveSettings(next); AppFeedback.play(.saved); dismiss() }
                     catch { model.errorMessage = error.localizedDescription }

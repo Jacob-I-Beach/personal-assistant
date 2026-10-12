@@ -21,16 +21,29 @@ actor MLXLocalBackend: ModelBackend {
     private let responseTokens: Int
     nonisolated let supportsVision: Bool
     private let weightBytes: Int64
-    nonisolated var contextLimits: ContextLimits { ContextLimits(maximumTextBytes: 24_000, maximumImages: supportsVision ? 1 : 0) }
+    private nonisolated let requestedContextTokens: Int?
+    private nonisolated let requestedMemoryGiB: Int
+    private nonisolated let footprint = LocalModelFootprint()
+    nonisolated var residentBytes: Int64 { footprint.value }
+    nonisolated var memoryBudget: LocalInferenceBudget {
+        LocalInferenceBudget(weightBytes: weightBytes, availableBytes: Int64(os_proc_available_memory()), residentBytes: residentBytes,
+            requestedMemoryGiB: requestedMemoryGiB, requestedContextTokens: requestedContextTokens,
+            responseTokens: responseTokens, supportsEfficientKV: repository.contains("Qwen3.5-4B"))
+    }
+    nonisolated var contextLimits: ContextLimits {
+        ContextLimits(maximumTextBytes: max(4_096, memoryBudget.inputTokens * 3), maximumImages: supportsVision ? 1 : 0)
+    }
     private var container: ModelContainer?
     private var busy = false
     private var downloadBusy = false
     private var runtimeInitialized = false
 
-    init(repository: String, revision: String, root: URL, responseTokens: Int, supportsVision: Bool = true, weightBytes: Int64 = 0) {
+    init(repository: String, revision: String, root: URL, responseTokens: Int, supportsVision: Bool = true, weightBytes: Int64 = 0,
+         requestedContextTokens: Int? = nil, requestedMemoryGiB: Int = 8) {
         self.repository = repository; self.revision = revision; self.root = root
         self.responseTokens = responseTokens; self.id = "mlx:\(repository)@\(revision)"
         self.supportsVision = supportsVision; self.weightBytes = weightBytes
+        self.requestedContextTokens = requestedContextTokens; self.requestedMemoryGiB = requestedMemoryGiB
     }
 
     private struct DownloadRecord: Codable {
@@ -49,15 +62,8 @@ actor MLXLocalBackend: ModelBackend {
         downloadBusy = true; defer { downloadBusy = false }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: recordURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.allowsCellularAccess = allowCellular
-        let hub = HubClient(session: URLSession(configuration: configuration), host: URL(string: "https://huggingface.co")!,
-                            bearerToken: nil, cache: HubCache(cacheDirectory: root.appendingPathComponent("hub")))
-        let downloader = #hubDownloader(hub)
-        let directory = try await downloader.download(
-            id: repository, revision: revision,
-            matching: ["*.json", "*.safetensors", "*.txt", "*.model", "*.jinja", "LICENSE*", "README.md"],
-            useLatest: false, progressHandler: { progress($0.fractionCompleted) })
+        let directory = try await ModelPackageDownload.download(repository: repository, revision: revision, root: root,
+            files: expectedFiles, allowCellular: allowCellular, progress: progress)
         let base = root.standardizedFileURL.path + "/"
         guard directory.standardizedFileURL.path.hasPrefix(base) else {
             throw AssistantError.provider("The model downloader returned a location outside the model store.")
@@ -73,6 +79,7 @@ actor MLXLocalBackend: ModelBackend {
     func unload() throws {
         guard !busy else { throw AssistantError.busy }
         container = nil
+        footprint.set(0)
         // An unused backend must never initialize Metal merely to clear an empty cache,
         // especially after the app has already moved into the background.
         if runtimeInitialized { MLX.Memory.clearCache() }
@@ -129,10 +136,11 @@ actor MLXLocalBackend: ModelBackend {
         if container != nil { return }
         let directory = try savedDirectory()
         guard ProcessInfo.processInfo.thermalState != .critical else { throw AssistantError.provider("The iPhone is too warm to load a model. Let it cool, or use ChatGPT for now.") }
-        let available = Int64(os_proc_available_memory())
-        guard weightBytes == 0 || available >= weightBytes else { throw AssistantError.provider("The selected model's weights exceed the memory currently available to this app. Release another loaded model or try again with more memory available. Your download is kept.") }
+        let plan = memoryBudget
+        guard plan.fits else { throw AssistantError.provider("There is not enough memory available for this model and its working context right now. Release another loaded model or choose a smaller model. The download is kept.") }
         runtimeInitialized = true
         MLX.Memory.cacheLimit = 32 * 1024 * 1024
+        MLX.Memory.memoryLimit = Int(plan.workingBytes)
         // Preserve upstream EOS tokens, tool format and reasoning parser when resolving a local package.
         if supportsVision {
             let factory = VLMModelFactory.shared
@@ -143,6 +151,7 @@ actor MLXLocalBackend: ModelBackend {
             let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: directory)
             container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
         }
+        footprint.set(Int64(MLX.Memory.activeMemory))
     }
 
     private static func diskConfiguration(_ source: ModelConfiguration, directory: URL) -> ModelConfiguration {
@@ -189,7 +198,10 @@ actor MLXLocalBackend: ModelBackend {
                     try Task.checkCancellation(); digest.update(data: block)
                 }
                 let observed = digest.finalize().map { String(format: "%02x", $0) }.joined()
-                guard observed == expected else { throw AssistantError.provider("A model file failed its integrity check. Its download was not accepted.") }
+                guard observed == expected else {
+                    try? FileManager.default.removeItem(at: url)
+                    throw AssistantError.provider("A model file failed verification and was removed. Tap Download to repair that file; the other completed files are kept.")
+                }
             }
         }
     }
@@ -231,12 +243,26 @@ actor MLXLocalBackend: ModelBackend {
             ["type": "function", "function": ["name": tool.name, "description": tool.description,
                                                "parameters": tool.parameters.sendableValue] as [String: any Sendable]]
         }
-        let session = ChatSession(container, generateParameters: .init(maxTokens: responseTokens, temperature: 0.4),
+        let budget = memoryBudget
+        guard budget.fits else { throw AssistantError.provider("Available memory changed. Release the local model and try a smaller working context.") }
+        let tokenCount = try await container.perform(nonSendable: UserInput(chat: messages,
+            tools: specs.isEmpty ? nil : specs, additionalContext: ["enable_thinking": false])) { context, input in
+                let prepared = try await context.processor.prepare(input: input)
+                return prepared.text.tokens.size
+            }
+        guard tokenCount <= budget.inputTokens else { throw AssistantError.contextCapacity }
+        let parameters = GenerateParameters(maxTokens: budget.responseTokens, kvBits: repository.contains("Qwen3.5-4B") ? 4 : nil,
+            kvGroupSize: 64, quantizedKVStart: 0, temperature: 0.4,
+            prefill: .init(stepSize: ProcessInfo.processInfo.thermalState == .serious ? 64 : 128))
+        let session = ChatSession(container, generateParameters: parameters,
                                   additionalContext: ["enable_thinking": false], tools: specs.isEmpty ? nil : specs)
         var calls: [AssistantCore.ToolCall] = []
         var stoppedNormally = false
         for try await event in session.streamDetails(to: messages) {
             try Task.checkCancellation()
+            if ProcessInfo.processInfo.thermalState == .critical || os_proc_available_memory() < 192 * 1_024 * 1_024 {
+                throw AssistantError.provider("Local generation paused to protect the iPhone's available memory or temperature. Your chat and model download are kept.")
+            }
             switch event {
             case .chunk(let text): output.yield(.textDelta(text))
             case .toolCall(let call):
@@ -257,6 +283,13 @@ actor MLXLocalBackend: ModelBackend {
         for call in calls { output.yield(.toolCall(call)) }
         output.yield(.completed)
     }
+}
+
+private final class LocalModelFootprint: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bytes: Int64 = 0
+    var value: Int64 { lock.withLock { bytes } }
+    func set(_ value: Int64) { lock.withLock { bytes = value } }
 }
 
 private struct DiskOnlyDownloader: Downloader {

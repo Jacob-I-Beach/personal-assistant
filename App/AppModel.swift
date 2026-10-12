@@ -163,6 +163,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-long-task") { await installLongTaskFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { await installDailyWorkflowFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { await installCoherenceFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-local-controls") { settings.choice = .localMLX; rebuildLocalBackend() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-recovery09") { await installRecovery09Fixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-activity103") { await installActivityFixture() }
                 #endif
@@ -227,8 +228,8 @@ final class AppModel: ObservableObject {
         responseWasBackgrounded = true
         ReplyReturnRoute.remember(conversation.id)
         if let request = deferredNativeAction ?? nativeAction { Task { await notifyReview(request) } }
-        if settings.choice == .chatGPT, settings.useComputer, settings.companion != nil, !responseOnComputer,
-           nativeAction == nil, deferredNativeAction == nil { handoffResponseToComputer(); return }
+        // Connected work already belongs to the server. Backgrounding only
+        // changes this client's subscription; there is no ownership transfer.
         guard settings.choice == .localMLX || settings.choice == .appleOnDevice else { return }
         pauseResponseForBackground()
         guard settings.choice == .localMLX else { return }
@@ -409,7 +410,7 @@ final class AppModel: ObservableObject {
         let text = enteredText
         guard isInitialized, !isRunning, hasAttachments || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if isManagingAccount && settings.choice == .chatGPT { noticeMessage = "The account change is finishing. Your draft is saved."; return }
-        if settings.choice == .chatGPT && (settings.chatGPTAccountID == nil || settings.chatGPTModel.isEmpty) {
+        if settings.choice == .chatGPT && ((settings.chatGPTAccountID == nil && !(settings.useComputer && settings.companion != nil)) || settings.chatGPTModel.isEmpty) {
             showModels = true; noticeMessage = "Connect ChatGPT or choose an on-device model. Your draft is saved."; return
         }
         conversation.networkDisabled = settings.localOnly
@@ -528,7 +529,8 @@ final class AppModel: ObservableObject {
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
         responseWasBackgrounded = UIApplication.shared.applicationState != .active; userRequestedStop = false; pausedForInput = false; pausedForWorkBudget = false; responseAwaitingAttention = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
         taskAttention.clear(conversation.id)
-        responseOnComputer = savedWork?.backendID.hasPrefix("companion:") == true
+        responseOnComputer = savedWork.map { $0.backendID.hasPrefix("companion:") }
+            ?? (selection.choice == .chatGPT && selection.useComputer && selection.companion != nil && !selection.localOnly)
         let computerReply = responseOnComputer
         beginResponseWindow()
         replyActivity.begin(conversationID: original.id, modelName: modelTitle, computer: computerReply, reconnecting: savedWork != nil)
@@ -551,6 +553,10 @@ final class AppModel: ObservableObject {
                 var selectedBackend = try await backend(for: selection, onComputer: computerReply)
                 if var computer = selectedBackend as? CompanionModelBackend {
                     computer.allowJobRestart = savedWork != nil && !automaticResume && !reconnectOnly
+                    let client = computer.client
+                    computer.onJobAccepted = { [weak self] jobID in
+                        await self?.attachRemoteActivity(jobID: jobID, client: client)
+                    }
                     selectedBackend = computer
                 }
                 titleBackend = selectedBackend
@@ -560,7 +566,7 @@ final class AppModel: ObservableObject {
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request]
-                    + (selection.choice == .chatGPT && selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create, ComputerFileTools.transfer] + ComputerTools.definitions : [])
+                    + (selection.choice == .chatGPT && selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create, ComputerFileTools.transfer, ComputerActionReview.definition] + ComputerTools.definitions : [])
                     + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selectedBackend.networkDestination
                 let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
@@ -650,6 +656,7 @@ final class AppModel: ObservableObject {
             requiresManualResume = !completedTurn && !handingOffToComputer
             let savedComputerRun = if let id = activeTurnID { try? await store?.companionRun(id) } else { nil as CompanionRunRecord? }
             let computerStillWorking = !completedTurn && !userRequestedStop && computerReply && savedComputerRun?.jobID != nil && !["failed", "interrupted", "cancelled", "completed"].contains(savedComputerRun?.status ?? "unknown")
+            if computerStillWorking { requiresManualResume = false }
             await replyActivity.finish(completed: completedTurn, detached: computerStillWorking,
                 handingOff: handingOffToComputer && !completedTurn, waiting: pausedForInput || responseAwaitingAttention,
                 keepReady: UIApplication.shared.applicationState != .active)
@@ -666,7 +673,7 @@ final class AppModel: ObservableObject {
                 completionWindow.end(success: completedTurn || pausedForInput || pausedForWorkBudget || responseAwaitingAttention)
             }
             isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
-            if !requiresManualResume, let titleBackend, conversation.needsAutomaticTitle, selection.automaticChatTitles {
+            if completedTurn, let titleBackend, conversation.needsAutomaticTitle, selection.automaticChatTitles {
                 let namedConversation = conversation
                 let generationID = UUID(); titleGenerationID = generationID
                 titleTask = Task { [weak self] in
@@ -751,6 +758,7 @@ final class AppModel: ObservableObject {
         guard let settingsURL else { throw AssistantError.provider("App storage is unavailable.") }
         try JSONEncoder().encode(value).write(to: settingsURL, options: .atomic)
         let changedLocal = value.localRepository != settings.localRepository || value.localRevision != settings.localRevision || value.localResponseTokens != settings.localResponseTokens
+            || value.localContextTokens != settings.localContextTokens || value.localMemoryGiB != settings.localMemoryGiB
         settings = value
         if value.localOnly { cancelConnection(); stopDownload() }
         if changedLocal { rebuildLocalBackend() }
@@ -775,10 +783,12 @@ final class AppModel: ObservableObject {
         do { try saveSettings(next); showModels = false } catch { errorMessage = error.localizedDescription }
     }
     func clearCredential() throws { if let account = settings.credentialAccount { try CredentialStore.remove(account: account) } }
+    var localBackendResidentBytes: Int64 { localBackend?.residentBytes ?? 0 }
     private func rebuildLocalBackend() {
         guard let modelRoot else { return }
         let previous = localBackend
-        localBackend = MLXLocalBackend(repository: settings.localRepository, revision: settings.localRevision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: catalog.first { $0.id == settings.localRepository }?.supportsVision ?? true, weightBytes: catalog.first { $0.id == settings.localRepository }?.weightBytes ?? 0)
+        localBackend = MLXLocalBackend(repository: settings.localRepository, revision: settings.localRevision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: catalog.first { $0.id == settings.localRepository }?.supportsVision ?? true, weightBytes: catalog.first { $0.id == settings.localRepository }?.weightBytes ?? 0,
+            requestedContextTokens: settings.localContextTokens, requestedMemoryGiB: settings.localMemoryGiB)
         if let previous { Task { try? await previous.unload() } }
     }
     func refreshDownloads() async {
@@ -881,6 +891,7 @@ final class AppModel: ObservableObject {
         if CommunicationTools.names.contains(call.name) { return try await executeCommunicationTool(call, conversationID: conversationID) }
         if call.name == ComputerScheduleTools.create.name { return try await executeScheduleTool(call) }
         if call.name == ComputerFileTools.transfer.name { return try await transferFileToComputer(call, conversationID: conversationID) }
+        if call.name == ComputerActionReview.definition.name { return try await reviewComputerAction(call) }
         if ComputerTools.names.contains(call.name) { return try await executeComputerTool(call, conversationID: conversationID) }
         func nativeResult(_ value: JSONValue) -> ToolResult {
             ToolResult(callID: call.id, name: call.name, succeeded: !["failed", "outcome_unknown", "interrupted"].contains(value["status"]?.stringValue ?? ""), output: value)
@@ -1102,13 +1113,16 @@ final class AppModel: ObservableObject {
         }
     }
     private func beginResponseWindow() {
-        let continued = settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
+        let continued = !responseOnComputer && settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
         completionWindow.begin(allowContinued: continued, preservingCurrent: handingOffToComputer) { [weak self] cancelledBySystem in
             guard let self else { return }
             self.systemEndedBackgroundWork = !self.responseOnComputer && cancelledBySystem
             self.pauseResponseForBackground()
         }
         if let activeTurnID { completionWindow.identifyTurn(activeTurnID) }
+    }
+    private func attachRemoteActivity(jobID: String, client: CompanionClient) {
+        replyActivity.attach(jobID: jobID, client: client, notifications: settings.taskNotifications)
     }
     private func handoffResponseToComputer() {
         guard computerHandoff == nil, let connection = settings.companion, let store else { return }
@@ -1166,6 +1180,16 @@ final class AppModel: ObservableObject {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return }
         #endif
+        if settings.useComputer, !settings.localOnly, let connection = settings.companion {
+            do {
+                let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256,
+                    token: CredentialStore.read(account: connection.credentialAccount))
+                let catalog = try await client.json("/v1/models")
+                guard settings.companion == connection, catalog["profile_id"] == .string(connection.profileID) else { return }
+                chatGPTModels = try ChatGPTModel.catalog(from: JSONEncoder().encode(catalog))
+            } catch { noticeMessage = "The computer's model list will refresh when it reconnects. Your selected model is kept." }
+            return
+        }
         guard let accountService else { return }
         accounts = await accountService.summaries()
         guard !settings.localOnly else { chatGPTModels = []; return }

@@ -358,7 +358,7 @@ struct ChatView: View {
                     }
                 } label: { Image(systemName: voice.isRecording ? "mic.fill" : "mic").font(.title3).frame(width: 44, height: 44) }
                     .accessibilityLabel(voice.isRecording ? "Stop voice input" : "Dictate message").disabled(voice.isPreparing)
-                if model.selectedReasoningEffort != nil || model.contextBudget(for: model.settings) != nil {
+                if model.selectedReasoningEffort != nil || model.contextBudget(for: model.settings) != nil || model.settings.choice == .localMLX {
                     ThinkingLevelButton(effort: model.selectedReasoningEffort) { showReasoningEffort = true }.disabled(model.isRunning)
                 }
                 if model.isRunning {

@@ -10,7 +10,8 @@ from pathlib import Path
 MAX_FILE = 24 * 1024 * 1024
 MAX_TOTAL = 48 * 1024 * 1024
 request = json.loads(Path('/task/request.json').read_text())
-timeout = max(1, min(180, int(request.get('timeout_seconds', 60))))
+timeout = max(1, min(1800, int(request.get('timeout_seconds', 60))))
+processors = str(max(1, min(8, int(request.get('cpu_count', 2)))))
 Path('/tmp/home').mkdir(exist_ok=True)
 stdout_path, stderr_path = Path('/tmp/stdout.log'), Path('/tmp/stderr.log')
 mode = request.get('mode', 'python')
@@ -18,7 +19,7 @@ command = [sys.executable, '-I', '/runner/inspect_document.py' if mode == 'inspe
 try:
     with stdout_path.open('wb') as out, stderr_path.open('wb') as err:
         process = subprocess.run(command, stdout=out, stderr=err, timeout=timeout, cwd='/outputs',
-                                 env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp/home', 'PYTHONDONTWRITEBYTECODE': '1', 'MPLBACKEND': 'Agg', 'MPLCONFIGDIR': '/tmp/matplotlib', 'LANG': 'C.UTF-8', 'OPENBLAS_NUM_THREADS': '2', 'OMP_NUM_THREADS': '2', 'MKL_NUM_THREADS': '2', 'NUMEXPR_NUM_THREADS': '2'})
+                                 env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp/home', 'PYTHONDONTWRITEBYTECODE': '1', 'MPLBACKEND': 'Agg', 'MPLCONFIGDIR': '/tmp/matplotlib', 'LANG': 'C.UTF-8', 'OPENBLAS_NUM_THREADS': processors, 'OMP_NUM_THREADS': processors, 'MKL_NUM_THREADS': processors, 'NUMEXPR_NUM_THREADS': processors})
     output = stdout_path.read_bytes()[:16384].decode('utf-8', 'replace')
     error = stderr_path.read_bytes()[:8192].decode('utf-8', 'replace')
     files, total = [], 0

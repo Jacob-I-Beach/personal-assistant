@@ -1,4 +1,5 @@
 import ActivityKit
+import AssistantCore
 import Foundation
 
 @MainActor final class ReplyLiveActivity {
@@ -10,8 +11,14 @@ import Foundation
     private var lastPhase = "working"
     private var lastUpdate = Date.distantPast
     private var steps: [String] = []
+    private var tokenUpdates: Task<Void, Never>?
+    private var deviceUpdates: Task<Void, Never>?
+    private var remoteJobID: String?
+    private var remoteClient: CompanionClient?
+    private var wantsNotifications = false
 
     func begin(conversationID: UUID, modelName: String, computer: Bool, reconnecting: Bool) {
+        tokenUpdates?.cancel(); deviceUpdates?.cancel(); remoteJobID = nil; remoteClient = nil
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         onComputer = computer; lastTitle = ""; lastUpdate = .distantPast; lastPhase = "working"
         let candidates = Activity<AssistantActivityAttributes>.activities.filter {
@@ -33,7 +40,45 @@ import Foundation
         }
         let attributes = AssistantActivityAttributes(conversationID: conversationID.uuidString, startedAt: Date(), onComputer: computer, modelName: modelName)
         let state = AssistantActivityAttributes.ContentState(title: "Preparing your reply", detail: "", phase: "working", updatedAt: Date(), steps: [], onComputer: computer)
-        currentID = try? Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(75)), pushType: nil).id
+        currentID = try? Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(180)), pushType: computer && RemotePushRegistration.environment != nil ? .token : nil).id
+    }
+
+    func attach(jobID: String, client: CompanionClient, notifications: Bool) {
+        guard remoteJobID != jobID else { return }
+        remoteJobID = jobID; remoteClient = client; wantsNotifications = notifications
+        tokenUpdates?.cancel(); deviceUpdates?.cancel()
+        guard RemotePushRegistration.environment != nil else { return }
+        RemotePushRegistration.register()
+        tokenUpdates = Task { [weak self] in
+            guard let self else { return }
+            await self.registerTokens()
+            guard let id = self.currentID, let activity = Activity<AssistantActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
+            for await _ in activity.pushTokenUpdates {
+                if Task.isCancelled { return }
+                await self.registerTokens()
+            }
+        }
+        deviceUpdates = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: RemotePushRegistration.changed) {
+                if Task.isCancelled { return }
+                await self?.registerTokens()
+            }
+        }
+    }
+    private func registerTokens() async {
+        guard let job = remoteJobID, let client = remoteClient, let environment = RemotePushRegistration.environment,
+              let topic = Bundle.main.bundleIdentifier else { return }
+        let token = Activity<AssistantActivityAttributes>.activities.first(where: { $0.id == currentID })?.pushToken?.map { String(format: "%02x", $0) }.joined()
+        var fields: [String: AssistantCore.JSONValue] = ["environment": .string(environment), "topic": .string(topic), "notifications": .bool(wantsNotifications)]
+        if let token { fields["activity_token"] = .string(token) }
+        if let device = RemotePushRegistration.deviceToken { fields["device_token"] = .string(device) }
+        guard fields["activity_token"] != nil || fields["device_token"] != nil else { return }
+        for delay in [0, 2, 5] {
+            if Task.isCancelled { return }
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            do { _ = try await client.json("/v1/jobs/" + job + "/push", method: "POST", body: .object(fields)); return }
+            catch { /* The task continues even if APNs provisioning is not ready. */ }
+        }
     }
 
     func update(_ title: String, waiting: Bool = false, reconnecting: Bool = false) {
@@ -50,7 +95,8 @@ import Foundation
     func finish(completed: Bool, detached: Bool, handingOff: Bool = false, waiting: Bool = false, keepReady: Bool = true) async {
         guard let id = currentID else { return }
         if handingOff { update("Continuing your reply"); return }
-        if detached { update("Updating your progress", reconnecting: true); await pendingUpdate?.value; return }
+        // Server pushes remain authoritative when the UI subscriber goes away.
+        if detached { await pendingUpdate?.value; return }
         if waiting { update("Your task needs attention", waiting: true); await pendingUpdate?.value; return }
         let state = AssistantActivityAttributes.ContentState(title: completed ? "Your reply is ready" : "Progress saved",
             detail: completed ? "Tap to open the answer and saved results." : "Open this chat to review and continue.",

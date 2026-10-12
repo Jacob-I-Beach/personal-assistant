@@ -178,13 +178,14 @@ public actor AssistantEngine {
                                     memoryEnabled: !availableMemories.isEmpty, remote: backend.networkDestination != nil,
                                     artifactLocalOnly: localOnlyContext, healthData: conversation.containsHealthData,
                                     fileIDs: Set(eligibleAttachments.flatMap(\.fileIDs)), workspaceEnabled: workspaceEnabled,
-                                    compactCatalog: backend.contextLimits.maximumTextBytes < 20_000, contextBudget: backend.contextLimits.maximumTextBytes, automaticMemory: automaticMemory, operationScope: turnID,
+                                    compactCatalog: backend.networkDestination == nil || backend.contextLimits.maximumTextBytes < 20_000, contextBudget: backend.contextLimits.maximumTextBytes, automaticMemory: automaticMemory, operationScope: turnID,
                                     additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor)
         let turnStart = conversation.messages.firstIndex(where: { $0.id == user.id })!
         if let remote = backend as? any RemoteTaskBackend {
             var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: true, nativeFiles: backend.supportsFileInputs, appContext: appContext)
             request.workIdentity = ModelWorkIdentity(conversationID: conversation.id, turnID: turnID, containsHealthData: conversation.containsHealthData)
             request.toolCatalog = broker.availableDefinitions
+            request.serverContext = ServerContextSnapshot.make(conversation: conversation, memories: availableMemories)
             request.instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())); time zone: \(TimeZone.current.identifier). Saved task ID: \(turnID.uuidString)."
             if resuming { request.instructions += "\nContinue the original request from the saved conversation and completed tool receipts. The phone may have handed over an unfinished response. Preserve valid work, finish the reply, and never repeat an action with a completed or uncertain outcome. No new user request was sent." }
             if automaticMemory { request.instructions += "\nAutomatic memory is enabled. Maintain worthwhile user-shared context with history and undo; inferences remain tentative. Current user message ID: \(user.id.uuidString)." }

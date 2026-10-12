@@ -152,14 +152,16 @@ export class JobRunner extends EventEmitter {
           } else {
             if (!catalog.has(call.name)) throw new Error('This tool is not in the task’s permitted catalog.');
             if (catalog.get(call.name).parameters) call.arguments = normalizeArguments(call.arguments, catalog.get(call.name).parameters);
-            const location = this.runtime.supports(call.name) ? 'computer' : 'phone';
+            const location = this.runtime.locationFor?.(call,job) ?? (this.runtime.supports(call.name) ? 'computer' : 'phone');
             const prior = this.store.beginOperation(job.id, call.id, call, location);
             if (prior.result) result = prior.result;
             else if (prior.status === 'started') {
               result = {callID: original.id, name: original.name, succeeded: false, output: {status: 'outcome_unknown', error: 'An earlier execution began without a final receipt. Inspect its result before repeating it.'}};
             } else if (location === 'computer') {
               this.publish(job.id, {type: 'activity', title: this.runtime.title(call.name)});
-              result = await active(lease => this.runtime.execute(call, job, lease));
+              // User review can wait indefinitely; host processes have their
+              // own execution deadlines after the exact action is approved.
+              result = this.runtime.reviewable?.(call.name) ? await this.runtime.execute(call,job,signal) : await active(lease => this.runtime.execute(call, job, lease));
               this.store.finishOperation(job.id, call.id, result);
             } else {
               this.status(job.id, 'waiting_for_phone', 'Waiting for your iPhone');
@@ -178,11 +180,12 @@ export class JobRunner extends EventEmitter {
         modelResult.tool_succeeded = result.succeeded;
         modelResult.operation_id = original.id;
         let modelOutput=JSON.stringify(modelResult);
-        if(result.succeeded&&effectiveCall(original).name==='inspect_document'){
-          const preview=(result.output?.files??[]).find(file=>file.filename===result.output?.result?.preview_image);
+        if(result.succeeded){
+          const preview=(result.output?.files??[]).find(file=>file.filename===(result.output?.preview_image??result.output?.result?.preview_image));
           if(preview){
             const image=this.store.file(job.id,job.owner,preview.id);
-            if(image.data.length<=8*1024*1024)modelOutput=[{type:'input_text',text:modelOutput},{type:'input_image',image_url:'data:image/png;base64,'+image.data.toString('base64'),detail:'high'}];
+            const mime=/\.jpe?g$/i.test(preview.filename)?'image/jpeg':/\.webp$/i.test(preview.filename)?'image/webp':'image/png';
+            if(image.data.length<=8*1024*1024)modelOutput=[{type:'input_text',text:modelOutput},{type:'input_image',image_url:'data:'+mime+';base64,'+image.data.toString('base64'),detail:'high'}];
           }
         }
         checkpoint.input.push({type: 'function_call_output', call_id: original.id, output:modelOutput});
@@ -212,6 +215,20 @@ export class JobRunner extends EventEmitter {
       this.phoneWaiters.set(key, value => { signal.removeEventListener('abort', aborted); this.phoneWaiters.delete(key); resolve(value); });
       if (signal.aborted) aborted();
     });
+  }
+  async reviewComputer(job,original,review,signal){
+    const call={id:original.id+'_review',name:'review_computer_action',arguments:{title:review.title,detail:review.detail}};
+    const prior=this.store.beginOperation(job.id,call.id,call,'phone');
+    if(prior.result){this.store.db.prepare("UPDATE operations SET status='started' WHERE job_id=? AND id=? AND result IS NULL").run(job.id,original.id);return prior.result;}
+    this.store.db.prepare("UPDATE operations SET status='awaiting_review' WHERE job_id=? AND id=? AND result IS NULL").run(job.id,original.id);
+    this.status(job.id,'waiting_for_input','Your review is needed');
+    this.publish(job.id,{type:'phone_request',call,conversation_id:job.payload.conversation_id,turn_id:job.payload.turn_id});
+    const result=await this.waitForPhone(job.id,call.id,signal);
+    // Persist execution intent only after approval has a durable receipt.
+    // A restart while the user is deciding can resume this same review safely.
+    this.store.db.prepare("UPDATE operations SET status='started' WHERE job_id=? AND id=? AND result IS NULL").run(job.id,original.id);
+    this.publish(job.id,{type:'executed_tool',call,result});
+    this.status(job.id,'running','Continuing your request');return result;
   }
   answer(jobId, owner, operationId, result) {
     const job = this.store.get(jobId, owner);

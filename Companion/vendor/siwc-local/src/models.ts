@@ -18,7 +18,10 @@ export async function listModels(accessToken: string, signal: AbortSignal): Prom
         typeof model.display_name !== "string" || !model.display_name.trim() || model.display_name.length > 200) {
       throw new ChatGPTError("invalid_model_catalog", "ChatGPT returned an incomplete model listing. Try again.", true, response.status);
     }
-    result.push({ slug: model.slug, displayName: model.display_name });
+    const number = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 8192 && value <= 10000000 ? value : undefined;
+    const levels = Array.isArray(model.supported_reasoning_levels) ? model.supported_reasoning_levels.flatMap(value => typeof value === 'string' ? [value] : isObject(value) && typeof value.effort === 'string' ? [value.effort] : []) : undefined;
+    result.push({ slug: model.slug, displayName: model.display_name,
+      contextWindow: number(model.context_window ?? model.context_length), maximumContextWindow: number(model.max_context_window ?? model.max_context_tokens), reasoningEfforts: levels });
   }
   return result;
 }

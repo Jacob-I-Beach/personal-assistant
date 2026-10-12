@@ -27,10 +27,11 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
     const paired=await request('/v1/pair',{pairing_code:code.pairing_code,device_name:'Test phone'});assert.equal(paired.status,200);
     const token=paired.body.credential;
     assert.equal((await request('/v1/jobs')).status,401);
-    const body={request_key:'one-turn',conversation_id:'chat',turn_id:'turn',profile_id:'synthetic',body:{model:'synthetic',input:[]},catalog:[]};
+    const body={request_key:'one-turn',conversation_id:'chat',turn_id:'turn',profile_id:'synthetic',start_when_ready:true,expected_file_ids:[],body:{model:'synthetic',input:[]},catalog:[]};
     const created=await request('/v1/jobs',body,token);assert.equal(created.status,201);
     const id=created.body.id;assert.equal((await request('/v1/jobs',body,token)).body.id,id);
-    assert.equal((await request(`/v1/jobs/${id}/start`,{},token)).status,200);
+    // The phone can disappear after Send; it need not stay alive to issue start.
+    assert.equal((await request(`/v1/jobs/${id}`,undefined,token)).body.status,'running');
     release();await host.runner.active.get(id)?.promise;
     const result=await request(`/v1/jobs/${id}/events?after=0`,undefined,token);
     assert.equal(result.body.job.status,'completed');assert.ok(result.body.events.some(e=>e.type==='continuation'));

@@ -1,0 +1,13 @@
+# Apple Developer setup for this private app
+
+The server and computer tools continue to use the existing ChatGPT plan. Apple Developer membership is a separate Apple charge; no OpenAI API account or API billing is being added.
+
+1. Enroll as an Individual at https://developer.apple.com/programs/enroll/ with the Apple Account currently used for app signing. Apple currently lists USD99 per membership year and requires two-factor authentication and identity/contact verification. Enrollment/payment remain user-operated.
+2. Keep the current app installed. Before changing signing, inspect its actual bundle identifier, application identifier and team. A paid-team change must preserve or explicitly migrate the existing data; using the same email is not a substitute for checking those identifiers.
+3. Provision the actual app identifier for Push Notifications and its supported Health/memory capabilities. The internal `project.developer.yml` requests `aps-environment=development`, increased-memory-limit and increased-debugging-memory-limit. Verify the resulting profile grants each request. The debugging memory entitlement is for development/ad hoc/internal TestFlight, not a public distribution build.
+4. Create an APNs signing key in Apple Developer Certificates, Identifiers & Profiles. Keep the .p8 private; record its Key ID and Team ID. Do not upload the private key, signing certificates or provisioning profiles to this public source repository.
+5. In the computer control center, expand Notifications & Live Activities. Enter the Team ID, Key ID, actual provisioned bundle identifier and .p8 file. The key is encrypted under the existing Windows-protected vault. It is not sent to the iPhone or model.
+6. Build/sign the developer configuration with the matching team and development push environment. A standard free-signing IPA remains push-disabled. A plist declaration alone does not grant the capability.
+7. On the phone, allow notifications and Live Activities. Check a real task while foregrounded, backgrounded and locked, then check a pending question and notification-to-chat routing. Inspect the OS-reported memory allowance before claiming 6–8 GiB for local inference.
+
+References: [Apple enrollment](https://developer.apple.com/programs/enroll/), [supported capabilities](https://developer.apple.com/help/account/reference/supported-capabilities-ios), [ActivityKit push](https://developer.apple.com/documentation/ActivityKit/starting-and-updating-live-activities-with-activitykit-push-notifications), [increased memory](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.kernel.increased-memory-limit), [debugging memory](https://developer.apple.com/help/glossary/increased-debugging-memory-limit/).

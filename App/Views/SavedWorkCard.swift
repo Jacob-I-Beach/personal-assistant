@@ -5,14 +5,14 @@ struct SavedWorkCard: View {
     @EnvironmentObject private var model: AppModel
     let work: WorkTurn
     @State private var showContext = false
-    private var canRetryContext: Bool { work.permitsContextRetry(maximumTextBytes: model.contextBudget(for: model.settings)?.textByteBudget ?? 0) }
+    private var canRetryContext: Bool { work.permitsContextRetry(maximumTextBytes: model.settings.choice == .localMLX ? model.localContextBudget().inputTokens * 3 : model.contextBudget(for: model.settings)?.textByteBudget ?? 0) }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(work.interruptionKind == "computer_detached" ? "Saved task · reconnecting" : "Saved progress", systemImage: "arrow.clockwise.circle").font(.caption.weight(.medium)).foregroundStyle(.secondary)
             Text(work.goal.isEmpty ? "Continue with your attachment" : work.goal).font(.subheadline).lineLimit(2)
             Text(model.conversation.messages.last?.failureReason == work.reason ? "The request and completed action results are kept here." : work.reason ?? "The request and completed action results are kept here.").font(.caption).foregroundStyle(.secondary)
             if work.needsChangedRequest == true && !canRetryContext {
-                if model.contextBudget(for: model.settings) != nil {
+                if model.contextBudget(for: model.settings) != nil || model.settings.choice == .localMLX {
                     Button("Adjust working context", systemImage: "text.alignleft") { showContext = true }.font(.subheadline)
                     Text("Use a larger supported context, then continue here, or send a shorter request.").font(.caption).foregroundStyle(.secondary)
                 } else {
