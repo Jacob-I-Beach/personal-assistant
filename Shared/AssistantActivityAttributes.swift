@@ -26,7 +26,7 @@ extension AssistantActivityAttributes.ContentState {
         return title
     }
     func supportingText(stale: Bool) -> String {
-        if (stale && isWorking) || phase == "reconnecting" { return "The latest status will appear when the connection returns." }
+        if (stale && isWorking) || phase == "reconnecting" { return "Progress will sync when connected." }
         return detail
     }
 }
