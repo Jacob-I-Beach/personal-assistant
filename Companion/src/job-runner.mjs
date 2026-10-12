@@ -96,17 +96,32 @@ export class JobRunner extends EventEmitter {
       if (checkpoint.pending.length === 0) {
         const context=compactWorkingContext(checkpoint.input,{budget:payload.limits?.context_text_bytes??750000,protectedStart:checkpoint.lastOutputStart??0});
         if(context.compacted){checkpoint.input=context.input;checkpoint.lastOutputStart=context.protectedStart;this.store.checkpoint(job.id,checkpoint);this.publish(job.id,{type:'activity',title:'Continuing with saved results'});}
-        const phases = new Map();
+        const phases = new Map(), webItems = new Map();
         this.publish(job.id,{type:'response_begin',round:checkpoint.round});
         const result = await active(lease => this.provider.streamTurn({body: {...payload.body, input: checkpoint.input}, signal: lease,
           onEvent: event => {
             if (event.type === 'response.output_item.added' && event.item?.type === 'message') phases.set(event.item.id, event.item.phase);
+            // Public hosted-tool evidence belongs in the live transcript, not
+            // only in the final continuation. Never expose reasoning items or
+            // partially streamed function arguments through this display path.
+            if (['response.output_item.added','response.output_item.done'].includes(event.type) && event.item?.type === 'web_search_call') {
+              const index = Number.isInteger(event.output_index) ? event.output_index : 0;
+              const item = structuredClone(event.item);
+              webItems.set(event.item.id, {index, item});
+              this.publish(job.id, {type:'web_activity', output_index:index, item, round:checkpoint.round});
+            } else if (event.type?.startsWith('response.web_search_call.')) {
+              const index = Number.isInteger(event.output_index) ? event.output_index : 0;
+              const previous = webItems.get(event.item_id);
+              const item = {...(previous?.item ?? {id:event.item_id, type:'web_search_call'}), status:event.type.split('.').at(-1)};
+              webItems.set(event.item_id, {index:previous?.index ?? index, item});
+              this.publish(job.id, {type:'web_activity', output_index:previous?.index ?? index, item, round:checkpoint.round});
+            }
             if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
-              this.publish(job.id, {type: 'text_delta', text: event.delta, phase: phases.get(event.item_id) === 'commentary' ? 'commentary' : 'answer', item_id: event.item_id ?? null, round: checkpoint.round});
+              this.publish(job.id, {type: 'text_delta', text: event.delta, phase: phases.get(event.item_id) === 'commentary' ? 'commentary' : 'final_answer', item_id: event.item_id ?? null, output_index:event.output_index, content_index:event.content_index, round: checkpoint.round});
             } else if (event.type === 'response.web_search_call.in_progress') {
               this.publish(job.id, {type: 'activity', title: 'Researching the web'});
             } else if (event.type === 'response.output_text.annotation.added') {
-              this.publish(job.id, {type: 'annotation', annotation: event.annotation});
+              if (event.annotation?.type === 'url_citation') this.publish(job.id, {type: 'annotation', item_id:event.item_id, output_index:event.output_index, content_index:event.content_index, annotation: event.annotation});
             }
           }}));
         signal.throwIfAborted();

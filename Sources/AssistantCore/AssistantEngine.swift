@@ -212,6 +212,7 @@ public actor AssistantEngine {
                     if let response = result.userResponse { guard response.replyToTaskID == turnID else { throw AssistantError.invalidTool("The answer belongs to a different task.") } }
                     output.yield(.toolResult(result))
                 case .activity(let text): output.yield(.activity(text))
+                case .transportProgress(let bytes): output.yield(.transportProgress(bytes))
                 case .completed: completed = true
                 }
             }

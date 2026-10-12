@@ -6,8 +6,8 @@
   "installed_version_at_report": "not independently confirmed",
   "physical_acceptance": {
     "in_place_install_preserves_chats": "pending",
-    "scan_fresh_tailscale_code": "pending",
-    "check_connection": "pending"
+    "scan_fresh_tailscale_code": "confirmed by Jacob on 2026-10-12: it connected",
+    "check_connection": "connection confirmed by use; separate button tap not reported"
   },
   "unchanged_from_previous_release": [
     "model routing",
@@ -15,5 +15,6 @@
     "Live Activity",
     "PC runtime and pairing storage"
   ],
-  "test_data": "synthetic only; no model inference, device tokens or Health records used"
+  "test_data": "synthetic only; no model inference, device tokens or Health records used",
+  "reported_background_behavior": "User confirms generation continued after leaving the app; system/custom activity and live research rendering issues tracked in 1.0.3"
 }

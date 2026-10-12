@@ -164,6 +164,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-daily-work") { await installDailyWorkflowFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { await installCoherenceFixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-recovery09") { await installRecovery09Fixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-activity103") { await installActivityFixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -212,6 +213,7 @@ final class AppModel: ObservableObject {
         appleDevice = AppleModelBackend.readiness(.device); appleCloud = AppleModelBackend.readiness(.privateCloud)
         Task {
             do { try await waitUntilReady() } catch { return }
+            await replyActivity.viewed(conversationID: conversation.id)
             await planning.refreshHome(settings: settings)
             await presentDeferredReview()
             if !isRunning { await continueInterruptedReplyIfEligible() }
@@ -277,6 +279,7 @@ final class AppModel: ObservableObject {
         do {
             if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) { try await store.save(conversation) }
             conversation = try await store.loadConversation(summary.id)
+            await replyActivity.viewed(conversationID: summary.id)
             attachedFileIDs = (drafts["files:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }.filter { id in files.contains { $0.id == id } }
             attachedCaptureIDs = (drafts["captures:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }
             selectedImagePoints = (try? JSONDecoder().decode([String: [ImagePoint]].self, from: Data((drafts["points:" + summary.id.uuidString] ?? "{}").utf8))) ?? [:]
@@ -528,7 +531,7 @@ final class AppModel: ObservableObject {
         responseOnComputer = savedWork?.backendID.hasPrefix("companion:") == true
         let computerReply = responseOnComputer
         beginResponseWindow()
-        replyActivity.begin(conversationID: original.id, computer: computerReply, reconnecting: savedWork != nil)
+        replyActivity.begin(conversationID: original.id, modelName: modelTitle, computer: computerReply, reconnecting: savedWork != nil)
         if computerReply { ReplyReturnRoute.remember(original.id) }
         requiresManualResume = false
         let previousTitleTask = titleTask
@@ -587,8 +590,13 @@ final class AppModel: ObservableObject {
                         if !signalledReply, newMessages.contains(where: { $0.role == .assistant && !$0.answerText.isEmpty }) {
                             signalledReply = true; AppFeedback.play(.reply)
                         }
-                        let streamingReply = newMessages.last { $0.role == .assistant && $0.state == .streaming }
-                        if let web = streamingReply?.displayParts.last?.web, web.isRunning { completionWindow.status(web.title) }
+                        // Reconnected projections retain their IDs. They must
+                        // still drive live status, even if present before resume.
+                        let streamingReply = updated.messages.last { $0.role == .assistant && $0.state == .streaming }
+                        if let web = streamingReply?.displayParts.last?.web {
+                            let title = ActivitySummaries.web([web]).title
+                            completionWindow.status(title); replyActivity.update(title)
+                        }
                         else if streamingReply?.answerText.isEmpty == false && activeToolCall == nil { completionWindow.status("Writing your reply"); replyActivity.update("Writing your reply") }
                         else { completionWindow.status(activity ?? (activeToolCall.map(ToolResultPresentation.activeTitle) ?? "Receiving reply")) }
                         if let user = updated.messages.last(where: \.isRequest) {
@@ -606,7 +614,13 @@ final class AppModel: ObservableObject {
                         completionWindow.received(bytes: (try? result.output.jsonString().utf8.count) ?? 0)
                         activeToolCall = nil; await refresh(); activity = "Preparing the result"
                     case .toolStarted(let call): activeToolCall = call; activity = nil; completionWindow.status(ToolResultPresentation.activeTitle(call)); replyActivity.update(ToolResultPresentation.activeTitle(call))
-                    case .activity(let value): activeToolCall = nil; activity = value; completionWindow.status(value); replyActivity.update(value, waiting: value.localizedCaseInsensitiveContains("waiting"))
+                    case .activity(let value):
+                        activeToolCall = nil; activity = value
+                        let reconnecting = value.localizedCaseInsensitiveContains("reconnect")
+                        let waiting = value.localizedCaseInsensitiveContains("waiting")
+                        let latest = conversation.messages.last(where: { $0.role == .assistant && $0.state == .streaming })
+                        let title = !waiting && !reconnecting && latest?.displayParts.last?.web != nil ? ActivitySummaries.web([latest!.displayParts.last!.web!]).title : value
+                        completionWindow.status(title); replyActivity.update(title, waiting: waiting, reconnecting: reconnecting)
                     case .finished: break
                     }
                 }
@@ -634,17 +648,24 @@ final class AppModel: ObservableObject {
                 }
             }
             requiresManualResume = !completedTurn && !handingOffToComputer
-            isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
-            completionWindow.end(success: completedTurn || handingOffToComputer || computerReply || pausedForInput || pausedForWorkBudget || responseAwaitingAttention)
             let savedComputerRun = if let id = activeTurnID { try? await store?.companionRun(id) } else { nil as CompanionRunRecord? }
             let computerStillWorking = !completedTurn && !userRequestedStop && computerReply && savedComputerRun?.jobID != nil && !["failed", "interrupted", "cancelled", "completed"].contains(savedComputerRun?.status ?? "unknown")
-            replyActivity.finish(completed: completedTurn, detached: computerStillWorking || handingOffToComputer)
-            if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear() }
+            await replyActivity.finish(completed: completedTurn, detached: computerStillWorking,
+                handingOff: handingOffToComputer && !completedTurn, waiting: pausedForInput || responseAwaitingAttention,
+                keepReady: UIApplication.shared.applicationState != .active)
+            if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear(); await replyActivity.viewed(conversationID: current.id) }
             if responseWasBackgrounded, !userRequestedStop, !handingOffToComputer, selection.taskNotifications, UIApplication.shared.applicationState != .active,
                completedTurn || !computerReply || pausedForInput || responseAwaitingAttention {
                 await taskAttention.notify(conversationID: current.id, title: completedTurn ? "Your reply is ready" : "Your task needs attention",
                     explanation: completedTurn ? "Open Personal Assistant to see the answer and saved results." : "Progress is saved. Open the task to review what remains and continue.")
             }
+            // Keep the same iOS processing window through the transfer and the
+            // PC event subscription. Handoff is not user-task completion.
+            // Final UI/notifications are delivered before ending execution time.
+            if !handingOffToComputer || completedTurn {
+                completionWindow.end(success: completedTurn || pausedForInput || pausedForWorkBudget || responseAwaitingAttention)
+            }
+            isRunning = false; responseTask = nil; activity = nil; activeToolCall = nil
             if !requiresManualResume, let titleBackend, conversation.needsAutomaticTitle, selection.automaticChatTitles {
                 let namedConversation = conversation
                 let generationID = UUID(); titleGenerationID = generationID
@@ -1060,6 +1081,7 @@ final class AppModel: ObservableObject {
         defer { if attentionDestination == id { attentionDestination = nil; isRestoringBackgroundRoute = false } }
         do { try await waitUntilReady() } catch { return }
         guard attentionDestination == id else { return }
+        await replyActivity.viewed(conversationID: id)
         if isRunning {
             if conversation.id == id { ReplyReturnRoute.clear(); await presentDeferredReview() }
             else { noticeMessage = "Another task is running. Its progress is saved in the sidebar." }
@@ -1080,18 +1102,21 @@ final class AppModel: ObservableObject {
         }
     }
     private func beginResponseWindow() {
-        let computerOwned = responseOnComputer
-        let continued = !computerOwned && settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
-        completionWindow.begin(allowContinued: continued) { [weak self] cancelledBySystem in
-            self?.systemEndedBackgroundWork = !computerOwned && cancelledBySystem
-            self?.pauseResponseForBackground()
+        let continued = settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
+        completionWindow.begin(allowContinued: continued, preservingCurrent: handingOffToComputer) { [weak self] cancelledBySystem in
+            guard let self else { return }
+            self.systemEndedBackgroundWork = !self.responseOnComputer && cancelledBySystem
+            self.pauseResponseForBackground()
         }
         if let activeTurnID { completionWindow.identifyTurn(activeTurnID) }
     }
     private func handoffResponseToComputer() {
         guard computerHandoff == nil, let connection = settings.companion, let store else { return }
         computerHandoff = Task {
-            defer { computerHandoff = nil; handingOffToComputer = false }
+            defer {
+                if handingOffToComputer && !isRunning { completionWindow.end(success: false) }
+                computerHandoff = nil; handingOffToComputer = false
+            }
             do {
                 let selection = settings
                 let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
@@ -1113,6 +1138,7 @@ final class AppModel: ObservableObject {
                       !chat.containsHealthData || chat.allowedHealthDestinations.contains(connection.destination) else { return }
                 let owner = try await backend(for: selection, onComputer: true)
                 handingOffToComputer = true
+                completionWindow.handoff()
                 prior.cancel(); await prior.value
                 guard !userRequestedStop, settings == selection, var work = try await store.workTurn(turn), work.phase != .completed,
                       let latest = try? await store.loadConversation(chat.id), latest.messages.last(where: \.isRequest)?.id == work.userMessageID else { return }

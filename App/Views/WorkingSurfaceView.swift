@@ -12,31 +12,46 @@ struct WorkingSurfaceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let surface {
-                Text(surface.title).font(.headline)
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: surfaceSymbol(surface)).font(.system(size: 17, weight: .medium)).foregroundStyle(.secondary).frame(width: 28, height: 28)
+                    Text(surface.title).font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if let subtitle = surface.spec["subtitle"]?.stringValue { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
                 content(surface)
                 if let failure { Label(failure, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.secondary) }
-                if saving { Text("Saving changes…").font(.caption2).foregroundStyle(.secondary) }
+                if saving { Label("Saving your changes", systemImage: "arrow.triangle.2.circlepath").font(.caption).foregroundStyle(.secondary) }
                 if surface.kind == .scenario { Text("Calculated on this iPhone from the displayed assumptions.").font(.caption2).foregroundStyle(.secondary) }
                 else if surface.dataCallID != nil { Text("Values from the saved calculation.").font(.caption2).foregroundStyle(.secondary) }
-                if surface.kind == .checklist { Text("Your checkmarks track progress; they do not confirm an external action.").font(.caption2).foregroundStyle(.secondary) }
+                if surface.kind == .checklist { Text("Tap an item to track your progress.").font(.caption).foregroundStyle(.secondary) }
                 if [.scenario, .comparison, .checklist].contains(surface.kind) {
                     if surface.revision > 1 { Text("Updated here · the earlier reply may use older inputs").font(.caption2).foregroundStyle(.secondary) }
                     Button {
                         let request = "Explain the latest changes to “\(surface.title)” and update any conclusions that depend on them."
                         if model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty { model.send(request) }
                         else { model.draft += (model.draft.isEmpty ? "" : "\n\n") + request }
-                    } label: { Label("Ask about these changes", systemImage: "arrow.turn.up.right").font(.subheadline.weight(.medium)) }
+                    } label: { Label("Ask about these changes", systemImage: "arrow.turn.up.right").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 32) }
                         .buttonStyle(.bordered).disabled(model.isRunning || saving)
                 }
             } else if let failure { Text(failure).font(.footnote).foregroundStyle(.secondary) }
             else { ProgressView("Opening working surface").controlSize(.small) }
         }
-        .padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+        .padding(18).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
+        .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5).allowsHitTesting(false) }
         .accessibilityIdentifier("working-surface")
         .task(id: "\(id)-\(model.conversation.messages.count)-\(model.isRunning)") {
             do { surface = try await model.store?.surfaces(conversationID: model.conversation.id).first(where: { $0.id == id }); if surface == nil { failure = "This surface is no longer in the active conversation." } }
             catch { failure = error.localizedDescription }
+        }
+    }
+    private func surfaceSymbol(_ surface: WorkSurface) -> String {
+        switch surface.kind {
+        case .metrics: "number.square"
+        case .chart: "chart.xyaxis.line"
+        case .table: "tablecells"
+        case .comparison: "rectangle.split.2x1"
+        case .checklist: "checklist"
+        case .timeline: "list.bullet.below.rectangle"
+        case .scenario: "slider.horizontal.3"
         }
     }
     @ViewBuilder private func content(_ surface: WorkSurface) -> some View {

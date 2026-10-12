@@ -89,6 +89,9 @@ struct CompanionModelBackend: RemoteTaskBackend {
         }
         var transcript = CompanionTranscript(jobID: UUID(uuidString: jobID)!, providerID: id, health: identity.containsHealthData)
         var pending: [String: ToolCall] = [:], answered = Set<String>(), retries = 0
+        var latestActivity = "Continuing your reply"
+        var replay = CompanionReplayGate(lastSyncedCursor: record.lastSyncedCursor)
+        var pendingReceipts: [(ToolCall, ToolResult)] = []
         while true {
             try Task.checkCancellation()
             let batch: JSONValue
@@ -100,28 +103,39 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 try await Task.sleep(for: .seconds(min(10, retries * 2))); continue
             }
             let events = batch["events"]?.arrayValue ?? []
-            var receipts: [ToolResult] = []
+            var observedActivity: String?
             for event in events {
                 if event["type"] == .string("phone_request"), let call = event["call"] {
                     let value = try JSONDecoder().decode(ToolCall.self, from: JSONEncoder().encode(call)); pending[value.id] = value
                 }
                 if let (call, result) = try transcript.apply(event) {
                     answered.insert(call.id); pending.removeValue(forKey: call.id)
-                    receipts.append(result)
-                    output.yield(.receipt(call, result))
+                    pendingReceipts.append((call, result))
                 }
-                if event["type"] == .string("activity"), let title = event["title"]?.stringValue { output.yield(.activity(title)) }
-                if event["type"] == .string("status"), let title = event["text"]?.stringValue { output.yield(.activity(title)) }
+                if event["type"] == .string("activity"), let title = event["title"]?.stringValue { observedActivity = title }
+                if event["type"] == .string("status"), let title = event["text"]?.stringValue,
+                   !["completed", "failed", "cancelled", "interrupted"].contains(event["status"]?.stringValue ?? "") { observedActivity = title }
             }
             // Persist one coherent projection per batch, including exact action
             // receipts and visible questions/answers, before moving the cursor.
-            if !events.isEmpty {
-                try await request.commitRemoteTranscript?(transcript.messages, receipts)
+            let snapshotCursor = Int(batch["job"]?["cursor"]?.numberValue ?? 0)
+            let canPublish = replay.canPublish(cursor: transcript.cursor, snapshotCursor: snapshotCursor)
+            if !events.isEmpty && canPublish {
+                try await request.commitRemoteTranscript?(transcript.messages, pendingReceipts.map(\.1))
+                for (call, result) in pendingReceipts { output.yield(.receipt(call, result)) }
+                pendingReceipts.removeAll()
+                record.lastSyncedCursor = transcript.cursor
+                if let observedActivity { latestActivity = observedActivity; output.yield(.activity(observedActivity)) }
+                output.yield(.transportProgress((try? JSONEncoder().encode(events).count) ?? 0))
                 output.yield(.transcript(transcript.messages))
+            } else if canPublish && batch["job"]?["status"] == .string("running") {
+                // A successful long poll confirms the connection, not more
+                // completed work. Keep status fresh without inventing progress.
+                output.yield(.activity(latestActivity))
             }
             record.status = batch["job"]?["status"]?.stringValue ?? record.status
             try await store.saveCompanionRun(record)
-            let caughtUp = transcript.cursor >= Int(batch["job"]?["cursor"]?.numberValue ?? 0)
+            let caughtUp = transcript.cursor >= snapshotCursor
             if !caughtUp { continue }
             if record.status == "completed" {
                 let files = try await importOutputs(path: path, identity: identity)

@@ -35,14 +35,14 @@ struct ResponseContentView: View {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(groups) { group in
                     if group.parts.count > 1 {
-                        AssistantDisclosure {
+                        AssistantDisclosure(identifier: "web-activity-group") {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(group.parts) { part in
                                     if let activity = part.web { WebActivityView(activity: resolved(activity)) }
                                 }
                             }.padding(.top, 10)
                         } label: {
-                            Label("Web research · \(group.parts.count) searches", systemImage: "globe").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                            ActivitySummaryLabel(summary: ActivitySummaries.web(group.parts.compactMap(\.web).map(resolved)))
                         }.tint(.secondary).transaction { $0.animation = nil }
                     } else if let part = group.parts.first, part.kind == .text {
                         let offset = parts.prefix(group.offset).reduce(0) { $0 + $1.citations.count }
@@ -86,14 +86,7 @@ struct WebActivityView: View {
                 }
             }.padding(.top, 10)
         } label: {
-            HStack(alignment: .center, spacing: 7) {
-                Group {
-                    if activity.isRunning { ProgressView().controlSize(.mini) }
-                    else { Image(systemName: activity.isSuccessful ? "globe" : "exclamationmark.circle") }
-                }.frame(width: 16, height: 16)
-                Text(activity.title).font(.caption.weight(.medium)).lineLimit(1)
-                if let page = activity.sources.first { Text(page.url.host ?? "").font(.caption2).lineLimit(1) }
-            }.foregroundStyle(.secondary).frame(minHeight: 22).padding(.vertical, 3)
+            ActivitySummaryLabel(summary: ActivitySummaries.web([activity]))
         }
         .tint(.secondary)
         .font(.caption).transaction { $0.animation = nil }

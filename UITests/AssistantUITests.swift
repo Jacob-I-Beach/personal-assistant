@@ -2,6 +2,64 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-activity103", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 15))
+        let research = app.buttons["web-activity-group"].firstMatch
+        XCTAssertTrue(research.waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 1)
+        app.activate()
+        XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 8))
+        XCTAssertTrue(research.exists)
+        let activity = app.buttons["activity-group"].firstMatch
+        for _ in 0..<5 { if activity.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(activity.isHittable); activity.tap()
+        let category = app.buttons["activity-category-Earlier conversations & files"].firstMatch
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.tap()
+        saveScreenshot(app, name: "Activity-summary-and-nested-receipts")
+        activity.tap()
+        for _ in 0..<5 { if research.isHittable { break }; app.swipeUp() }
+        research.tap()
+        saveScreenshot(app, name: "Live-research-before-completion")
+        XCTAssertTrue(app.buttons["Stop response"].exists)
+        app.buttons["Assistant menu"].tap(); app.buttons["Finish sample reply"].tap()
+        XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 8))
+        let item = app.buttons["Review the trail sources"]
+        if app.buttons["Jump to latest message"].exists { app.buttons["Jump to latest message"].tap() }
+        for _ in 0..<5 { if item.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(item.isHittable); item.tap()
+        let selected = NSPredicate { _, _ in item.value as? String == "Selected" }
+        expectation(for: selected, evaluatedWith: app); waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.buttons["Ask about these changes"].exists)
+        saveScreenshot(app, name: "Interactive-checklist-and-next-action")
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
+    }
+
+    func testActivityComponentsShowWorkingReadyAndReconnectingStates() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-activity103", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Assistant menu"].waitForExistence(timeout: 15))
+        app.buttons["Assistant menu"].tap(); app.buttons["Activity preview"].tap()
+        XCTAssertTrue(app.staticTexts["Comparing the trail sources"].firstMatch.waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Activity-working-compact-expanded-and-lock-screen")
+        app.segmentedControls.buttons["Ready"].tap()
+        XCTAssertTrue(app.staticTexts["Your reply is ready"].firstMatch.waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Activity-ready-with-green-check")
+        app.segmentedControls.buttons["Waiting"].tap()
+        XCTAssertTrue(app.staticTexts["Which trail would you prefer?"].firstMatch.waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Activity-needs-your-answer")
+        app.segmentedControls.buttons["Reconnecting"].tap()
+        XCTAssertTrue(app.staticTexts["Updating your progress"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Your reply is ready"].exists)
+        saveScreenshot(app, name: "Activity-reconnecting-without-false-completion")
+    }
+
     func testDailyWorkflowCapturesQuietlyResumesQuestionAndReviewsEvent() {
         executionTimeAllowance = 180
         continueAfterFailure = false
@@ -55,10 +113,10 @@ final class AssistantUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["Continue reply"].exists)
-        let activity = app.staticTexts["Activity"].firstMatch
+        let activity = app.buttons["activity-group"].firstMatch
         for _ in 0..<5 { if activity.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(activity.isHittable); activity.tap()
-        let history = app.staticTexts["Earlier conversations & files ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 5"]
+        let history = app.buttons["activity-category-Earlier conversations & files"].firstMatch
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
         let receipt = app.staticTexts["Read saved context"].firstMatch
         XCTAssertTrue(receipt.waitForExistence(timeout: 5)); receipt.tap()
@@ -388,7 +446,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Example reference"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Response-web-sources")
         app.staticTexts["Searched the web"].tap()
-        let activity = app.staticTexts["Activity"].firstMatch
+        let activity = app.buttons["activity-group"].firstMatch
         for _ in 0..<4 { if activity.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(activity.isHittable); activity.tap()
         let calculation = app.staticTexts["Calculated with JavaScript"]
@@ -585,11 +643,11 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-long-task", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15))
-        let group = app.staticTexts["Activity"].firstMatch
+        let group = app.buttons["activity-group"].firstMatch
         for _ in 0..<5 { if group.isHittable { break }; app.swipeDown() }
         let before = group.frame.minY; group.tap()
         XCTAssertLessThan(abs(group.frame.minY - before), 5)
-        let category = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Earlier conversations & files")).firstMatch
+        let category = app.buttons["activity-category-Earlier conversations & files"].firstMatch
         XCTAssertTrue(category.waitForExistence(timeout: 5)); category.tap()
         let row = app.staticTexts["Read saved context"].firstMatch
         let rowBefore = row.frame.minY; row.tap()

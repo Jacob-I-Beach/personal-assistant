@@ -65,7 +65,7 @@ export async function startCompanion(options={}) {
   const api=https.createServer({cert:tls.cert,key:tls.key},async(request,response)=>{
     try {
       const url=new URL(request.url,'https://computer.invalid');
-      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.1',server_id:serverId,name:'Personal Assistant Computer'});
+      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.3',server_id:serverId,name:'Personal Assistant Computer'});
       if(url.pathname==='/v1/pair'&&request.method==='POST'){
         if(session.status!=='connected'||!session.sharing)throw new Error('Sign in to ChatGPT on the computer before connecting a phone.');
         const body=await jsonBody(request,4096),device=pairing.redeem(body.pairing_code,body.device_name);
@@ -81,7 +81,7 @@ export async function startCompanion(options={}) {
         if(job)runner.cancel(job.id,owner);
         return jsonReply(response,200,{status:job?.status==='completed'?'completed':'cancelled',notice:'Stop recorded for this request. Any already-started action retains its actual receipt.'});
       }
-      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.1',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
+      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.3',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
       if(url.pathname==='/v1/models'&&request.method==='GET')return jsonReply(response,200,{models:await provider.listModels()});
       if(url.pathname==='/v1/metadata'&&request.method==='POST'){
         const body=await jsonBody(request,128*1024),connection=await provider.getSession();
@@ -187,7 +187,7 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.0.1',session,computation_ready:await runtime.available(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.0.3',session,computation_ready:await runtime.available(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       if(url.pathname==='/api/sign-in'){
         if(runner.active.size)throw new Error('Finish or stop active tasks before changing accounts.');
         lastError=null;provider.signIn().then(value=>{session=value;}).catch(error=>{lastError=String(error.message).slice(0,400);});

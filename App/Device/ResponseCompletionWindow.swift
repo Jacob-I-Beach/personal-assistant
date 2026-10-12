@@ -57,7 +57,12 @@ final class ResponseCompletionWindow {
             }
         }
     }
-    func begin(allowContinued: Bool = false, expired: @escaping @MainActor (Bool) -> Void) {
+    var hasExecutionTime: Bool { continued != nil || requestID != nil || shortWindow != .invalid }
+    func begin(allowContinued: Bool = false, preservingCurrent: Bool = false, expired: @escaping @MainActor (Bool) -> Void) {
+        if preservingCurrent, hasExecutionTime {
+            expiration = expired; record("continuing_on_computer")
+            return
+        }
         end(success: false, recordEnd: false); expiration = expired; units = 0; lastUpdate = .distantPast
         latestStatus = "Preparing your request"; diagnosticCode = nil; turnID = nil; record("preparing")
         shortWindow = UIApplication.shared.beginBackgroundTask(withName: "Finish assistant reply") { [weak self] in
@@ -109,6 +114,10 @@ final class ResponseCompletionWindow {
     func status(_ text: String) {
         guard latestStatus != text else { return }; latestStatus = text
         continued?.updateTitle("Personal Assistant", subtitle: String(text.prefix(90)))
+    }
+    func handoff() {
+        status("Continuing your reply")
+        record("handoff_in_progress")
     }
     func waitingForAttention(question: Bool) {
         let message = question ? "Your answer is needed" : "Ready for your review"

@@ -12,6 +12,7 @@ public enum RemoteTaskEvent: Sendable {
     case transcript([Message])
     case receipt(ToolCall, ToolResult)
     case activity(String)
+    case transportProgress(Int)
     case completed
 }
 /// The remote owner keeps running when this subscriber is cancelled. Only an
@@ -26,9 +27,21 @@ public struct CompanionRunRecord: Codable, Sendable {
     public var jobID: String?
     public var status: String
     public var stopRequested: Bool
+    public var lastSyncedCursor: Int?
     public init(turnID: UUID, connectionID: String, payload: JSONValue) {
         self.turnID = turnID; self.connectionID = connectionID; self.payload = payload
-        self.status = "queued"; self.stopRequested = false
+        self.status = "queued"; self.stopRequested = false; self.lastSyncedCursor = 0
+    }
+}
+
+/// Never replace a saved transcript with an older prefix while replaying pages.
+/// Old records without a cursor wait for the initial server snapshot boundary.
+public struct CompanionReplayGate: Sendable {
+    private var boundary: Int?
+    public init(lastSyncedCursor: Int?) { boundary = lastSyncedCursor }
+    public mutating func canPublish(cursor: Int, snapshotCursor: Int) -> Bool {
+        if boundary == nil { boundary = snapshotCursor }
+        return cursor >= (boundary ?? 0)
     }
 }
 extension LocalStore {
@@ -86,6 +99,7 @@ public struct CompanionTranscript: Sendable {
     private var activeIndex: Int?
     private var roundStart = 0
     private var toolIDs = Set<String>()
+    private var outputOrder: [String: Int] = [:]
     public init(jobID: UUID, providerID: String, health: Bool) { self.jobID = jobID; self.providerID = providerID; self.health = health }
     private func identifier(_ sequence: Int, role: Int = 0) -> UUID {
         let prefix = String(jobID.uuidString.prefix(24))
@@ -107,14 +121,40 @@ public struct CompanionTranscript: Sendable {
         case "response_begin":
             // Only the current, uncommitted response can be replaced after retry.
             if let index = activeIndex, messages[index].state != .complete { messages.removeSubrange(roundStart...) }
-            activeIndex = nil; roundStart = messages.count
+            activeIndex = nil; roundStart = messages.count; outputOrder = [:]
         case "text_delta":
             guard let text = event["text"]?.stringValue else { break }
             let index = ensureAssistant(sequence: sequence, date: date)
-            let key = event["item_id"]?.stringValue ?? "current"
+            let itemID = event["item_id"]?.stringValue ?? "current"
+            let order = event["output_index"]?.numberValue.flatMap(Int.init(exactly:))
+            let contentIndex = event["content_index"]?.numberValue.flatMap(Int.init(exactly:)) ?? 0
+            let key = order.map { "\($0):\(itemID):\(contentIndex)" } ?? itemID
             if let part = messages[index].responseParts.firstIndex(where: { $0.id == key }) { messages[index].responseParts[part].text += text }
             else { messages[index].responseParts.append(ResponsePart(id: key, text: text, phase: event["phase"]?.stringValue)) }
+            if let order { outputOrder[key] = order; sortParts(at: index) }
             messages[index].text = ResponsePresentation.text(in: messages[index].responseParts)
+        case "web_activity":
+            guard let item = event["item"], item["type"] == .string("web_search_call"),
+                  let order = event["output_index"]?.numberValue.flatMap(Int.init(exactly:)), order >= 0,
+                  let part = ResponsePresentation.parts(from: [order: item]).first else { break }
+            let index = ensureAssistant(sequence: sequence, date: date)
+            if let existing = messages[index].responseParts.firstIndex(where: { $0.id == part.id }) { messages[index].responseParts[existing] = part }
+            else { messages[index].responseParts.append(part) }
+            outputOrder[part.id] = order; sortParts(at: index)
+        case "annotation":
+            guard let annotation = event["annotation"], annotation["type"] == .string("url_citation"),
+                  let url = annotation["url"]?.stringValue, let index = activeIndex,
+                  let itemID = event["item_id"]?.stringValue,
+                  let order = event["output_index"]?.numberValue.flatMap(Int.init(exactly:)) else { break }
+            let contentIndex = event["content_index"]?.numberValue.flatMap(Int.init(exactly:)) ?? 0
+            let key = "\(order):\(itemID):\(contentIndex)"
+            if let part = messages[index].responseParts.firstIndex(where: { $0.id == key }),
+               let citation = WebCitation(title: annotation["title"]?.stringValue ?? "", url: url,
+                    startIndex: annotation["start_index"]?.numberValue.flatMap(Int.init(exactly:)),
+                    endIndex: annotation["end_index"]?.numberValue.flatMap(Int.init(exactly:))),
+               !messages[index].responseParts[part].citations.contains(where: { $0.url == citation.url }) {
+                messages[index].responseParts[part].citations.append(citation)
+            }
         case "continuation":
             let items = event["output"]?.arrayValue ?? []
             let index = ensureAssistant(sequence: sequence, date: date)
@@ -152,5 +192,11 @@ public struct CompanionTranscript: Sendable {
         default: break
         }
         return nil
+    }
+    private mutating func sortParts(at index: Int) {
+        messages[index].responseParts = messages[index].responseParts.enumerated().sorted {
+            let left = outputOrder[$0.element.id] ?? Int.max, right = outputOrder[$1.element.id] ?? Int.max
+            return left == right ? $0.offset < $1.offset : left < right
+        }.map(\.element)
     }
 }

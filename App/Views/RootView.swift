@@ -15,6 +15,7 @@ struct RootView: View {
     @State private var showHealth = false
     @State private var showWatchRequests = false
     @State private var showTaskActivity = false
+    @State private var showActivityPreview = false
     var body: some View {
         NavigationStack {
             ChatView().environmentObject(voice)
@@ -41,6 +42,12 @@ struct RootView: View {
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
+                            #if DEBUG
+                            if ProcessInfo.processInfo.arguments.contains("--ui-activity103") {
+                                Button("Activity preview") { showActivityPreview = true }
+                                Button("Finish sample reply") { Task { await model.finishActivityFixture() } }
+                            }
+                            #endif
                             Button("Connections", systemImage: "point.3.connected.trianglepath.dotted") { chatNavigation.showConnections = true }
                             Button("Task activity", systemImage: "list.bullet.rectangle") { showTaskActivity = true }
                             Button("Assistant inbox", systemImage: "tray") { model.showInbox = true }
@@ -96,6 +103,9 @@ struct RootView: View {
         .sheet(isPresented: $showHealth) { HealthOverviewView() }
         .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
         .sheet(isPresented: $showTaskActivity) { TaskActivityView() }
+        #if DEBUG
+        .sheet(isPresented: $showActivityPreview) { ActivityPreviewGallery() }
+        #endif
         .sheet(isPresented: $model.showInbox) { AssistantInboxView() }
         .sheet(isPresented: $model.showPlanningAccess) { PlanningAccessView(service: model.planning) }
         .onOpenURL { url in
