@@ -2,11 +2,15 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Windows.Forms;
 
 internal static class CompanionLauncher {
     private const string Setup = "http://127.0.0.1:48680/";
+    private static string Hash(string path) {
+        using(var hash=SHA256.Create())using(var file=File.OpenRead(path))return BitConverter.ToString(hash.ComputeHash(file));
+    }
     private static bool Ready() {
         try {
             var request = (HttpWebRequest)WebRequest.Create(Setup);
@@ -24,8 +28,14 @@ internal static class CompanionLauncher {
             if (!Ready()) {
                 string node = Path.Combine(root, "Runtime", "node.exe");
                 if (!File.Exists(node)) throw new Exception("The companion package is incomplete. Keep the Runtime folder beside this application.");
+                string authorizedRuntime = Path.Combine(root, "Runtime", "authorized-node.txt");
+                if(File.Exists(authorizedRuntime)) {
+                    string existing = File.ReadAllText(authorizedRuntime).Trim();
+                    if(!Path.IsPathRooted(existing)||!File.Exists(existing)||Hash(existing)!=Hash(node))throw new Exception("The previously authorized runtime changed or is missing. Run the companion updater to restore its connection.");
+                    node=existing;
+                }
                 if (!File.Exists(@"C:\Program Files\Git\usr\bin\openssl.exe")) throw new Exception("This computer needs Git for Windows (including OpenSSL) to create its private pairing certificate.");
-                var start = new ProcessStartInfo(node, "src/server.mjs --no-open") {
+                var start = new ProcessStartInfo(node, "\"" + Path.Combine(root,"src","server.mjs") + "\" --no-open") {
                     WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true
                 };
                 var process = Process.Start(start);

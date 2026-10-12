@@ -94,6 +94,8 @@ struct ModelLibraryView: View {
                             if let source = entry.sourceURL { Link("Model card & pinned package", destination: source).font(.caption) }
                             if model.downloadingModelID == entry.id {
                                 ProgressView(value: model.downloadProgress)
+                                Text(ByteCountFormatter.string(fromByteCount: Int64(Double(entry.downloadBytes) * model.downloadProgress), countStyle: .file) + " of " + entry.downloadSize)
+                                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                                 HStack { Text(model.modelStatus).font(.caption); Spacer(); Button("Stop", role: .cancel) { model.stopDownload() }.font(.subheadline) }
                             } else if model.downloadedModelIDs.contains(entry.id) {
                                 Button { model.chooseLocal(entry) } label: { Text("Use \(entry.name)").foregroundStyle(Color(uiColor: .systemBackground)) }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isRunning)

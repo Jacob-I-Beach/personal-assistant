@@ -54,7 +54,7 @@ export class HostRuntime {
   locationFor(call,job){return contextToolNames.has(call.name)&&!hasContext(call,job)?'phone':this.supports(call.name)?'computer':'phone';}
   reviewable(name){return ['connect_computer_folder','run_computer_command','computer_desktop','computer_browser'].includes(name);}
   async close(jobID){await this.browser.close(jobID);}
-  title(name){return ({computer_status:'Checking computer capabilities',connect_computer_folder:'Reviewing folder access',list_computer_files:'Looking through your computer files',read_computer_file:'Reading the selected file',write_computer_file:'Updating your file',run_computer_command:'Running a computer command',computer_desktop:'Working with the computer screen'})[name]??this.compute.title(name);}
+  title(name){return ({read_memory:'Checking saved context',search_history:'Searching this conversation',read_history:'Reading the earlier message',update_plan:'Updating the task plan',read_task:'Reviewing saved progress',computer_browser:'Working with the website',computer_status:'Checking computer capabilities',connect_computer_folder:'Reviewing folder access',list_computer_files:'Looking through your computer files',read_computer_file:'Reading the selected file',write_computer_file:'Updating your file',run_computer_command:'Running a computer command',computer_desktop:'Working with the computer screen'})[name]??this.compute.title(name);}
   summary(){return this.compute.summary()+' Also supplies scoped computer files, reviewed host commands and desktop interaction. GPU availability is reported by computer_status; no local model server is installed or used.';}
   available(){return this.compute.available();}
   async workspace(job){const path=join(this.root,job.id);await mkdir(path,{recursive:true});return realpath(path);}
@@ -68,7 +68,9 @@ export class HostRuntime {
   }
   async review(job,call,detail,signal){
     if(!this.approve)throw new Error('Computer review is unavailable for this request. Open a server-owned conversation.');
-    const result=await this.approve(job,call,{title:this.title(call.name),detail},signal);
+    if(detail.length>100000)throw new Error('Shorten this action so its complete details fit in the review.');
+    const title=({run_computer_command:'Run this computer command?',connect_computer_folder:'Connect this computer folder?',computer_browser:'Review browser action',computer_desktop:'Review computer action'})[call.name]??'Review computer action';
+    const result=await this.approve(job,call,{title,detail},signal);
     if(result?.output?.status!=='approved')throw Object.assign(new Error('The computer action was not approved.'),{publicMessage:'You cancelled this computer action. Nothing was executed.'});
     signal.throwIfAborted();
   }

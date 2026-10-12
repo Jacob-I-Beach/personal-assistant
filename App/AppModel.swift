@@ -662,6 +662,7 @@ final class AppModel: ObservableObject {
                 keepReady: UIApplication.shared.applicationState != .active)
             if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear(); await replyActivity.viewed(conversationID: current.id) }
             if responseWasBackgrounded, !userRequestedStop, !handingOffToComputer, selection.taskNotifications, UIApplication.shared.applicationState != .active,
+               !computerReply || !replyActivity.remoteNotificationsAvailable,
                completedTurn || !computerReply || pausedForInput || responseAwaitingAttention {
                 await taskAttention.notify(conversationID: current.id, title: completedTurn ? "Your reply is ready" : "Your task needs attention",
                     explanation: completedTurn ? "Open Personal Assistant to see the answer and saved results." : "Progress is saved. Open the task to review what remains and continue.")
@@ -1082,6 +1083,7 @@ final class AppModel: ObservableObject {
         } else { Task { await presentDeferredReview() } }
     }
     private func notifyReview(_ request: NativeActionRequest) async {
+        guard !responseOnComputer || !replyActivity.remoteNotificationsAvailable else { return }
         guard settings.taskNotifications, UIApplication.shared.applicationState != .active, isPendingNativeAction(request.id) else { return }
         await taskAttention.notify(conversationID: conversation.id, title: request.kind == .question ? "Your answer is needed" : "Your review is needed",
             explanation: request.kind == .question ? String(request.detail.prefix(200)) : request.kind == .message ? "A message draft is ready. Open the app to review it before sending." : request.kind == .calendar ? "An event is ready. Open the app to review it before saving." : "Your task is waiting for a choice or approval. Open the app to review the next step.")

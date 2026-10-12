@@ -16,9 +16,10 @@ import Foundation
     private var remoteJobID: String?
     private var remoteClient: CompanionClient?
     private var wantsNotifications = false
+    private(set) var remoteNotificationsAvailable = false
 
     func begin(conversationID: UUID, modelName: String, computer: Bool, reconnecting: Bool) {
-        tokenUpdates?.cancel(); deviceUpdates?.cancel(); remoteJobID = nil; remoteClient = nil
+        tokenUpdates?.cancel(); deviceUpdates?.cancel(); remoteJobID = nil; remoteClient = nil; remoteNotificationsAvailable = false
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         onComputer = computer; lastTitle = ""; lastUpdate = .distantPast; lastPhase = "working"
         let candidates = Activity<AssistantActivityAttributes>.activities.filter {
@@ -76,7 +77,12 @@ import Foundation
         for delay in [0, 2, 5] {
             if Task.isCancelled { return }
             if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
-            do { _ = try await client.json("/v1/jobs/" + job + "/push", method: "POST", body: .object(fields)); return }
+            do {
+                let response = try await client.json("/v1/jobs/" + job + "/push", method: "POST", body: .object(fields))
+                guard remoteJobID == job else { return }
+                remoteNotificationsAvailable = response["delivery_configured"] == .bool(true) && fields["device_token"] != nil && wantsNotifications
+                return
+            }
             catch { /* The task continues even if APNs provisioning is not ready. */ }
         }
     }

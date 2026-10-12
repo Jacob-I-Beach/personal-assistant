@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@siwc/local": "file:vendor/siwc-local",
+    "dompurify": "3.4.17",
+    "marked": "18.1.1",
     "playwright-core": "1.64.0",
     "qrcode": "1.5.4"
   },

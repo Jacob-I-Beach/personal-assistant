@@ -46,6 +46,7 @@ export async function startCompanion(options={}) {
   if(runtime instanceof HostRuntime)runtime.approve=(job,call,review,signal)=>runner.reviewComputer(job,call,review,signal);
   const push=new PushDelivery(store,options.pushOptions);
   runner.on('event',(id,event)=>push.queue(id,event));
+  runner.on('settled',id=>{const job=store.db.prepare('SELECT status FROM jobs WHERE id=?').get(id);if(job&&['completed','cancelled'].includes(job.status))Promise.resolve(runtime.close?.(id)).catch(()=>{});});
   const serverId=createHash('sha256').update(tls.cert).digest('hex').slice(0,32);
   let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
   const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>!closing&&session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
@@ -190,7 +191,7 @@ export async function startCompanion(options={}) {
     try {
       if(request.headers.host!==new URL(setupOrigin).host)throw Object.assign(new Error('Unexpected setup address.'),{status:403});
       const url=new URL(request.url,setupOrigin);
-      const staticFiles=new Map([['/','index.html'],['/app.js','app.js'],['/styles.css','styles.css'],['/workspace.css','workspace.css']]);
+      const staticFiles=new Map([['/','index.html'],['/app.js','app.js'],['/styles.css','styles.css'],['/workspace.css','workspace.css'],['/vendor/marked.js','../node_modules/marked/lib/marked.umd.js'],['/vendor/purify.js','../node_modules/dompurify/dist/purify.min.js']]);
       if(request.method==='GET'&&staticFiles.has(url.pathname)){
         let body=await readFile(join(assets,staticFiles.get(url.pathname)));
         const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"};
@@ -203,7 +204,7 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.0',session,computation_ready:await runtime.available(),push:push.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.0',package_path:fileURLToPath(new URL('../',import.meta.url)),session,computation_ready:await runtime.available(),push:push.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       if(url.pathname==='/api/push-configure'){push.configure(body);return jsonReply(response,200,push.status());}
       if(url.pathname==='/api/task'){
         const entry=store.list().find(job=>job.id===body.job_id);if(!entry)throw new Error('Task not found.');

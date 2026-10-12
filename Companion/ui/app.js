@@ -31,15 +31,15 @@ async function openTask(job){taskView={id:job.id,cursor:0,nodes:new Map(),files:
 async function refreshTask(){
   const view=taskView;if(!view||view.busy)return;view.busy=true;
   try{
-    let value;
+    let value;const dirty=new Set();
     do{value=await api('/api/task',{job_id:view.id,after:view.cursor});if(taskView!==view)return;
       byId('task-state').textContent=labels[value.job.status]??value.job.status;
       for(const event of value.events){view.cursor=event.seq;const root=byId('task-events');
         const key=event.item_id??'round-'+(event.round??0);
-        if(event.type==='text_delta'){let node=view.nodes.get(key);if(!node){node=element('div','','assistant-text');view.nodes.set(key,node);root.append(node);}node.textContent+=event.text??'';}
+        if(event.type==='text_delta'){let node=view.nodes.get(key);if(!node){node=element('div','','assistant-text');view.nodes.set(key,node);root.append(node);}node.sourceText=(node.sourceText??'')+(event.text??'');dirty.add(node);}
         if(event.type==='continuation')for(const item of event.output??[])if(item.type==='message'){
           const content=(item.content??[]).map(part=>part.text??part.refusal??'').join('');if(!content)continue;
-          let node=view.nodes.get(item.id);if(!node){node=element('div','','assistant-text');view.nodes.set(item.id,node);root.append(node);}node.textContent=content;
+          let node=view.nodes.get(item.id);if(!node){node=element('div','','assistant-text');view.nodes.set(item.id,node);root.append(node);}node.sourceText=content;dirty.add(node);
         }
         if(event.type==='activity')root.append(element('p',event.title,'task-step'));
         if(event.type==='phone_request'){
@@ -50,10 +50,12 @@ async function refreshTask(){
         }
         if(event.type==='executed_tool'){
           const prior=view.nodes.get('review-'+event.call.id);if(prior)prior.replaceChildren(element('p',event.result.output?.status==='approved'?'Action approved':'Review recorded'));
-          const details=document.createElement('details');details.className='tool-receipt';details.append(element('summary',(event.result.succeeded?'Completed · ':'Needs attention · ')+event.call.name.replaceAll('_',' ')));
+          const tool=event.call.name==='use_tool'?event.call.arguments?.name??event.call.name:event.call.name;
+          const details=document.createElement('details');details.className='tool-receipt';details.append(element('summary',(event.result.succeeded?'Completed · ':'Needs attention · ')+tool.replaceAll('_',' ')));
           const result=event.result.output??{};const text=result.output??result.stdout??result.text??result.error??result.verification??result.status??'Outcome saved';details.append(element('pre',String(text).slice(0,12000)));root.append(details);
         }
       }
+      for(const node of dirty){node.innerHTML=DOMPurify.sanitize(marked.parse(node.sourceText??''),{USE_PROFILES:{html:true}});for(const link of node.querySelectorAll('a')){link.rel='noopener noreferrer';link.target='_blank';}}dirty.clear();
     }while(value.events.length&&view.cursor<value.job.cursor);
     for(const file of value.files??[])if(!view.files.has(file.id)&&['artifact','inspection'].includes(file.role)){
       view.files.add(file.id);byId('task-files').append(action('Download '+file.filename,async()=>{

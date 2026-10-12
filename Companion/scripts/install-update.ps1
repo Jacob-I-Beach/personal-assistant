@@ -23,7 +23,16 @@ function Launch-Companion($path) {
     if (-not $process.WaitForExit(25000) -or $process.ExitCode -ne 0) { throw 'The companion did not become ready. The old package and all saved data are preserved.' }
 }
 
-$connection = Read-Setup
+$connection = $null
+try { $connection = Read-Setup } catch {
+    if ($CheckOnly) { Write-Output 'The existing service is not running. The updater can start the previously registered companion before updating it.'; exit }
+    $registered = Get-ItemPropertyValue -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'PersonalAssistantComputer' -ErrorAction Stop
+    if ($registered -notmatch '^"([^"]+PersonalAssistant-Computer\.exe)" --check$') { throw 'Open your currently installed companion, then run this update again.' }
+    $registeredLauncher = [IO.Path]::GetFullPath($Matches[1])
+    if (-not (Test-Path -LiteralPath $registeredLauncher)) { throw 'The previously installed companion is missing. Keep this complete package and open it to reconnect.' }
+    Launch-Companion $registeredLauncher
+    $connection = Read-Setup
+}
 $status = Setup-Request $connection '/api/status'
 $active = @($status.jobs | Where-Object { $_.status -notin @('completed','failed','cancelled','interrupted') })
 if ($active.Count -gt 0) { throw 'A computer task is still active. Let it finish, then open this update again.' }
@@ -36,8 +45,22 @@ if ($CheckOnly) {
 $ownerPID = (Get-NetTCPConnection -LocalPort 48681 -State Listen | Select-Object -First 1).OwningProcess
 $oldNode = (Get-Process -Id $ownerPID).Path
 $oldPackage = Split-Path -Parent (Split-Path -Parent $oldNode)
+if ($status.package_path -and [IO.Path]::IsPathRooted($status.package_path)) { $oldPackage = [IO.Path]::GetFullPath($status.package_path) }
 $previousLauncher = Join-Path $oldPackage 'PersonalAssistant-Computer.exe'
 if (-not (Test-Path -LiteralPath $previousLauncher)) { throw 'The running companion location could not be verified. Keep it running and use its setup controls to update.' }
+$reuseRuntime = $false
+if ((Get-FileHash -LiteralPath $oldNode -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $node -Algorithm SHA256).Hash) {
+    $rule = Get-NetFirewallRule -Name 'PersonalAssistant-Tailscale' -ErrorAction SilentlyContinue
+    if ($rule) {
+        $allowedProgram = ($rule | Get-NetFirewallApplicationFilter).Program
+        if ($allowedProgram -and [IO.Path]::GetFullPath($allowedProgram) -eq [IO.Path]::GetFullPath($oldNode)) {
+            # Reuse the byte-identical, already-authorized executable. No
+            # firewall permission is broadened or changed for this update.
+            [IO.File]::WriteAllText((Join-Path $package 'Runtime\authorized-node.txt'), $oldNode)
+            $reuseRuntime = $true
+        }
+    }
+}
 
 $stopped = $false
 try {
@@ -48,11 +71,13 @@ try {
     }
     if (Get-NetTCPConnection -LocalPort 48681 -State Listen -ErrorAction SilentlyContinue) { throw 'The existing companion is still closing. Its work was not force-stopped.' }
     $stopped = $true
-    Write-Output 'Approve the Windows prompt to update the existing Tailscale firewall rule.'
-    $helper = Join-Path $PSScriptRoot 'allow-tailscale.ps1'
-    $administrator = Start-Process -FilePath 'powershell.exe' -Verb RunAs -WindowStyle Hidden -ArgumentList @('-NoProfile','-File',('"' + $helper + '"')) -PassThru
-    $administrator.WaitForExit()
-    if ($administrator.ExitCode -ne 0) { throw 'Windows did not apply the firewall update.' }
+    if (-not $reuseRuntime) {
+        Write-Output 'Approve the Windows prompt to update the existing Tailscale firewall rule.'
+        $helper = Join-Path $PSScriptRoot 'allow-tailscale.ps1'
+        $administrator = Start-Process -FilePath 'powershell.exe' -Verb RunAs -WindowStyle Hidden -ArgumentList @('-NoProfile','-File',('"' + $helper + '"')) -PassThru
+        $administrator.WaitForExit()
+        if ($administrator.ExitCode -ne 0) { throw 'Windows did not apply the firewall update.' }
+    }
     Launch-Companion $launcher
     $verified = Setup-Request (Read-Setup) '/api/status'
     if ($verified.version -ne $version) { throw 'A different companion version answered. The update has not been confirmed.' }
