@@ -14,8 +14,10 @@ struct CompanionConnection: Codable, Equatable, Sendable {
     var destination: String { "computer:" + serverID + ":chatgpt:" + profileID }
 }
 
-/// The scanned certificate is the trust anchor for this single connection.
+/// The scanned certificate is the identity pin for this single connection.
 /// Never accept another certificate or follow a redirect with the device token.
+/// Info.plist permits this manual trust policy on Tailscale's address range;
+/// NSAllowsLocalNetworking alone does not cover those CGNAT addresses.
 final class CompanionTLS: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     let host: String
     let fingerprint: String

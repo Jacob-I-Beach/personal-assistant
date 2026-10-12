@@ -26,7 +26,18 @@
     <key>NSHealthShareUsageDescription</key><string>Read the measurements, activity, symptoms, medication and other Health records you select when they are relevant to your request. You choose what Health shares and whether a connected model can use the result.</string>
     <key>NSHealthClinicalHealthRecordsShareUsageDescription</key><string>Read clinical records you select to help you understand and organize your own health information.</string>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to a model server on your own computer when you select a LAN endpoint.</string>
-    <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+    <key>NSAppTransportSecurity</key><dict>
+        <key>NSAllowsLocalNetworking</key><true/>
+        <!-- Tailscale uses CGNAT addresses, outside the local-network exception.
+             Permit our QR-pinned trust evaluation for this range only. The
+             companion client still requires HTTPS, the exact certificate,
+             modern TLS and forward secrecy, and refuses redirects. -->
+        <key>NSExceptionDomains</key><dict>
+            <key>100.64.0.0/10</key><dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+            </dict>
+        </dict>
+    </dict>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
     <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
 </dict></plist>
