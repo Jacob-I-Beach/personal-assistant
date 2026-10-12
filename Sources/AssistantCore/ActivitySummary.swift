@@ -40,8 +40,22 @@ public enum ActivitySummaries {
             title = (running ? "Checking " : "Checked ") + actions.joined(separator: " · ")
         }
         if incomplete && !running { title = "Research partly finished" }
-        let subject = activities.count > 1 ? queries.first.map { compact($0, limit: 95) } : nil
-        let detail = subject ?? (sources.isEmpty ? (running ? "Looking for relevant sources" : "Open to see the search details") : "\(sources.count) linked \(sources.count == 1 ? "source" : "sources")")
+        var detail = sources.isEmpty ? (running ? "Looking for relevant sources" : "Open to see the search details") : "\(sources.count) linked \(sources.count == 1 ? "source" : "sources")"
+        if activities.count > 1 {
+            if !incomplete || running {
+                if let query = queries.first, !query.isEmpty {
+                    title = (running ? "Looking up “" : "Looked up “") + compact(query) + "”"
+                } else if let page = activities.flatMap(\.sources).first {
+                    title = (running ? "Reading “" : "Read “") + compact(page.title) + "”"
+                }
+            }
+            var counts: [String] = []
+            if searches > 0 { counts.append("\(searches) \(searches == 1 ? "search" : "searches")") }
+            if pages > 0 { counts.append("\(pages) \(pages == 1 ? "page" : "pages")") }
+            if finds > 0 { counts.append("\(finds) within-page \(finds == 1 ? "lookup" : "lookups")") }
+            if !sources.isEmpty { counts.append("\(sources.count) linked \(sources.count == 1 ? "source" : "sources")") }
+            detail = counts.joined(separator: " · ")
+        }
         return ActivitySummary(title: title, detail: detail, symbol: "globe", running: running, needsAttention: incomplete)
     }
 

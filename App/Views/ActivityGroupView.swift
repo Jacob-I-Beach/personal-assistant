@@ -22,7 +22,7 @@ struct ActivityGroupView: View {
         AssistantDisclosure(identifier: "activity-group") {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(categories) { group in
-                    if group.messages.count > 1 {
+                    if group.messages.count > 1 && categories.count > 1 {
                         AssistantDisclosure(nested: true, identifier: "activity-category-" + group.name) {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(group.messages) { WorkReceiptView(message: $0) }
@@ -30,14 +30,13 @@ struct ActivityGroupView: View {
                         } label: {
                             ActivitySummaryLabel(summary: ActivitySummaries.tools(group.messages, in: model.conversation.messages))
                         }
-                    } else if let message = group.messages.first { WorkReceiptView(message: message) }
+                    } else { ForEach(group.messages) { WorkReceiptView(message: $0) } }
                 }
             }.padding(.top, 12)
         } label: {
             ActivitySummaryLabel(summary: ActivitySummaries.tools(messages, in: model.conversation.messages))
         }
         .tint(.secondary).foregroundStyle(.secondary).transaction { $0.animation = nil }
-        .accessibilityIdentifier("activity-group")
     }
 }
 

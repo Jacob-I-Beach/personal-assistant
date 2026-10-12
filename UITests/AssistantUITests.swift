@@ -116,8 +116,6 @@ final class AssistantUITests: XCTestCase {
         let activity = app.buttons["activity-group"].firstMatch
         for _ in 0..<5 { if activity.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(activity.isHittable); activity.tap()
-        let history = app.buttons["activity-category-Earlier conversations & files"].firstMatch
-        XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
         let receipt = app.staticTexts["Read saved context"].firstMatch
         XCTAssertTrue(receipt.waitForExistence(timeout: 5)); receipt.tap()
         XCTAssertFalse(app.staticTexts["Technical details"].exists)
@@ -647,9 +645,8 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<5 { if group.isHittable { break }; app.swipeDown() }
         let before = group.frame.minY; group.tap()
         XCTAssertLessThan(abs(group.frame.minY - before), 5)
-        let category = app.buttons["activity-category-Earlier conversations & files"].firstMatch
-        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.tap()
         let row = app.staticTexts["Read saved context"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
         let rowBefore = row.frame.minY; row.tap()
         XCTAssertLessThan(abs(row.frame.minY - rowBefore), 5)
         saveScreenshot(app, name: "Nested-tool-hierarchy")

@@ -16,6 +16,9 @@ extension AppModel {
                 let result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: .object(["title": .string("Earlier trail notes"), "result": .array([.object(["text": .string("A short trail with a clear path is preferred.")])])]))
                 chat.messages += [Message(role: .assistant, text: "", toolCalls: [call]), Message(role: .tool, text: try result.modelText(), toolCallID: call.id)]
             }
+            let memoryCall = ToolCall(id: "example-memory", name: "read_memory", arguments: .object([:]))
+            let memoryResult = ToolResult(callID: memoryCall.id, name: memoryCall.name, succeeded: true, output: .object(["result": .array([])]))
+            chat.messages += [Message(role: .assistant, text: "", toolCalls: [memoryCall]), Message(role: .tool, text: try memoryResult.modelText(), toolCallID: memoryCall.id)]
             var response = Message(role: .assistant, text: "The river trail is shorter, while the woodland trail offers more shade. I’m comparing the remaining details.", state: .streaming)
             response.responseParts = [
                 ResponsePart(id: "0:search", web: WebActivity(status: "completed", queries: ["city walking trails accessibility shade"], sources: [WebCitation(title: "Example trail guide", url: "https://example.test/trails")!])),

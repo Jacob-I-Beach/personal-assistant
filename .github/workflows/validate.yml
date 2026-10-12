@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full UI suite, streaming repair, or a single capped EventKit/Release repair job
         type: choice
-        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification, response-09, health-09, foundation-10, companion-10, continuity-101, companion-tls, activity-103]
+        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification, response-09, health-09, foundation-10, companion-10, continuity-101, companion-tls, activity-103, activity-103-chat]
         default: full
 permissions:
   contents: read
@@ -191,7 +191,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.validation_scope == 'activity-103' && '["activity-103"]' || inputs.validation_scope == 'companion-tls' && '["companion-tls"]' || inputs.validation_scope == 'continuity-101' && '["continuity-101"]' || inputs.validation_scope == 'companion-10' && '["companion-10"]' || (inputs.validation_scope == 'foundation-10' && '["foundation-10"]' || (inputs.validation_scope == 'health-09' && '["health-review"]' || (inputs.validation_scope == 'response-09' && '["response-controls","health-recovery"]' || (inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))))))) }}
+        suite: ${{ fromJSON(inputs.validation_scope == 'activity-103-chat' && '["activity-103-chat"]' || inputs.validation_scope == 'activity-103' && '["activity-103"]' || inputs.validation_scope == 'companion-tls' && '["companion-tls"]' || inputs.validation_scope == 'continuity-101' && '["continuity-101"]' || inputs.validation_scope == 'companion-10' && '["companion-10"]' || (inputs.validation_scope == 'foundation-10' && '["foundation-10"]' || (inputs.validation_scope == 'health-09' && '["health-review"]' || (inputs.validation_scope == 'response-09' && '["response-controls","health-recovery"]' || (inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))))))) }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -224,6 +224,9 @@ jobs:
           fi
           test_options=()
           case "${{ matrix.suite }}" in
+            activity-103-chat)
+              scenarios="testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testToolExpansionAndLatestButtonPreserveIntentionalPosition"
+              ;;
             activity-103)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/ActivityLifecyclePlatformTests" "-only-testing:PersonalAssistantPlatformTests/HealthAndAttentionPlatformTests/testAttentionEndsProcessingNormallyAndReturnRouteIsOneShot")
               scenarios="testActivityComponentsShowWorkingReadyAndReconnectingStates testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testToolExpansionAndLatestButtonPreserveIntentionalPosition"

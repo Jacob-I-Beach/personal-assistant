@@ -197,7 +197,7 @@ struct ChatView: View {
                     }
                     if let call = model.activeToolCall {
                         ActiveWorkRow(title: model.activity ?? ToolResultPresentation.activeTitle(call))
-                    } else if let activity = model.activity, activity.hasPrefix("Retrying") || activity == "Reconnecting" || !model.conversation.messages.suffix(2).filter({ $0.state == .streaming }).flatMap(\.displayParts).contains(where: { $0.web?.isRunning == true }) {
+                    } else if let activity = model.activity, activity.hasPrefix("Retrying") || activity.hasPrefix("Reconnecting") || !model.conversation.messages.suffix(2).filter({ $0.state == .streaming }).flatMap(\.displayParts).contains(where: { $0.web?.isRunning == true }) {
                         ActiveWorkRow(title: activity)
                     }
                     if !model.isRunning, !model.conversation.messages.isEmpty,

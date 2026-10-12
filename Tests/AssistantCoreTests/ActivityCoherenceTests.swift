@@ -71,8 +71,8 @@ final class ActivityCoherenceTests: XCTestCase {
             WebActivity(status: "completed", queries: ["city walking trails"]),
             WebActivity(status: "in_progress", action: "open_page")
         ])
-        XCTAssertEqual(summary.title, "Checking 1 search · 1 page")
-        XCTAssertEqual(summary.detail, "city walking trails")
+        XCTAssertEqual(summary.title, "Looking up “city walking trails”")
+        XCTAssertEqual(summary.detail, "1 search · 1 page")
         XCTAssertTrue(summary.running)
         XCTAssertFalse(summary.needsAttention)
     }

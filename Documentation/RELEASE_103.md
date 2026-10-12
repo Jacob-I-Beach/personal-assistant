@@ -15,6 +15,7 @@ Candidate version 1.0.3, build 14. Jacob confirmed Tailscale pairing works and a
 - The custom compact Island uses a native circular progress indicator. Expanded and Lock Screen layouts share a restrained model header, current step, one useful recent step and elapsed time. Ready results stop the timer; lost updates are described as reconnecting rather than finished.
 - Tool groups summarize observed work and useful subjects rather than saying only “Activity” or “Web research.” Repeated chat/document reads receive counts, research distinguishes searches from page reads, and partial failures remain visible.
 - Disclosures have consistent touch areas, clearer nested backgrounds and smaller cumulative indentation while preserving the tapped reading position. Interactive working cards share an icon/title header, softer border and a clear next action.
+- A group containing only one category opens directly to its receipts; another category disclosure appears only when it helps organize mixed work. Research subjects lead the heading, with search/page/source counts underneath.
 - Completion notifications use a stable per-chat identity and clear old notifications when that chat is opened, including after a cold launch.
 
 ## Removed
@@ -23,6 +24,7 @@ Candidate version 1.0.3, build 14. Jacob confirmed Tailscale pairing works and a
 - The waveform used as the working indicator in the custom compact Island.
 - Automatic removal of a ready custom activity after 60 seconds.
 - Generic top-level activity category headings where actual work can be summarized.
+- The redundant second disclosure for groups that contain only one category.
 
 ## Validation and device limits
 
@@ -35,3 +37,5 @@ The ready result stays available until viewed or replaced, subject to iOS's Live
 The preserved background execution window permits live synchronization while iOS grants execution time. Fully suspended/terminated app updates still need APNs provisioning, which the current signing route does not provide. The PC continues independently and the chat catches up on return. This update does not claim to deliver fresh Island state while the phone is powered off or its app cannot receive updates.
 
 Install the iPhone build in place with the existing signing identity. The matching PC companion update preserves its certificate, device credential, account and task store; another pairing is not required.
+
+The PC package includes `Update-Companion.cmd`. It checks that the existing task list is idle, closes the companion through its reviewed local setup endpoint, requests administrator approval only to retarget the existing Tailscale firewall rule, starts the new companion as the normal Windows user and updates sign-in startup. Its read-only preflight passed against the installed service. Jacob is away from the PC, so the installed 1.0.1 service remains running and actual upgrade approval is pending.
