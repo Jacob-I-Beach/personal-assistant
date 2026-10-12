@@ -376,7 +376,21 @@ public actor AssistantEngine {
             var check = current
             try await appendUserResponse(result, turnID: turnID, destination: destination, conversation: &check)
         }
-        current.messages = prefix + messages
+        // A computer tool can finish while the phone hands off. Replace its
+        // provisional local receipt instead of displaying the same call twice.
+        let transferredCalls = Set(messages.filter { $0.role == .tool }.compactMap(\.toolCallID))
+        let kept = prefix.compactMap { original -> Message? in
+            var message = original
+            if message.role == .tool, let id = message.toolCallID, transferredCalls.contains(id) { return nil }
+            if message.role == .assistant {
+                let priorCount = message.toolCalls.count
+                message.toolCalls.removeAll { transferredCalls.contains($0.id) }
+                if priorCount != message.toolCalls.count { message.continuation = nil }
+                if priorCount > 0 && message.toolCalls.isEmpty && message.text.isEmpty && message.captureIDs.isEmpty && message.fileIDs.isEmpty { return nil }
+            }
+            return message
+        }
+        current.messages = kept + messages
         try await store.save(current)
     }
     private func applyHealthAuthorization(_ result: ToolResult, destination: String?, conversation: inout Conversation) throws {

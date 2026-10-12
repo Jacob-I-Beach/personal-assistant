@@ -42,8 +42,9 @@ export class ToolSessions {
       const result=operation.result??{callID:item.call_id,name:operation.request.name,succeeded:false,output:{status:'outcome_unknown',error:'The previous computer tool has no final receipt. Inspect its saved outputs before repeating it.'}};
       const value={type:'function_call_output',call_id:item.call_id,output:JSON.stringify({...result.output,tool_succeeded:result.succeeded,operation_id:item.call_id})};
       const index=input.findIndex(candidate=>candidate.type==='function_call_output'&&candidate.call_id===item.call_id);
+      let old;try{old=index>=0?JSON.parse(input[index].output):null;}catch{}
       if(index>=0)input[index]=value;else input.push(value);
-      receipts.push({call:{id:item.call_id,name:item.name.replace(/^assistant\./,''),arguments:JSON.parse(item.arguments)},result});
+      if(index<0||old?.status==='outcome_unknown'||old?.tool_succeeded!==result.succeeded)receipts.push({call:{id:item.call_id,name:item.name.replace(/^assistant\./,''),arguments:JSON.parse(item.arguments)},result});
     }
     return {input,receipts};
   }

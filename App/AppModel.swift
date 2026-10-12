@@ -641,7 +641,7 @@ final class AppModel: ObservableObject {
             replyActivity.finish(completed: completedTurn, detached: computerStillWorking || handingOffToComputer)
             if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear() }
             if responseWasBackgrounded, !userRequestedStop, !handingOffToComputer, selection.taskNotifications, UIApplication.shared.applicationState != .active,
-               completedTurn || !selection.useComputer || pausedForInput || responseAwaitingAttention {
+               completedTurn || !computerReply || pausedForInput || responseAwaitingAttention {
                 await taskAttention.notify(conversationID: current.id, title: completedTurn ? "Your reply is ready" : "Your task needs attention",
                     explanation: completedTurn ? "Open Personal Assistant to see the answer and saved results." : "Progress is saved. Open the task to review what remains and continue.")
             }
@@ -1098,6 +1098,11 @@ final class AppModel: ObservableObject {
                 // Probe before disturbing a healthy direct response. This makes
                 // an unavailable PC irrelevant to ordinary phone conversations.
                 let info = try await client.json("/v1/capabilities")
+                // A just-sent request may still be obtaining the direct account
+                // connection. Wait for its durable turn before handing it over.
+                while activeTurnID == nil && isRunning && !userRequestedStop && settings == selection && UIApplication.shared.applicationState != .active {
+                    try await Task.sleep(for: .milliseconds(100))
+                }
                 guard info["profile"]?["status"] == .string("connected"), info["profile"]?["sharing"] == .bool(true),
                       isRunning, !responseOnComputer, !userRequestedStop, !pausedForInput, !responseAwaitingAttention,
                       activeToolCall == nil || ComputerTools.names.contains(activeToolCall?.arguments["name"]?.stringValue ?? activeToolCall?.name ?? ""),

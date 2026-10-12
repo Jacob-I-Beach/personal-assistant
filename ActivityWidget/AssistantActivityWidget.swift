@@ -15,7 +15,7 @@ import WidgetKit
                     Spacer(minLength: 4)
                     phaseSymbol(context)
                 }
-                progress(context)
+                progress(context, maximumSteps: 2)
             }.padding(18).environment(\.colorScheme, .dark)
                 .activityBackgroundTint(Color(white: 0.075)).activitySystemActionForegroundColor(.white)
                 .widgetURL(destination(context.attributes.conversationID))
@@ -50,12 +50,12 @@ import WidgetKit
                 .symbolEffect(.variableColor.iterative, options: .repeating, isActive: true)
         }
     }
-    @ViewBuilder private func progress(_ context: ActivityViewContext<AssistantActivityAttributes>) -> some View {
+    @ViewBuilder private func progress(_ context: ActivityViewContext<AssistantActivityAttributes>, maximumSteps: Int = 3) -> some View {
         if context.state.phase == "working", !context.isStale {
-            let steps = Array((context.state.steps ?? []).suffix(3))
+            let steps = Array((context.state.steps ?? []).suffix(maximumSteps))
             ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                 HStack(spacing: 8) {
-                    Image(systemName: index == steps.count - 1 ? "circle.fill" : "checkmark").font(.system(size: 9, weight: .semibold)).foregroundStyle(index == steps.count - 1 ? Color.indigo : Color.secondary)
+                    Image(systemName: index == steps.count - 1 ? "circle.fill" : "circle").font(.system(size: 9, weight: .semibold)).foregroundStyle(index == steps.count - 1 ? Color.indigo : Color.secondary)
                     Text(step).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }

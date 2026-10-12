@@ -12,7 +12,7 @@ struct HealthAccessOutcome {
 @MainActor
 enum HealthAccessValidation {
     static func partition(_ types: Set<HKObjectType>,
-                          check: (Set<HKObjectType>) async throws -> Void) async throws -> (Set<HKObjectType>, [String: String]) {
+                          check: @MainActor (Set<HKObjectType>) async throws -> Void) async throws -> (Set<HKObjectType>, [String: String]) {
         guard !types.isEmpty else { return ([], [:]) }
         do { try await check(types); return (types, [:]) }
         catch {
