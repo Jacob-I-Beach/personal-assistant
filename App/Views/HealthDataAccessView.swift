@@ -7,6 +7,7 @@ struct HealthDataAccessView: View {
     @State private var search = ""
     @State private var busy = false
     @State private var notice: String?
+    @State private var unavailable: [String: String] = [:]
     @AppStorage("assistant.health.selectionDraft") private var selectionDraft = ""
     private var entries: [HealthDataType] { HealthDataCatalog.matching(search) }
     private var isFiltering: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -30,16 +31,27 @@ struct HealthDataAccessView: View {
                     Task {
                         defer { busy = false }
                         do {
-                            if !selected.isEmpty { try await HealthDataReader().requestAccess(selected) }
-                            var settings = model.settings; settings.healthTypeIDs = selected.intersection(supported); settings.healthToolsEnabled = !selected.isEmpty
+                            let outcome = selected.isEmpty ? HealthAccessOutcome(selected: [], unavailable: [:]) : try await HealthDataReader().requestAccess(selected)
+                            unavailable = outcome.unavailable
+                            var settings = model.settings; settings.healthTypeIDs = outcome.selected.intersection(supported); settings.healthToolsEnabled = !outcome.selected.isEmpty
                             try model.saveSettings(settings); AppFeedback.play(.saved)
-                            selectionDraft = ""
-                            notice = selected.isEmpty ? "Assistant Health reads are off. Existing Health permissions can be managed in iPhone Settings." : "Your selection is saved. Health controls which read records are shared."
+                            if unavailable.isEmpty { selectionDraft = "" }
+                            notice = selected.isEmpty ? "Assistant Health reads are off. Existing Health permissions can be managed in iPhone Settings." : unavailable.isEmpty ? "Your selection is saved. Health controls which read records are shared." : "Your supported selections are saved. Health could not connect \(unavailable.count) data types; the details below explain which ones."
                         } catch { notice = "Health access could not be updated. " + error.localizedDescription }
                     }
                 } label: { Text(busy ? "Saving…" : selected.isEmpty ? "Turn off Health reads" : "Connect selected data").frame(maxWidth: .infinity).foregroundStyle(Color(uiColor: .systemBackground)) }
                     .buttonStyle(.borderedProminent).tint(.primary).disabled(busy || !HealthOverviewService.isEnabledInThisBuild || model.isRunning)
                 if let notice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
+                if !unavailable.isEmpty {
+                    DisclosureGroup("Data types needing attention") {
+                        ForEach(unavailable.keys.sorted(), id: \.self) { id in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(HealthDataCatalog.entries.first(where: { $0.id == id })?.name ?? id).font(.subheadline.weight(.medium))
+                                Text(unavailable[id] ?? "").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
                 if !isFiltering && !HealthOverviewService.isEnabledInThisBuild { Text(HealthOverviewService.signingMessage).font(.footnote).foregroundStyle(.secondary) }
             }
             ForEach(groups, id: \.self) { group in

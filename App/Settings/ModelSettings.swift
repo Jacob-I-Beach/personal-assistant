@@ -99,6 +99,13 @@ struct ModelSettings: Codable, Equatable {
         companion = try values.decodeIfPresent(CompanionConnection.self, forKey: .companion)
         useComputer = try values.decodeIfPresent(Bool.self, forKey: .useComputer) ?? false
         contactsConnected = try values.decodeIfPresent(Bool.self, forKey: .contactsConnected) ?? false
+        if let companion, let account = chatGPTAccountID {
+            let oldPrefix = companion.destination + ":", newPrefix = "chatgpt-account:" + account + ":"
+            for (key, value) in contextTokensByModel where key.hasPrefix(oldPrefix) {
+                let migrated = newPrefix + key.dropFirst(oldPrefix.count)
+                if contextTokensByModel[migrated] == nil { contextTokensByModel[migrated] = value }
+            }
+        }
     }
 
     var endpoint: URL? {
@@ -112,7 +119,6 @@ struct ModelSettings: Codable, Equatable {
     var networkDestination: String? {
         if choice == .appleCloud { return "apple-private-cloud-compute" }
         if choice == .chatGPT {
-            if useComputer, let companion { return companion.destination }
             return chatGPTAccountID.map { "chatgpt-account:" + $0 }
         }
         return endpoint?.absoluteString

@@ -7,6 +7,8 @@ struct AssistantActivityAttributes: ActivityAttributes, Sendable {
         var detail: String
         var phase: String
         var updatedAt: Date
+        var steps: [String]? = nil
+        var onComputer: Bool? = nil
     }
     var conversationID: String
     var startedAt: Date

@@ -14,6 +14,10 @@ extension AppModel {
         guard let connection = settings.companion, let store,
               let client = try? CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount)),
               let pending = try? await store.pendingCompanionStops(connectionID: connection.destination) else { return }
+        for (turn, job) in (try? await store.pendingComputerToolStops(destination: connection.destination)) ?? [] {
+            do { _ = try await client.json("/v1/jobs/" + job + "/cancel", method: "POST", body: .object([:])); try await store.markComputerToolStop(turn, delivered: true) }
+            catch { noticeMessage = "Stop is saved and will reach your computer when it reconnects." }
+        }
         for var record in pending {
             do {
                 let result = try await client.json("/v1/cancel-request", method: "POST", body: .object(["request_key": record.payload["request_key"] ?? .string(record.turnID.uuidString)]))
@@ -23,8 +27,8 @@ extension AppModel {
         }
     }
     func executeScheduleTool(_ call: ToolCall) async throws -> ToolResult {
-        guard settings.useComputer, let connection = settings.companion, let turn = ToolExecutionContext.current?.turnID,
-              let source = try await store?.companionRun(turn), let jobID = source.jobID else { throw AssistantError.invalidTool("Connect your computer and run this task there before scheduling follow-up work.") }
+        guard settings.useComputer, !settings.localOnly, let connection = settings.companion, let turn = ToolExecutionContext.current?.turnID,
+              let store else { throw AssistantError.invalidTool("Connect your computer before scheduling follow-up work.") }
         let args = call.arguments
         guard let first = ISO8601DateFormatter().date(from: args["first_run"]?.stringValue ?? ""), first > Date(),
               let zone = TimeZone(identifier: args["time_zone"]?.stringValue ?? ""), let task = args["task"]?.stringValue, (1...6000).contains(task.count),
@@ -39,6 +43,16 @@ extension AppModel {
         let summary = "\(title)\n\n\(task)\n\nFirst: \(formatter.string(from: first))\nTime zone: \(zone.identifier)\n\(cadence.capitalized) · \(count) run(s)\n\nEach run can research and create a draft for up to 10 minutes and 12 tool steps. It uses the input snapshots already shared with your PC and your ChatGPT allowance. It cannot send messages or change your phone's data. Your PC must stay on."
         guard try await reviewNativeAction(.init(kind: .approval, title: "Schedule this work?", detail: summary, arguments: args)) == "approved" else { return .init(callID: call.id, name: call.name, succeeded: false, output: .object(["status": .string("cancelled"), "scheduled": .bool(false)])) }
         let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
+        let jobID: String
+        if let source = try await store.companionRun(turn), let id = source.jobID { jobID = id }
+        else {
+            var source: [String: JSONValue] = ["request_key": .string("schedule-source:" + turn.uuidString + ":" + call.id), "turn_id": .string(turn.uuidString), "conversation_id": .string(conversation.id.uuidString), "profile_id": .string(connection.profileID), "title": .string(title), "catalog": .array([]),
+                "body": .object(["model": .string(settings.chatGPTModel), "instructions": .string("Complete the reviewed scheduled task. Use only its shared input snapshots and authorized computer tools. Report the actual result with sources where appropriate."), "input": .array([.object(["role": .string("user"), "content": .string(task)])]), "tools": .array(settings.chatGPTWebSearch ? [.object(["type": .string("web_search")])] : [])])]
+            if let workspace = try await store.computerToolWorkspace(turn), workspace["destination"] == connection.destination, let id = workspace["job_id"] { source["source_tool_session_id"] = .string(id) }
+            let saved = try await client.json("/v1/jobs", method: "POST", body: .object(source))
+            guard let id = saved["id"]?.stringValue else { throw AssistantError.provider("The computer could not save the schedule's inputs.") }
+            jobID = id
+        }
         let result = try await client.json("/v1/schedules", method: "POST", body: .object([
             "request_key": .string(turn.uuidString + ":" + call.id), "source_job_id": .string(jobID), "title": .string(title), "prompt": .string(task),
             "run_at": .array(times.map { .number(($0.timeIntervalSince1970 * 1000).rounded()) })
@@ -65,7 +79,7 @@ extension AppModel {
         chat.allowedNetworkDestinations.insert(connection.destination)
         if payload["contains_health_data"] == .bool(true) { chat.allowedHealthDestinations.insert(connection.destination) }
         chat.messages = [Message(id: turnID, role: .user, text: prompt, containsHealthData: payload["contains_health_data"] == .bool(true))]
-        let selectedBackend = try await backend(for: next)
+        let selectedBackend = try await backend(for: next, onComputer: true)
         var work = WorkTurn(id: turnID, conversationID: chatID, userMessageID: turnID, backendID: selectedBackend.id, destination: selectedBackend.networkDestination, goal: String(prompt.prefix(350)))
         work.phase = .interrupted; work.reason = "Scheduled result on your computer"
         var record = CompanionRunRecord(turnID: turnID, connectionID: connection.destination, payload: payload)

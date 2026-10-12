@@ -53,20 +53,36 @@ final class HealthDataReader {
                 "access_note": .string(available ? "iOS separately controls which read data is shared." : entry.kind == "clinical" ? "This installation does not have clinical-record access." : "Not exposed on this system.")])
         }), "matching_types": .number(Double(found.count)), "more_types": .bool(found.count > 100)])
     }
-    func requestAccess(_ selected: Set<String>) async throws {
+    func requestAccess(_ selected: Set<String>) async throws -> HealthAccessOutcome {
         try available()
         let plan = HealthAuthorizationPlan(selected: selected)
         guard !plan.ordinary.isEmpty || !plan.perObject.isEmpty else { throw AssistantError.invalidTool("Choose at least one available Health data type.") }
-        if !plan.ordinary.isEmpty {
+        let (ordinary, rejected) = try await HealthAccessValidation.partition(plan.ordinary) { types in
+            try await self.authorization { finish in
+                self.store.getRequestStatusForAuthorization(toShare: [], read: types) { _, error in finish(error == nil, error) }
+            }
+        }
+        if ordinary.isEmpty && plan.perObject.isEmpty {
+            throw AssistantError.provider("Health cannot accept these data types in this installation. " + (rejected.values.first ?? "Your selection is kept."))
+        }
+        var unavailable = rejected
+        if !ordinary.isEmpty {
             try await authorization { finish in
-                self.store.requestAuthorization(toShare: [], read: plan.ordinary, completion: finish)
+                self.store.requestAuthorization(toShare: [], read: ordinary, completion: finish)
             }
         }
         for type in plan.perObject {
-            try await authorization { finish in
-                self.store.requestPerObjectReadAuthorization(for: type, predicate: nil, completion: finish)
-            }
+            do {
+                try await authorization { finish in self.store.requestPerObjectReadAuthorization(for: type, predicate: nil, completion: finish) }
+            } catch { unavailable[type.identifier] = error.localizedDescription }
         }
+        let accepted = selected.filter { id in
+            let itemPlan = HealthAuthorizationPlan(selected: [id])
+            return !itemPlan.ordinary.isEmpty || !itemPlan.perObject.isEmpty
+                ? itemPlan.ordinary.allSatisfy { unavailable[$0.identifier] == nil } && itemPlan.perObject.allSatisfy { unavailable[$0.identifier] == nil }
+                : false
+        }
+        return HealthAccessOutcome(selected: Set(accepted), unavailable: unavailable)
     }
     private func authorization(_ request: (@escaping @Sendable (Bool, (any Error)?) -> Void) -> Void) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in

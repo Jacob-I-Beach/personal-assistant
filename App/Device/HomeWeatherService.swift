@@ -10,6 +10,11 @@ final class HomeWeatherService: ObservableObject {
     private var requestID = UUID()
     private var lastAttempt = Date.distantPast
     private var lastConfiguration = ""
+    var nextRefreshDelay: TimeInterval {
+        let latest = max(lastAttempt, weather?.retrievedAt ?? .distantPast)
+        guard latest != .distantPast else { return 300 }
+        return min(300, max(1, 300 - Date().timeIntervalSince(latest)))
+    }
     private static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 15; config.timeoutIntervalForResource = 20

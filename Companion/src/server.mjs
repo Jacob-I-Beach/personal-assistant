@@ -16,6 +16,7 @@ import {Pairing} from './pairing.mjs';
 import {certificate} from './certificate.mjs';
 import {jsonBody,jsonReply,validateJob} from './http-helpers.mjs';
 import {Scheduler} from './scheduler.mjs';
+import {ToolSessions} from './tool-sessions.mjs';
 
 const assets=fileURLToPath(new URL('../ui/',import.meta.url));
 const terminal=new Set(['completed','failed','cancelled','interrupted']);
@@ -38,7 +39,8 @@ export async function startCompanion(options={}) {
   const store=new JobStore(join(root,'work.db'),vault),pairing=new Pairing(store,vault);
   const runtime=options.runtime??new ComputeRuntime({root:join(root,'temporary-executions'),store});
   const provider=options.provider??createChatGPT({appName:'Personal Assistant Computer',appId:'personal-assistant-companion',redirectPort:0,storageDir:join(root,'chatgpt'),credentialEncryption,sendHostId:true,openBrowser});
-  const runner=new JobRunner(store,provider,runtime);
+  const toolSessions=new ToolSessions(store,runtime);
+  const runner=new JobRunner(store,provider,runtime,job=>toolSessions.prepareHandoff(job));
   const serverId=createHash('sha256').update(tls.cert).digest('hex').slice(0,32);
   let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
   const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>!closing&&session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
@@ -63,19 +65,23 @@ export async function startCompanion(options={}) {
   const api=https.createServer({cert:tls.cert,key:tls.key},async(request,response)=>{
     try {
       const url=new URL(request.url,'https://computer.invalid');
-      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.0',server_id:serverId,name:'Personal Assistant Computer'});
+      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.1',server_id:serverId,name:'Personal Assistant Computer'});
       if(url.pathname==='/v1/pair'&&request.method==='POST'){
         if(session.status!=='connected'||!session.sharing)throw new Error('Sign in to ChatGPT on the computer before connecting a phone.');
         const body=await jsonBody(request,4096),device=pairing.redeem(body.pairing_code,body.device_name);
         return jsonReply(response,200,{...device,server_id:serverId,profile_id:session.profileId??null});
       }
       const owner=pairing.authenticate(request.headers.authorization);
+      if(url.pathname==='/v1/tool-sessions'&&request.method==='POST'){
+        const job=toolSessions.create(owner,await jsonBody(request,8192));
+        return jsonReply(response,200,{id:job.id});
+      }
       if(url.pathname==='/v1/cancel-request'&&request.method==='POST'){
         const body=await jsonBody(request,4096),job=store.cancelRequest(owner,body.request_key);
         if(job)runner.cancel(job.id,owner);
         return jsonReply(response,200,{status:job?.status==='completed'?'completed':'cancelled',notice:'Stop recorded for this request. Any already-started action retains its actual receipt.'});
       }
-      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.0',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
+      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.0.1',profile:session,computer_tools:computerTools,computation_ready:await runtime.available(),background_work:'Owned by this computer; phone operations wait for the phone.'});
       if(url.pathname==='/v1/models'&&request.method==='GET')return jsonReply(response,200,{models:await provider.listModels()});
       if(url.pathname==='/v1/metadata'&&request.method==='POST'){
         const body=await jsonBody(request,128*1024),connection=await provider.getSession();
@@ -94,7 +100,17 @@ export async function startCompanion(options={}) {
         const payload=validateJob(await jsonBody(request,40*1024*1024));
         const connection=await provider.getSession();
         if(!connection.sharing||connection.status!=='connected'||payload.profile_id!==connection.profileId)throw Object.assign(new Error('Reconnect the computer’s ChatGPT account before starting this task.'),{status:409});
+        const source=payload.source_tool_session_id?store.get(payload.source_tool_session_id,owner):null;
+        if(source&&(!source.payload.execution_only||source.payload.turn_id!==payload.turn_id||source.payload.conversation_id!==payload.conversation_id))throw new Error('The tool workspace belongs to another task.');
         const result=store.create(owner,payload.request_key,payload);
+        if(source){
+          const copied=new Set(store.files(result.job.id,owner).map(file=>file.id));
+          for(const metadata of store.files(source.id,owner)){
+            if(copied.has(metadata.id))continue;
+            const file=store.file(source.id,owner,metadata.id);
+            store.saveFile(result.job.id,{...metadata,version:undefined,sha:undefined},file.data);
+          }
+        }
         return jsonReply(response,result.created?201:200,publicJob(result.job));
       }
       const match=url.pathname.match(/^\/v1\/jobs\/([a-zA-Z0-9-]+)(?:\/(.*))?$/);
@@ -102,8 +118,9 @@ export async function startCompanion(options={}) {
       const id=match[1],action=match[2]??'',job=store.metadata(id,owner);
       if(!action&&request.method==='GET')return jsonReply(response,200,publicJob(job));
       if(action==='resume-info'&&request.method==='GET')return jsonReply(response,200,{job:publicJob(job),payload:store.get(id,owner).payload});
-      if(action==='start'&&request.method==='POST'){const body=await jsonBody(request,4096);if(body.context_text_bytes!=null)store.contextBudget(id,owner,body.context_text_bytes);return jsonReply(response,200,publicJob(await startJob(store.get(id,owner))));}
-      if(action==='cancel'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(runner.cancel(id,owner)));}
+      if(action==='start'&&request.method==='POST'){const body=await jsonBody(request,4096);if(store.get(id,owner).payload.execution_only)throw new Error('This workspace is for tools only.');if(body.context_text_bytes!=null)store.contextBudget(id,owner,body.context_text_bytes);return jsonReply(response,200,publicJob(await startJob(store.get(id,owner))));}
+      if(action==='execute-tool'&&request.method==='POST')return jsonReply(response,200,toolSessions.start(id,owner,await jsonBody(request,256*1024)));
+      if(action==='cancel'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(store.get(id,owner).payload.execution_only?toolSessions.cancel(id,owner):runner.cancel(id,owner)));}
       if(action==='events'&&request.method==='GET'){
         const after=Number(url.searchParams.get('after')??0),wait=Math.min(25000,Math.max(0,Number(url.searchParams.get('wait_ms'))||0));
         let events=store.events(id,owner,after);
@@ -170,7 +187,7 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.0.0',session,computation_ready:await runtime.available(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().map(publicJob),error:lastError});
+      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.0.1',session,computation_ready:await runtime.available(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().map(publicJob),error:lastError});
       if(url.pathname==='/api/sign-in'){
         if(runner.active.size)throw new Error('Finish or stop active tasks before changing accounts.');
         lastError=null;provider.signIn().then(value=>{session=value;}).catch(error=>{lastError=String(error.message).slice(0,400);});
@@ -207,6 +224,7 @@ export async function startCompanion(options={}) {
     while(scheduler.busy)await new Promise(resolveWait=>setTimeout(resolveWait,20));
     for(const job of store.incomplete())if(runner.active.has(job.id))runner.interrupt(job.id);
     await Promise.all([...runner.active.values()].map(value=>value.promise));
+    await toolSessions.close();
     await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();
   })();
   return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,close:closeService};

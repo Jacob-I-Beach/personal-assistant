@@ -42,14 +42,16 @@ struct CompanionModelBackend: RemoteTaskBackend {
             guard saved.connectionID == connection.destination else { throw AssistantError.provider("Reconnect the computer and account originally used for this task.") }
             record = saved
         } else {
-            let payload: JSONValue = .object([
+            var fields: [String: JSONValue] = [
                 "request_key": .string(identity.turnID.uuidString), "turn_id": .string(identity.turnID.uuidString),
                 "conversation_id": .string(identity.conversationID.uuidString), "profile_id": .string(connection.profileID),
                 "title": .string(String((request.messages.last(where: { $0.message.isRequest })?.message.text ?? "Assistant task").prefix(120))),
                 "contains_health_data": .bool(identity.containsHealthData), "body": try wire.responsesBody(request, includeFileContents: false),
                 "catalog": .array(request.toolCatalog.map { .object(["name": .string($0.name), "description": .string($0.description), "parameters": $0.parameters]) }),
                 "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40), "context_text_bytes": .number(Double(contextLimits.maximumTextBytes))])
-            ])
+            ]
+            if let workspace = try await store.computerToolWorkspace(identity.turnID), workspace["destination"] == connection.destination, let job = workspace["job_id"] { fields["source_tool_session_id"] = .string(job) }
+            let payload = JSONValue.object(fields)
             record = CompanionRunRecord(turnID: identity.turnID, connectionID: connection.destination, payload: payload)
             // Save before POST: if its reply is lost, the original key and bytes
             // recover that job instead of silently submitting different work.

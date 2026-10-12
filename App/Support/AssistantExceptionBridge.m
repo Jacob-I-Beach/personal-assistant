@@ -8,7 +8,7 @@
     } @catch (NSException *exception) {
         if (error) {
             *error = [NSError errorWithDomain:@"Assistant.FrameworkValidation" code:1 userInfo:@{
-                NSLocalizedDescriptionKey: @"The system could not accept this access request. Your selection is kept so you can adjust it and try again.",
+                NSLocalizedDescriptionKey: [@"Health could not accept this request. " stringByAppendingString: exception.reason ?: @"The selected types are unavailable in this installation."],
                 NSLocalizedFailureReasonErrorKey: exception.reason ?: exception.name
             }];
         }

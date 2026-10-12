@@ -34,7 +34,6 @@ struct WelcomeWorkspaceView: View {
                             Link("Open-Meteo", destination: URL(string: "https://open-meteo.com/")!)
                             Text("· Observed \(value.observedAt.formatted(date: .omitted, time: .shortened))")
                         }.font(.caption2).foregroundStyle(.secondary)
-                        Text("Checked \(value.retrievedAt, style: .relative) ago").font(.caption2).foregroundStyle(.secondary)
                         if let status = weather.status { Text(status).font(.caption2).foregroundStyle(.secondary) }
                     } else if let status = weather.status { Text(status).font(.caption).foregroundStyle(.secondary) }
                 }
@@ -87,7 +86,7 @@ struct WelcomeWorkspaceView: View {
                         await model.planning.refreshHome(settings: model.settings)
                         lastPlanningRefresh = Date()
                     }
-                    do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                    do { try await Task.sleep(for: .seconds(weather.nextRefreshDelay)) } catch { return }
                 }
             }
     }

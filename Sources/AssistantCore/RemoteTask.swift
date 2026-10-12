@@ -32,6 +32,29 @@ public struct CompanionRunRecord: Codable, Sendable {
     }
 }
 extension LocalStore {
+    public func computerToolWorkspace(_ turnID: UUID) throws -> [String: String]? {
+        try database.execute("CREATE TABLE IF NOT EXISTS computer_tool_workspaces(id TEXT PRIMARY KEY,payload BLOB NOT NULL)")
+        guard let data = try database.execute("SELECT payload FROM computer_tool_workspaces WHERE id=?", [.text(turnID.uuidString)]).first?[0].data else { return nil }
+        return try Self.decode([String: String].self, data)
+    }
+    public func saveComputerToolWorkspace(_ turnID: UUID, jobID: String, destination: String) throws {
+        _ = try computerToolWorkspace(turnID)
+        try database.execute("INSERT INTO computer_tool_workspaces(id,payload) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", [.text(turnID.uuidString), .blob(try Self.encode(["job_id": jobID, "destination": destination]))])
+    }
+    public func markComputerToolStop(_ turnID: UUID, delivered: Bool = false) throws {
+        guard var value = try computerToolWorkspace(turnID) else { return }
+        value["stop_requested"] = "true"; value["stop_delivered"] = delivered ? "true" : "false"
+        try database.execute("UPDATE computer_tool_workspaces SET payload=? WHERE id=?", [.blob(try Self.encode(value)), .text(turnID.uuidString)])
+    }
+    public func pendingComputerToolStops(destination: String) throws -> [(UUID, String)] {
+        _ = try computerToolWorkspace(UUID())
+        return try database.execute("SELECT id,payload FROM computer_tool_workspaces").compactMap { row in
+            guard let id = row[0].text.flatMap(UUID.init(uuidString:)), let data = row[1].data else { return nil }
+            let value = try Self.decode([String: String].self, data)
+            guard value["destination"] == destination, value["stop_requested"] == "true", value["stop_delivered"] != "true", let job = value["job_id"] else { return nil }
+            return (id, job)
+        }
+    }
     public func companionRun(_ turnID: UUID) throws -> CompanionRunRecord? {
         try database.execute("CREATE TABLE IF NOT EXISTS companion_runs(id TEXT PRIMARY KEY,payload BLOB NOT NULL)")
         guard let data = try database.execute("SELECT payload FROM companion_runs WHERE id=?", [.text(turnID.uuidString)]).first?[0].data else { return nil }

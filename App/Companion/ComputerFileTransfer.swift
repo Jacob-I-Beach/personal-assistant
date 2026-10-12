@@ -10,8 +10,7 @@ enum ComputerFileTools {
 extension AppModel {
     func transferFileToComputer(_ call: ToolCall, conversationID: UUID) async throws -> ToolResult {
         guard let store, settings.useComputer, let connection = settings.companion, let turn = ToolExecutionContext.current?.turnID,
-              let run = try await store.companionRun(turn), let jobID = run.jobID,
-              let id = call.arguments["id"]?.stringValue.flatMap(UUID.init(uuidString:)) else { throw AssistantError.invalidTool("Choose a Library file and run this task through your connected computer.") }
+              let id = call.arguments["id"]?.stringValue.flatMap(UUID.init(uuidString:)) else { throw AssistantError.invalidTool("Choose a Library file and connect your computer.") }
         let chat = try await store.loadConversation(conversationID)
         let data: Data, name: String, computerID: String, health: Bool
         if call.arguments["kind"] == .string("artifact") {
@@ -22,7 +21,7 @@ extension AppModel {
             data = try Data(contentsOf: await store.workspaceFileURL(id)); name = file.filename; computerID = id.uuidString; health = file.containsHealthData
         }
         guard !health || chat.allowedHealthDestinations.contains(connection.destination) else { throw AssistantError.networkNotAuthorized }
-        let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
+        let (client, jobID) = try await computerToolWorkspace(turn: turn, conversationID: conversationID)
         let uploaded = try await client.json("/v1/jobs/" + jobID + "/files", method: "POST", body: .object(["id": .string(computerID), "filename": .string(name), "data_base64": .string(data.base64EncodedString()), "contains_health_data": .bool(health)]))
         var result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: .object(["status": .string("available_on_computer"), "file": uploaded, "notice": .string("Original file transferred to this task's encrypted computer workspace. Its full contents were not included in the model request.")]))
         result.containsHealthData = health; return result

@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+import {Vault} from '../src/vault.mjs';
+import {JobStore} from '../src/job-store.mjs';
+import {ToolSessions} from '../src/tool-sessions.mjs';
+import {JobRunner} from '../src/job-runner.mjs';
+test('computer tool use is independent of model inference, survives disconnect, and rejects duplicate changes',async()=>{
+ const store=new JobStore(':memory:',new Vault(randomBytes(32)));
+ let calls=0, release;
+ const wait=new Promise(resolve=>release=resolve);
+ const runtime={definitions:[{name:'run_python',parameters:{type:'object',properties:{code:{type:'string'}},required:['code'],additionalProperties:false}}],execute:async call=>{calls++;await wait;return {callID:call.id,name:call.name,succeeded:true,output:{answer:42}};}};
+ const tools=new ToolSessions(store,runtime),job=tools.create('phone',{request_key:'turn',conversation_id:'chat'}),call={id:'call1',name:'run_python',arguments:{code:'synthetic'}};
+ assert.equal(tools.start(job.id,'phone',call).status,'running');
+ assert.equal(tools.start(job.id,'phone',call).status,'running');
+ assert.throws(()=>tools.start(job.id,'another-phone',call));
+ assert.throws(()=>tools.start(job.id,'phone',{...call,arguments:{code:'different'}}));
+ release();await Promise.all([...tools.active.values()].map(x=>x.promise));
+ assert.equal(calls,1);assert.equal(tools.start(job.id,'phone',call).result.output.answer,42);
+ store.close();
+});
+test('background handoff waits for a running computer tool and carries its exact receipt into the model',async()=>{
+ const store=new JobStore(':memory:',new Vault(randomBytes(32)));
+ let release,executions=0,modelCalls=0;
+ const wait=new Promise(resolve=>release=resolve);
+ const runtime={definitions:[{name:'run_python',parameters:{type:'object',properties:{},additionalProperties:false}}],supports:()=>true,execute:async call=>{executions++;await wait;return {callID:call.id,name:call.name,succeeded:true,output:{answer:42}};}};
+ const tools=new ToolSessions(store,runtime),source=tools.create('phone',{request_key:'turn',conversation_id:'chat'});
+ tools.start(source.id,'phone',{id:'python1',name:'run_python',arguments:{}});
+ const job=store.create('phone','handoff',{turn_id:'turn',conversation_id:'chat',source_tool_session_id:source.id,body:{model:'synthetic',input:[{type:'function_call',call_id:'python1',name:'run_python',arguments:'{}'}]},catalog:[]}).job;
+ const runner=new JobRunner(store,{streamTurn:async({body})=>{modelCalls++;assert.equal(JSON.parse(body.input.find(x=>x.type==='function_call_output').output).answer,42);return {output:[{type:'message',content:[{type:'output_text',text:'The answer is 42.'}]}]};}},runtime,j=>tools.prepareHandoff(j));
+ const done=runner.start(job.id,'phone');assert.equal(modelCalls,0);release();await done;
+ assert.equal(executions,1);assert.equal(modelCalls,1);assert.equal(store.get(job.id,'phone').status,'completed');
+ store.close();
+});

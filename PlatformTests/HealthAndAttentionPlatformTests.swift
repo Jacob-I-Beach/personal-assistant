@@ -5,6 +5,21 @@ import XCTest
 
 @MainActor
 final class HealthAndAttentionPlatformTests: XCTestCase {
+    func testHealthPreflightIsolatesAnUnsupportedTypeWithoutDroppingTheRest() async throws {
+        let valid = HKQuantityType(.stepCount), invalid = HKQuantityType(.heartRate)
+        var requests = 0
+        let (accepted, rejected) = try await HealthAccessValidation.partition([valid, invalid]) { types in
+            requests += 1
+            if types.contains(invalid) { throw NSError(domain: "Assistant.FrameworkValidation", code: 1, userInfo: [NSLocalizedFailureReasonErrorKey: "Synthetic unsupported type"]) }
+        }
+        XCTAssertEqual(accepted, [valid]); XCTAssertEqual(Set(rejected.keys), [invalid.identifier]); XCTAssertEqual(requests, 3)
+    }
+    func testComputerConnectionEnablesToolsWithoutChangingNormalModelDestination() {
+        var settings = ModelSettings(); settings.choice = .chatGPT; settings.chatGPTAccountID = "phone-account"; settings.useComputer = true
+        settings.companion = CompanionConnection(baseURL: URL(string: "https://192.0.2.1:48681")!, certificateSHA256: String(repeating: "a", count: 64), serverID: "server", deviceID: "phone", profileID: "computer-account", name: "Computer")
+        XCTAssertEqual(settings.networkDestination, "chatgpt-account:phone-account")
+        XCTAssertTrue(ComputerTools.names.contains("run_python")); XCTAssertTrue(ComputerTools.names.contains("inspect_document"))
+    }
     func testSelectAllAuthorizationUsesComponentsAndSeparatesRecordPickers() {
         let plan = HealthAuthorizationPlan(selected: Set(HealthDataCatalog.entries.map(\.id)))
         XCTAssertFalse(plan.ordinary.contains { $0 is HKCorrelationType })

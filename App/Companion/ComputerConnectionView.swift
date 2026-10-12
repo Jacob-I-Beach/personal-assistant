@@ -15,18 +15,21 @@ struct ComputerConnectionView: View {
         NavigationStack {
             List {
                 Section {
-                    Label("Let your computer carry the work", systemImage: "desktopcomputer").font(.title3.weight(.semibold))
-                    Text("Long replies and document work continue on your PC when your iPhone locks or leaves the app. Your PC needs to stay awake and connected.").foregroundStyle(.secondary)
+                    Label("Extra capability when you need it", systemImage: "desktopcomputer").font(.title3.weight(.semibold))
+                    Text("Everyday replies connect directly to your model. Your computer provides stronger document and computation tools, scheduled work, and continuation when you leave an unfinished reply.").foregroundStyle(.secondary)
                 }
                 if let connection = model.settings.companion {
                     Section("Connected computer") {
                         Label(connection.name, systemImage: "checkmark.shield")
-                        Toggle("Run ChatGPT tasks on this computer", isOn: Binding(get: { model.settings.useComputer }, set: { enabled in
+                        Toggle("Use for tools and background work", isOn: Binding(get: { model.settings.useComputer }, set: { enabled in
                             var next = model.settings; next.useComputer = enabled
                             do { try model.saveSettings(next); AppFeedback.play(.selection) } catch { self.error = error.localizedDescription }
                         })).disabled(model.isRunning)
-                        Text("The computer uses its own ChatGPT sign-in. The selected model stays the same; unavailable connections do not silently switch providers.").font(.footnote).foregroundStyle(.secondary)
+                        Text("The selected model stays the same. The PC is contacted when a task uses its tools or needs to continue in the background. Keep it awake and online for those tasks.").font(.footnote).foregroundStyle(.secondary)
                         Button("Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }
+                        Button("Update network connection", systemImage: "qrcode.viewfinder") { showScanner = true }
+                            .disabled(pairing || !DataScannerViewController.isSupported || model.isRunning)
+                        Text("Scan a new code from the same PC to use its private away-from-home address. Your pairing and saved tasks stay connected.").font(.footnote).foregroundStyle(.secondary)
                         NavigationLink { ComputerTasksView(openedTask: openedTask) } label: { Label("Tasks & schedules", systemImage: "clock.arrow.circlepath") }
                         if let state { Text(state).font(.subheadline).foregroundStyle(.secondary) }
                         Button("Disconnect this iPhone", role: .destructive) {
@@ -70,6 +73,16 @@ struct ComputerConnectionView: View {
         guard !pairing else { return }; pairing = true; error = nil
         defer { pairing = false }
         do {
+            if let current = model.settings.companion, let payload = try? JSONValue.parse(code),
+               payload["server_id"] == .string(current.serverID), payload["certificate_sha256"] == .string(current.certificateSHA256),
+               let address = payload["base_url"]?.stringValue, let url = URL(string: address) {
+                var updated = current; updated.baseURL = url
+                let client = try CompanionClient(baseURL: url, fingerprint: current.certificateSHA256, token: CredentialStore.read(account: current.credentialAccount))
+                let info = try await client.json("/v1/capabilities")
+                guard info["profile"]?["profileId"] == .string(current.profileID) else { throw AssistantError.provider("Reconnect the original ChatGPT account on your computer.") }
+                var next = model.settings; next.companion = updated
+                try model.saveSettings(next); manualCode = ""; AppFeedback.play(.saved); await check(updated); return
+            }
             let (connection, token) = try await CompanionClient.pair(code, deviceName: "My iPhone")
             try CredentialStore.save(token, account: connection.credentialAccount)
             var next = model.settings

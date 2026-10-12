@@ -186,9 +186,15 @@ public actor AssistantEngine {
             request.workIdentity = ModelWorkIdentity(conversationID: conversation.id, turnID: turnID, containsHealthData: conversation.containsHealthData)
             request.toolCatalog = broker.availableDefinitions
             request.instructions += "\nCurrent device time: \(ISO8601DateFormatter().string(from: Date())); time zone: \(TimeZone.current.identifier). Saved task ID: \(turnID.uuidString)."
+            if resuming { request.instructions += "\nContinue the original request from the saved conversation and completed tool receipts. The phone may have handed over an unfinished response. Preserve valid work, finish the reply, and never repeat an action with a completed or uncertain outcome. No new user request was sent." }
             if automaticMemory { request.instructions += "\nAutomatic memory is enabled. Maintain worthwhile user-shared context with history and undo; inferences remain tentative. Current user message ID: \(user.id.uuidString)." }
             request.toolExecutor = { call in output.yield(.toolStarted(call)); return try await broker.execute(call) }
-            let prefix = Array(conversation.messages[...turnStart])
+            let kept = max(turnStart + 1, min(conversation.messages.count, Int(work.configuration["handoff_message_count"]?.numberValue ?? 0)))
+            let prefix = Array(conversation.messages.prefix(kept)).map { original in
+                var message = original
+                if work.configuration["handoff_message_count"] != nil && message.role == .assistant && message.state == .interrupted { message.state = .complete; message.failureReason = nil }
+                return message
+            }
             let remoteConversationID = conversation.id, remoteDestination = backend.networkDestination
             request.commitRemoteTranscript = { messages, receipts in
                 try await self.commitComputerTranscript(messages, receipts: receipts, prefix: prefix, conversationID: remoteConversationID, turnID: turnID, destination: remoteDestination)
