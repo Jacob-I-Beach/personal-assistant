@@ -95,7 +95,7 @@ export async function startCompanion(options={}) {
       if(url.pathname==='/v1/schedules'&&request.method==='POST')return jsonReply(response,201,scheduler.create(owner,await jsonBody(request,16384)));
       const schedule=url.pathname.match(/^\/v1\/schedules\/([a-zA-Z0-9-]+)$/);
       if(schedule&&request.method==='POST'){const body=await jsonBody(request,4096);return jsonReply(response,200,scheduler.setEnabled(owner,schedule[1],body.enabled));}
-      if(url.pathname==='/v1/jobs'&&request.method==='GET')return jsonReply(response,200,{jobs:store.list(owner).map(publicJob)});
+      if(url.pathname==='/v1/jobs'&&request.method==='GET')return jsonReply(response,200,{jobs:store.list(owner).filter(job=>!job.payload.execution_only).map(publicJob)});
       if(url.pathname==='/v1/jobs'&&request.method==='POST'){
         const payload=validateJob(await jsonBody(request,40*1024*1024));
         const connection=await provider.getSession();
@@ -187,7 +187,7 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.0.1',session,computation_ready:await runtime.available(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().map(publicJob),error:lastError});
+      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.0.1',session,computation_ready:await runtime.available(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       if(url.pathname==='/api/sign-in'){
         if(runner.active.size)throw new Error('Finish or stop active tasks before changing accounts.');
         lastError=null;provider.signIn().then(value=>{session=value;}).catch(error=>{lastError=String(error.message).slice(0,400);});

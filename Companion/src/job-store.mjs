@@ -47,7 +47,7 @@ export class JobStore {
     const id = randomUUID(), now = Date.now();
     this.db.prepare('INSERT INTO jobs(id,owner,request_key,request_hash,status,created,updated,data) VALUES(?,?,?,?,?,?,?,?)')
       .run(id, owner, requestKey, hash, 'queued', now, now, this.vault.sealJSON(payload, 'job:' + id));
-    this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON({title:payload.title??'Assistant task',body:{model:payload.body?.model??payload.model??''}},'summary:'+id),id);
+    this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON({title:payload.title??'Assistant task',body:{model:payload.body?.model??payload.model??''},execution_only:payload.execution_only===true},'summary:'+id),id);
     if(this.db.prepare('SELECT 1 FROM cancelled_requests WHERE owner=? AND request_key=?').get(owner,requestKey))this.status(id,'cancelled','Stopped by the user before starting.');
     else this.append(id, {type: 'status', status: 'queued', text: 'Waiting to start on your computer'});
     return {job: this.get(id, owner), created: true};
@@ -83,7 +83,7 @@ export class JobStore {
   metadataRow(row){
     let payload;
     if(row.summary)payload=this.vault.openJSON(row.summary,'summary:'+row.id);
-    else{const old=this.get(row.id,row.owner).payload;payload={title:old.title??'Assistant task',body:{model:old.body?.model??''}};this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON(payload,'summary:'+row.id),row.id);}
+    else{const old=this.get(row.id,row.owner).payload;payload={title:old.title??'Assistant task',body:{model:old.body?.model??''},execution_only:old.execution_only===true};this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON(payload,'summary:'+row.id),row.id);}
     return {id:row.id,owner:row.owner,requestKey:row.request_key,status:row.status,createdAt:row.created,updatedAt:row.updated,cursor:row.cursor,payload};
   }
   incomplete(owner){return this.db.prepare("SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status IN ('running','waiting_for_phone','waiting_for_input')"+(owner?' AND owner=?':'')).all(...(owner?[owner]:[])).map(row=>this.metadataRow(row));}
