@@ -55,31 +55,34 @@ private final class ModelFileDownload: NSObject, URLSessionDownloadDelegate, @un
         self.destination = destination; self.expectedBytes = expectedBytes; self.allowCellular = allowCellular; self.progress = progress
     }
     func fetch(_ url: URL) async throws {
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                lock.lock()
-                if cancelled { lock.unlock(); continuation.resume(throwing: CancellationError()); return }
-                self.continuation = continuation
-                let configuration = URLSessionConfiguration.ephemeral
-                configuration.allowsCellularAccess = allowCellular
-                configuration.waitsForConnectivity = false
-                configuration.timeoutIntervalForRequest = 45
-                configuration.timeoutIntervalForResource = 86_400
-                configuration.urlCache = nil
-                let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1
-                let session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
-                self.session = session
-                let task: URLSessionDownloadTask
-                if let resume = try? Data(contentsOf: resumeURL), !resume.isEmpty {
-                    task = session.downloadTask(withResumeData: resume)
-                } else {
-                    var request = URLRequest(url: url)
-                    request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-                    task = session.downloadTask(with: request)
-                }
-                self.task = task; lock.unlock(); task.resume()
+        try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                self.start(url, continuation: continuation)
             }
-        } onCancel: { self.cancel() }
+        }, onCancel: { self.cancel() })
+    }
+    private func start(_ url: URL, continuation: CheckedContinuation<Void, any Error>) {
+        lock.lock()
+        if cancelled { lock.unlock(); continuation.resume(throwing: CancellationError()); return }
+        self.continuation = continuation
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.allowsCellularAccess = allowCellular
+        configuration.waitsForConnectivity = false
+        configuration.timeoutIntervalForRequest = 45
+        configuration.timeoutIntervalForResource = 86_400
+        configuration.urlCache = nil
+        let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
+        self.session = session
+        let task: URLSessionDownloadTask
+        if let resume = try? Data(contentsOf: resumeURL), !resume.isEmpty {
+            task = session.downloadTask(withResumeData: resume)
+        } else {
+            var request = URLRequest(url: url)
+            request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+            task = session.downloadTask(with: request)
+        }
+        self.task = task; lock.unlock(); task.resume()
     }
     private func cancel() {
         lock.lock(); cancelled = true; let task = task; lock.unlock()
