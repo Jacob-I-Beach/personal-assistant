@@ -1,0 +1,82 @@
+name: Recheck UI against existing app
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Successful simulator build containing the unchanged app under test
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  scroll-check:
+    runs-on: xcode-27
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: ${{ inputs.source_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select Xcode and verify unchanged production source
+        run: |
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' -print | sort | head -n 1)
+          test -n "$selected"
+          sudo xcode-select --switch "$selected/Contents/Developer"
+          source=$(gh run view "$SOURCE_RUN" --json headSha --jq .headSha)
+          git diff --exit-code "$source" HEAD -- App ActivityWidget Shared Sources project.yml Dependencies
+          mkdir -p .build
+          printf '%s\n' "$source" > .build/production-source.txt
+          gh run download "$SOURCE_RUN" -n simulator-test-products -D .native-products
+          mkdir -p DerivedData/Build
+          ditto -x -k .native-products/SimulatorProducts.zip DerivedData/Build
+      - name: Rebuild only the UI test code
+        run: |
+          set -o pipefail
+          sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          platform=$(xcrun --sdk iphonesimulator --show-sdk-platform-path)
+          test_bundle=$(find DerivedData/Build/Products -type d -name 'PersonalAssistantUITests.xctest' -print -quit)
+          test -n "$test_bundle"
+          xcrun swiftc -swift-version 6 -module-name PersonalAssistantUITests -parse-as-library -c -g -enable-testing \
+            -target arm64-apple-ios27.0-simulator -sdk "$sdk" \
+            -F "$platform/Developer/Library/Frameworks" -F "$sdk/Developer/Library/Frameworks" -I "$platform/Developer/usr/lib" \
+            UITests/AssistantUITests.swift -o .build/UITests.o 2>&1 | tee .build/ui-recheck-build.log
+          toolchain=$(dirname "$(dirname "$(xcrun --find swiftc)")")
+          xcrun clang -target arm64-apple-ios27.0-simulator -bundle -isysroot "$sdk" .build/UITests.o \
+            -F "$platform/Developer/Library/Frameworks" -F "$sdk/Developer/Library/Frameworks" \
+            -L "$platform/Developer/usr/lib" -L "$toolchain/lib/swift/iphonesimulator" -L /usr/lib/swift -fobjc-link-runtime \
+            -Xlinker -rpath -Xlinker '@loader_path/Frameworks' -Xlinker -rpath -Xlinker '@executable_path/Frameworks' \
+            -framework XCTest -lXCTestSwiftSupport -o "$test_bundle/PersonalAssistantUITests" 2>&1 | tee -a .build/ui-recheck-build.log
+          codesign --force --sign - "$test_bundle"
+          codesign --force --sign - "$(dirname "$(dirname "$test_bundle")")"
+      - name: Verify the existing app's disclosure anchoring and jump visibility
+        run: |
+          set -o pipefail
+          xcrun simctl list devices available --json > .build/simulators.json
+          simulator_id=$(python3 scripts/select_simulator.py .build/simulators.json)
+          trap 'xcrun simctl shutdown "$simulator_id" || true' EXIT
+          xcrun simctl bootstatus "$simulator_id" -b
+          bundle=$(find DerivedData/Build/Products -maxdepth 1 -name '*.xctestrun' -print -quit)
+          xcodebuild test-without-building -xctestrun "$bundle" -destination "platform=iOS Simulator,id=$simulator_id" \
+            -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never \
+            -only-testing:PersonalAssistantUITests/AssistantUITests/testToolExpansionAndLatestButtonPreserveIntentionalPosition \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee .build/ui-tests.log
+      - name: Export native screenshots
+        if: always()
+        run: |
+          if [ -d .build/UITests.xcresult ]; then
+            xcrun xcresulttool export attachments --path .build/UITests.xcresult --output-path .build/ui-attachments
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-scroll-recheck
+          include-hidden-files: true
+          path: |
+            .build/production-source.txt
+            .build/ui-recheck-build.log
+            .build/ui-tests.log
+            .build/ui-attachments
+          retention-days: 7

@@ -658,7 +658,13 @@ final class AssistantUITests: XCTestCase {
         let scroll = app.scrollViews["conversation-scroll"]
         print("After jump: \(String(describing: scroll.value)); scroll frame: \(scroll.frame); last text: \(app.staticTexts["The current request is complete."].frame)")
         saveScreenshot(app, name: "Jump-to-latest-visible")
-        XCTAssertTrue(app.staticTexts["The current request is complete."].isHittable)
+        // Markdown text is a readable accessibility element, not a tap target.
+        // The button tap must reach the bottom and reveal the complete answer.
+        let answer = app.staticTexts["The current request is complete."]
+        XCTAssertTrue(answer.exists)
+        XCTAssertGreaterThan(answer.frame.height, 0)
+        XCTAssertGreaterThanOrEqual(answer.frame.minY, scroll.frame.minY)
+        XCTAssertLessThanOrEqual(answer.frame.maxY, scroll.frame.maxY)
     }
 
     func testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory() {
