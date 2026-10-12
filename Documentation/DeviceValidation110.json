@@ -1,0 +1,27 @@
+{
+  "version": "1.1.0",
+  "build": 15,
+  "user_confirmed_baseline": {
+    "tailscale_pairing": "connected",
+    "background_execution": "User reported connected tasks continue after leaving the app on an earlier build."
+  },
+  "physical_acceptance": {
+    "computer_update": "r3 launched successfully but used an empty unvirtualized AppData store. Original data migrated intact to a stable location; user-operated r4 service switch pending.",
+    "in_place_install_preserves_chats": "pending",
+    "server_task_survives_lock_and_return": "pending",
+    "download_progress_and_completion": "pending on the real model package",
+    "qwen_generation_and_tool_use": "pending",
+    "qwen_context_memory_and_thermal_fit": "pending",
+    "real_windows_desktop_interaction": "pending"
+  },
+  "deferred": {
+    "apple_developer_enrollment": "user will do later",
+    "native_apns_and_suspended_activity_updates": "requires membership, credentials and matching signed profile",
+    "increased_phone_memory": "capability request prepared, grant and actual headroom not established"
+  },
+  "not_requested_for_testing": [
+    "live paid inference",
+    "personal Health records",
+    "real message sending"
+  ]
+}

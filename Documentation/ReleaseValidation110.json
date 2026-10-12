@@ -1,0 +1,123 @@
+{
+  "version": "1.1.0",
+  "build": 15,
+  "state": "packaged; final PC data-location migration prepared; user-operated service switch pending",
+  "native_source": "cb65929100dd0bae4bfa6a0016a17ccf80b01967",
+  "computer_source": "6a789ffd92efa477f96c17161ae8c895f8bb765a",
+  "archive_run": 38304430671,
+  "archive_result": "success",
+  "windows_core_tests": 195,
+  "mac_core_tests": 195,
+  "companion_synthetic_tests": 27,
+  "platform_checks": {
+    "count": 4,
+    "run": 38301910332,
+    "source": "b03cae6",
+    "scope": [
+      "server-owned activity lifecycle",
+      "local memory preference persistence and non-provisioned push policy",
+      "real URLSession download against synthetic loopback file with byte progress and reuse"
+    ]
+  },
+  "ui_checks": {
+    "count": 2,
+    "run": 38301910332,
+    "source": "b03cae6",
+    "scope": [
+      "native Computer and Contacts connection controls",
+      "local Qwen context and memory controls"
+    ],
+    "final_archive_changes": "Downloaded-byte label and notification de-duplication compiled in final archive; baseline scenarios not repeated."
+  },
+  "updater_checks": {
+    "count": 7,
+    "result": "passed under Windows PowerShell 5.1",
+    "uses_synthetic_process_and_registry_fixtures": true,
+    "scope": [
+      "missing startup entry",
+      "absent startup and firewall registration",
+      "stale startup entry",
+      "running idle service",
+      "occupied port refusal",
+      "active task refusal",
+      "changed runtime refuses permission reuse"
+    ],
+    "real_machine_check": "CheckOnly succeeded with production service stopped and existing runtime/firewall reusable; no service launch"
+  },
+  "actual_execution_checks": [
+    "Separate installed Edge browser inspected and interacted with a synthetic localhost page and returned a screenshot.",
+    "Docker processed a synthetic CSV into a checked workbook and rendered PDF.",
+    "Windows desktop helper compiled and passed its noninteractive self-check; real user-desktop interactions remain untested."
+  ],
+  "computer_package": {
+    "directory": "../PersonalAssistant-Computer/1.1.0-release-r4",
+    "manifest": "SHA256SUMS.txt",
+    "verified_files": 4564,
+    "installation": "pending",
+    "updater_repair": "Supports stopped services without startup registration. Uses a stable user-profile data root rather than MSIX-virtualized AppData. Account/pairing state is verified and reported after installation."
+  },
+  "iphone_package": {
+    "file": "PersonalAssistant-HealthKit.ipa",
+    "sha256": "41196d64a0e18a367a57afba5639c148d582dbcea43a75791754c2ab2accef53",
+    "bytes": 21759859,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.1.0",
+    "build": "15",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "health_enabled_in_app": true,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires user-operated signing and installation using the existing identity"
+  },
+  "recorded_native_iterations": [
+    {
+      "run": 38299976514,
+      "result": "failed",
+      "reason": "Swift could not infer nested download continuation; made types explicit."
+    },
+    {
+      "run": 38301910332,
+      "result": "success",
+      "coverage": "195 core, four platform, two focused UI scenarios and device archive."
+    },
+    {
+      "run": 38304430671,
+      "result": "success",
+      "coverage": "195 core and final physical-device archive; simulator matrix intentionally skipped."
+    }
+  ],
+  "push_delivery": {
+    "implemented": true,
+    "provisioned": false,
+    "reason": "Apple Developer enrollment deferred by user; APNs credentials and matching profile remain pending."
+  },
+  "local_model": {
+    "catalog": "mlx-community/Qwen3.5-4B-4bit",
+    "revision": "0e7ffd5c629ef7719d4cbc04069232580bfa9d9c",
+    "download_bytes": 3061129077,
+    "memory_ceiling_options_gib": [
+      4,
+      6,
+      8
+    ],
+    "native_context_ceiling": 262144,
+    "physical_fit_and_speed": "unmeasured",
+    "extra_memory_entitlements": "internal developer configuration only; not enabled in personal-signing delivery"
+  },
+  "live_inference_by_agent": false,
+  "personal_health_records_collected": false,
+  "new_api_billing": false,
+  "pc_local_model_streaming": false,
+  "operational_limit": "Automatic approval review rejected the agent's production service launch as blocked by policy without a specific reason. Installation remains user-operated.",
+  "data_migration": {
+    "result": "completed; original files preserved",
+    "canonical_location": "%USERPROFILE%\\.personal-assistant\\computer",
+    "active_pairings": 1,
+    "saved_tasks": 11,
+    "account_status": "connected",
+    "sharing": true,
+    "runtime_switch": "pending user-operated r4 update",
+    "automated_checks": 4
+  }
+}

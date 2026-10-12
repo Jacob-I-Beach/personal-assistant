@@ -1,6 +1,6 @@
 # Personal Assistant 1.1.0 · Build 15
 
-Status: source candidate. Native compilation, packaged installation and physical iPhone acceptance are separate checks; the final evidence record will identify each.
+Status: packaged. The final ARM64 iPhone archive passed native compilation and package inspection. The corrected PC updater is ready; installation and physical iPhone acceptance remain user-operated checks. See ReleaseValidation110.json and DeviceValidation110.json.
 
 ## Added
 
@@ -22,6 +22,7 @@ Status: source candidate. Native compilation, packaged installation and physical
 - Python can request up to 8 GiB, eight CPU cores and 30 minutes; defaults remain smaller. Host GPU programs are available through reviewed commands, with hardware inventory reported separately from installed software support.
 - Model downloads use exact pinned files, disk-backed transfer, byte progress, completed-file reuse, supported resume data and checksum verification. Wi-Fi-only failures explain the cellular setting, now exposed in Models.
 - Local models use compact tool discovery and retain the upstream Qwen tokenizer, tool-call and reasoning configuration.
+- The Windows updater works with the service stopped and no startup registration. It verifies an existing runtime before reusing its Tailscale firewall permission, preserves active-task checks, and saves an operational update report. This repairs the missing PersonalAssistantComputer registry-property error reported with the r2 package.
 
 ## Removed
 
@@ -37,12 +38,21 @@ Status: source candidate. Native compilation, packaged installation and physical
 - Provider inference and account permissions retain ChatGPT-plan preview restrictions. This adds the app's own computer tools; it does not transfer every proprietary Codex/ChatGPT integration into the app.
 - Install over the existing app with the same signing identity; preserve all chats, pairings and account data. Inspect actual signing identifiers before any later paid-team migration.
 
-## Evidence before native packaging
+## Validation and delivery
 
 - 195 shared-core checks pass on Windows with the synthetic transport fixture.
-- Companion protocol/tool/push tests use synthetic providers; no live model request or paid API call was made.
+- All 27 companion protocol/tool/push checks pass using synthetic providers; no live model request or paid API call was made.
 - Actual Edge automation inspected and interacted with an isolated synthetic local page, with screenshot output and stale-reference refusal.
 - The actual Docker environment converted a supplied synthetic CSV into a checked workbook and rendered PDF.
 - The Windows desktop helper compiled and passed its noninteractive self-check. Real user-desktop interaction is not claimed from this check.
 
-See the final ReleaseValidation110.json and DeviceValidation110.json when available.
+- Four native platform checks and two focused UI scenarios passed in run 38301910332. The final archive, run 38304430671, compiles the final download-label and notification changes and passes 195 core checks. The unchanged simulator scenarios were not repeated.
+- Seven Windows PowerShell updater checks cover missing/stale startup entries, a stopped service, occupied ports, active work and runtime reuse. The real-machine read-only preflight succeeds. All 4,564 delivered PC-package files match their manifest.
+
+Install the computer package from `../PersonalAssistant-Computer/1.1.0-release-r4/Update-Companion.cmd` normally, without elevation. The r2 attempt stopped before replacing the service. Automatic approval review blocked the agent's attempted service launch; the user operates this installation. Keep all previous package directories because an identical previously authorized runtime may be reused.
+
+Install `../PersonalAssistant-iPhone/1.1.0/PersonalAssistant-HealthKit.ipa` in place through the confirmed r2 iLoader helper using the same Apple account. Do not delete the app. About should show **1.1.0 · Build 15**. The IPA SHA-256 is `41196d64a0e18a367a57afba5639c148d582dbcea43a75791754c2ab2accef53`.
+
+The native archive uses source `cb65929100dd0bae4bfa6a0016a17ccf80b01967`; final PC-only corrections use `6a789ffd92efa477f96c17161ae8c895f8bb765a`. Real phone download, Qwen fit, continuous server work and actual push delivery are separate acceptance checks.
+
+The r3 launch exposed a Windows data-location mismatch: prior companion launches inherited Codex MSIX AppData virtualization. r4 uses a stable user-profile store, migrates a consistent SQLite snapshot and opaque account/certificate files, and preserves the entire original store. Four migration checks pass. The actual migration retained 11 saved tasks and one active phone pairing; the account remains connected. User-operated runtime verification follows separately.
