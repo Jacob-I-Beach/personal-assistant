@@ -3,7 +3,8 @@
   "build": 15,
   "user_confirmed_baseline": {
     "tailscale_pairing": "connected",
-    "background_execution": "User reported connected tasks continue after leaving the app on an earlier build."
+    "background_execution": "User reported connected tasks continue after leaving the app on an earlier build.",
+    "current_installed_version": "1.0.3 build 14; verified through USB installation-proxy metadata on October 12"
   },
   "physical_acceptance": {
     "computer_update": "r3 launched successfully but used an empty unvirtualized AppData store. Original data migrated intact to a stable location; user-operated r4 service switch pending.",
@@ -13,7 +14,7 @@
     "qwen_generation_and_tool_use": "pending",
     "qwen_context_memory_and_thermal_fit": "pending",
     "real_windows_desktop_interaction": "pending",
-    "alternative_signer": "Sideloadly official installer downloaded; Apple login and matching installed identity remain unverified. USB lookup currently finds no connected phone."
+    "alternative_signer": "Sideloadly official installer downloaded. Installed app identifier verified over USB and recorded in private installation notes. Apple login, output signing identity and physical installation remain unverified."
   },
   "deferred": {
     "apple_developer_enrollment": "user will do later",
