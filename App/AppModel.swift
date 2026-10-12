@@ -536,7 +536,7 @@ final class AppModel: ObservableObject {
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                 } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request]
-                    + (selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create, ComputerFileTools.transfer] : [])
+                    + (selection.choice == .chatGPT && selection.useComputer && selection.companion != nil ? [ComputerScheduleTools.create, ComputerFileTools.transfer] : [])
                     + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selection.networkDestination
                 let appContext = AssistantAppContext(planningConnected: (!selection.calendarSourceIDs.isEmpty && planning.calendarAuthorized) || (!selection.reminderSourceIDs.isEmpty && planning.remindersAuthorized),
