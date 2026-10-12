@@ -1,0 +1,19 @@
+{
+  "version": "1.0.2",
+  "build": 13,
+  "source": "942b7584119bb0afe3fd48c70858c2d8f2259463",
+  "user_report": "TLS error when scanning the computer code after Tailscale setup",
+  "installed_version_at_report": "not independently confirmed",
+  "physical_acceptance": {
+    "in_place_install_preserves_chats": "pending",
+    "scan_fresh_tailscale_code": "pending",
+    "check_connection": "pending"
+  },
+  "unchanged_from_previous_release": [
+    "model routing",
+    "Health authorization",
+    "Live Activity",
+    "PC runtime and pairing storage"
+  ],
+  "test_data": "synthetic only; no model inference, device tokens or Health records used"
+}

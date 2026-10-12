@@ -1,6 +1,6 @@
 # 1.0.2 — Tailscale connection repair
 
-Candidate version 1.0.2, build 13. Jacob reported a TLS error when scanning the computer connection code after Tailscale setup. PC-side HTTPS reachability and the existing certificate pin pass; physical iPhone pairing is not yet confirmed.
+Packaged version 1.0.2, build 13, from source `942b7584119bb0afe3fd48c70858c2d8f2259463` in [run 38199838169](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38199838169). Jacob reported a TLS error when scanning the computer connection code after Tailscale setup. The native regression reproduced the exact `NSURLErrorDomain -1200` error under the old policy and connected successfully with the repaired policy. Physical iPhone acceptance is pending.
 
 ## Added
 
@@ -17,8 +17,15 @@ Candidate version 1.0.2, build 13. Jacob reported a TLS error when scanning the 
 
 ## Still pending
 
-- Native before/after TLS results and package receipt will be recorded after validation.
 - Physical scanning over the iPhone's Tailscale connection remains the final acceptance check.
+
+## Validation
+
+- The old policy reproduced `ATS failed system trust`, followed by `NSURLErrorDomain -1200`.
+- With only the app transport configuration changed, the same native URLSession client connected to the same generated self-signed certificate at a synthetic Tailscale address.
+- Five repaired-policy checks passed: pinned Tailscale HTTPS, retained local HTTPS, wrong-certificate rejection before any device token was sent, redirect refusal without credential forwarding, and continued HTTPS-only requests without a global ATS opt-out.
+- The physical iPhone archive and 186 shared-core tests passed. No broad UI suite, live model call, personal Health read or real device-token test was needed for this repair.
+- The downloaded IPA's checksum, physical ARM64 executable, bundle identity, Health setting, Activity extension and actual packaged ATS policy were verified. See `ReleaseValidation102.json` for provenance.
 
 The PC certificate, server identity, device credential, saved jobs, sign-in and Windows startup configuration are preserved. Install over the existing app with the same Apple signing account. Use **Update network connection** for the same PC; do not disconnect the phone's existing pairing merely to change its route.
 

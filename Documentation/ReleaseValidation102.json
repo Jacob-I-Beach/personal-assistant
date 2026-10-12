@@ -1,0 +1,52 @@
+{
+  "version": "1.0.2",
+  "build": 13,
+  "state": "packaged; physical iPhone scan pending",
+  "native_source": "942b7584119bb0afe3fd48c70858c2d8f2259463",
+  "native_run": 38199838169,
+  "native_result": "success",
+  "mac_core_tests": 186,
+  "native_tls_baseline": {
+    "tests": 1,
+    "reproduced_error": "NSURLErrorDomain -1200",
+    "system_message": "ATS failed system trust"
+  },
+  "native_tls_repair": {
+    "tests": 5,
+    "failures": 0,
+    "skips": 0,
+    "cases": [
+      "pinned Tailscale connection",
+      "existing local connection",
+      "reject wrong certificate before token transmission",
+      "reject redirects without forwarding credentials",
+      "HTTPS required and no global ATS opt-out"
+    ]
+  },
+  "packaged_ats_range": "100.64.0.0/10",
+  "activity_extension_verified": true,
+  "live_model_calls": false,
+  "personal_records_read": false,
+  "pc_companion_modified": false,
+  "pc_companion_version": "1.0.1",
+  "iphone_package": {
+    "file": "PersonalAssistant-HealthKit.ipa",
+    "sha256": "d8a29ec7319d950f52999bd54daa10d8d069b9f02a33d719411b13c37c20d868",
+    "bytes": 21665112,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.0.2",
+    "build": "13",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [],
+    "requested_entitlements": {
+      "com.apple.developer.healthkit": true
+    },
+    "health_enabled_in_app": true,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing"
+  },
+  "physical_acceptance": "in-place installation and fresh Tailscale scan pending"
+}
