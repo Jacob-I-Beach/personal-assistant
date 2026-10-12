@@ -13,3 +13,8 @@ Health input: `../PersonalAssistant-iPhone/1.0.0/PersonalAssistant-HealthKit.ipa
 Ten companion checks cover encrypted storage, paired HTTPS, disconnected completion, phone outcomes, cancellation, context excerpts and bounded schedules. Real Docker execution generated and reopened a workbook/PDF and rendered document pages. Actual computer ChatGPT authorization, real iPhone pairing, Health access and a background/locked-phone run remain user-operated acceptance steps. Sustained off-app push updates, an away-from-home private route and general phone UI control are not claimed as delivered.
 
 The repository remains public by explicit user choice. Standard xcode-27 compute is free under the verified current policy; storage is separate. Private data, device logs, pairing records and credentials stay outside Git.
+
+
+## 1.0.1 repair handoff
+
+Packaged build 12 from native source c4518cc, run 38196469130. Everyday replies use the direct ChatGPT connection; optional PC tools, saved background handoff and completed-output parsing are implemented. 186 Windows/Mac core tests, 15 synthetic companion checks, and the focused native coverage documented in ReleaseValidation101.json pass. The corrected Windows service, retained account/pairing, Tailscale route, scoped firewall, and startup entries are verified. iPhone installation, all-selected Health authorization and real background/Lock Screen behavior remain physical checks. Fully suspended Live Activity updates still need remote push provisioning. See RELEASE_101.md for added, changed, removed and pending scope.

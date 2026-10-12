@@ -1,13 +1,13 @@
 # 1.0.1 — one assistant, optional computer tools
 
-Candidate version 1.0.1, build 12. This repairs user-reported 1.0 completion and activity failures and changes ordinary replies to connect directly to the selected ChatGPT account. Physical acceptance is pending.
+Packaged version 1.0.1, build 12. Native archive source `c4518cccdcbd888c7b9de1059b2c39dddef095aa`, successful run `38196469130`. This repairs user-reported 1.0 completion and activity failures and changes ordinary replies to connect directly to the selected ChatGPT account. Physical acceptance is pending.
 
 ## Added
 
 - Independent computer tool workspaces: Python, document inspection, selected file input and saved outputs can be used without moving model inference to the PC. Operations keep stable IDs, survive a disconnected phone, and reject conflicting retries.
 - Background handoff after an available-PC check. The phone saves its latest work, stops its direct generation before transferring ownership, and continues the same selected model and task on the PC. An already-running computer tool finishes once; its actual receipt and files are carried into the continued task.
 - Updating the network address of the same paired PC preserves its device credential and task ownership. This supports moving from LAN to Tailscale without abandoning existing jobs.
-- A packaged helper enables silent startup when the user signs in to Windows. A separate administrator helper permits only the companion port on the Tailscale interface.
+- A packaged helper enables silent companion and Docker tool-service startup when the user signs in to Windows. A separate administrator helper permits only the companion port on the Tailscale interface.
 - Health authorization preflight separates system-rejected types from the rest without reading Health records. Per-type failures remain inspectable; successful selections can be saved.
 
 ## Changed
@@ -18,7 +18,7 @@ Candidate version 1.0.1, build 12. This repairs user-reported 1.0 completion and
 - One Live Activity uses native artwork, a state-dependent symbol, elapsed time and up to three observed activity steps. Failed activities dismiss promptly; successful ones stay briefly for return to the chat.
 - The compact app orientation describes the mobile assistant, its screens, memory, current connection permissions and optional computer tools. It tells the model to use this orientation directly instead of rediscovering the whole app each chat.
 - Home refreshes weather on a five-minute cadence while visible, resumes refresh on foreground return, and retains source/observation attribution.
-- Context allowances chosen through the earlier PC route migrate to the corresponding direct-account model preference.
+- Context allowances from the earlier PC route fill missing direct-account model preferences.
 
 ## Removed
 

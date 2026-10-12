@@ -1,0 +1,35 @@
+{
+  "version": "1.0.1",
+  "build": "12",
+  "state": "packaged; physical installation pending",
+  "native_source": "c4518cccdcbd888c7b9de1059b2c39dddef095aa",
+  "native_run": 38196469130,
+  "native_result": "success",
+  "windows_core_tests": 186,
+  "mac_core_tests": 186,
+  "companion_synthetic_tests": 15,
+  "platform_tests": {
+    "count": 8,
+    "source": "833290d0bfb12220c3c10cb0e0606da3bb65d0f5",
+    "run": 38195171084
+  },
+  "ui_tests": {
+    "count": 2,
+    "run": 38195171084,
+    "screenshots_reviewed": [
+      "Computer connection",
+      "Contextual Home"
+    ]
+  },
+  "final_native_changes_after_ui": [
+    "compact activity fits two rows on Lock Screen",
+    "explicit MainActor Health preflight callback annotation",
+    "wait for the newly sent turn before background handoff",
+    "deduplicate transferred receipts and opaque provider state",
+    "clarify optional connection label and direct-response notifications"
+  ],
+  "live_inference_tests": false,
+  "personal_health_records_collected": false,
+  "phone_validation": "Health all-selection, live handoff and physical Activity presentation remain to confirm",
+  "runtime": "Windows startup, Docker startup, Tailscale, scoped firewall, certificate-pinned endpoint and retained pairing verified"
+}
