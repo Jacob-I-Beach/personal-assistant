@@ -5,12 +5,25 @@ import Foundation
     private var currentID: String?
     private var onComputer = false
     private var pendingUpdate: Task<Void, Never>?
+    private var endingIDs = Set<String>()
     private var lastTitle = ""
     private var lastUpdate = Date.distantPast
-    func begin(conversationID: UUID, computer: Bool) {
+    func begin(conversationID: UUID, computer: Bool, reconnecting: Bool) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         onComputer = computer; lastTitle = ""; lastUpdate = .distantPast
-        if let existing = Activity<AssistantActivityAttributes>.activities.first(where: { $0.attributes.conversationID == conversationID.uuidString }) { currentID = existing.id; return }
+        let candidates = Activity<AssistantActivityAttributes>.activities.filter { $0.attributes.conversationID == conversationID.uuidString && ($0.activityState == .active || $0.activityState == .stale) }
+        if reconnecting, let existing = candidates.first(where: { $0.attributes.onComputer == computer && !endingIDs.contains($0.id) }) { currentID = existing.id; return }
+        let oldIDs = candidates.map(\.id).filter { !endingIDs.contains($0) }
+        if !oldIDs.isEmpty {
+            endingIDs.formUnion(oldIDs)
+            let previous = pendingUpdate
+            pendingUpdate = Task.detached {
+                await previous?.value
+                for id in oldIDs {
+                    if let activity = Activity<AssistantActivityAttributes>.activities.first(where: { $0.id == id }) { await activity.end(nil, dismissalPolicy: .immediate) }
+                }
+            }
+        }
         let attributes = AssistantActivityAttributes(conversationID: conversationID.uuidString, startedAt: Date(), onComputer: computer)
         let state = AssistantActivityAttributes.ContentState(title: "Preparing your task", detail: computer ? "Your computer will carry the work." : "Working on your iPhone", phase: "working", updatedAt: Date())
         currentID = try? Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(60)), pushType: nil).id
@@ -33,6 +46,7 @@ import Foundation
         if detached { update("Task on your computer"); return }
         let state = AssistantActivityAttributes.ContentState(title: completed ? "Your reply is ready" : "Progress saved", detail: completed ? "Open your chat for the answer and files." : "Open your chat to review and continue.", phase: completed ? "completed" : "waiting", updatedAt: Date())
         let previous = pendingUpdate
+        endingIDs.insert(id)
         pendingUpdate = Task.detached {
             await previous?.value
             guard let activity = Activity<AssistantActivityAttributes>.activities.first(where: { $0.id == id }) else { return }

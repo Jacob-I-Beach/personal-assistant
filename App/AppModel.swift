@@ -508,7 +508,7 @@ final class AppModel: ObservableObject {
         responseWasBackgrounded = false; userRequestedStop = false; pausedForInput = false; pausedForWorkBudget = false; responseAwaitingAttention = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
         taskAttention.clear(conversation.id)
         beginResponseWindow()
-        replyActivity.begin(conversationID: original.id, computer: selection.choice == .chatGPT && selection.useComputer && selection.companion != nil)
+        replyActivity.begin(conversationID: original.id, computer: selection.choice == .chatGPT && selection.useComputer && selection.companion != nil, reconnecting: savedWork != nil)
         requiresManualResume = false
         let previousTitleTask = titleTask
         previousTitleTask?.cancel(); titleTask = nil
