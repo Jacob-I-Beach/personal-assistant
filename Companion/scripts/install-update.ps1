@@ -99,8 +99,10 @@ try {
     Launch-Companion $launcher
     $verified = Setup-Request (Read-Setup) '/api/status'
     if ($verified.version -ne $version) { throw 'A different companion version answered. The update has not been confirmed.' }
+    if ($status -and @($verified.devices).Count -lt @($status.devices).Count) { throw 'The new service sees fewer paired devices than before the update. Keep both data stores and inspect the saved report before pairing again.' }
     & (Join-Path $PSScriptRoot 'enable-startup.ps1')
-    Write-Output ('Personal Assistant Computer ' + $version + ' is running. The existing iPhone pairing is retained; another code scan is not needed.')
+    Write-Output ('Personal Assistant Computer ' + $version + ' is running. ChatGPT: ' + $verified.session.status + '; paired devices: ' + @($verified.devices).Count + '.')
+    if ($verified.data_path) { Write-Output ('Saved data: ' + $verified.data_path) }
 } catch {
     if ($stopped -and $previousLauncher -and @(Companion-Listeners).Count -eq 0) {
         try { Launch-Companion $previousLauncher } catch { Write-Warning 'Open the previous companion to restore service.' }
