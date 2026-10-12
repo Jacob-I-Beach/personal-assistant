@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$logDirectory = Join-Path $env:LOCALAPPDATA 'PersonalAssistantCompanion\logs'
+$logDirectory = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.personal-assistant\logs'
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 $log = Join-Path $logDirectory 'update.log'
 Start-Transcript -LiteralPath $log -Append | Out-Null

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import {readFile,mkdir,appendFile} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {networkInterfaces} from 'node:os';
 import {randomBytes,createHash} from 'node:crypto';
@@ -19,6 +19,7 @@ import {Scheduler} from './scheduler.mjs';
 import {ToolSessions} from './tool-sessions.mjs';
 import {HostRuntime} from './host-runtime.mjs';
 import {PushDelivery} from './push-delivery.mjs';
+import {computerDataRoot,resolveComputerDataRoot} from './data-location.mjs';
 
 const assets=fileURLToPath(new URL('../ui/',import.meta.url));
 const terminal=new Set(['completed','failed','cancelled','interrupted']);
@@ -35,7 +36,7 @@ function addresses(port) {
 function publicJob(job) {return {id:job.id,request_key:job.requestKey,status:job.status,cursor:job.cursor,created_at:job.createdAt,updated_at:job.updatedAt,title:String(job.payload.title??'Assistant task').slice(0,160),model:job.payload.body?.model};}
 
 export async function startCompanion(options={}) {
-  const root=resolve(options.root??join(process.env.LOCALAPPDATA??'.','PersonalAssistantCompanion'));
+  const root=resolve(options.root??await resolveComputerDataRoot());
   await mkdir(root,{recursive:true});
   const vault=options.vault??await Vault.open(root), tls=options.tls??await certificate(root);
   const store=new JobStore(join(root,'work.db'),vault),pairing=new Pairing(store,vault);
@@ -204,7 +205,7 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.0',package_path:fileURLToPath(new URL('../',import.meta.url)),session,computation_ready:await runtime.available(),push:push.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.0',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,computation_ready:await runtime.available(),push:push.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       if(url.pathname==='/api/push-configure'){push.configure(body);return jsonReply(response,200,push.status());}
       if(url.pathname==='/api/task'){
         const entry=store.list().find(job=>job.id===body.job_id);if(!entry)throw new Error('Task not found.');
@@ -283,7 +284,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
     process.on('SIGINT',()=>{host.close().then(()=>process.exit(0));});
     process.on('SIGTERM',()=>{host.close().then(()=>process.exit(0));});
   }catch(error){
-    const logs=join(process.env.LOCALAPPDATA??'.','PersonalAssistantCompanion','logs');await mkdir(logs,{recursive:true});
+    const logs=join(dirname(computerDataRoot()),'logs');await mkdir(logs,{recursive:true});
     await appendFile(join(logs,'startup.log'),new Date().toISOString()+' Startup failed: '+String(error.message).slice(0,600)+'\n');
     process.exit(1);
   }

@@ -39,7 +39,7 @@ internal static class CompanionLauncher {
                     WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true
                 };
                 var process = Process.Start(start);
-                string logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PersonalAssistantCompanion", "logs");
+                string logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".personal-assistant", "logs");
                 Directory.CreateDirectory(logs);
                 string log = Path.Combine(logs, "startup.log");
                 for (int attempt = 0; attempt < 80 && !Ready(); attempt++) {

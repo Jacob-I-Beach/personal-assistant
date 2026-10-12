@@ -42,3 +42,5 @@ Open a saved task in the control center to follow public progress, review its pe
 Apple Developer-dependent notification setup is documented in `Documentation/APPLE_DEVELOPER_SETUP.md` in the source repository. The key is added through the local control center only after matching app provisioning.
 
 Updates may reuse a byte-identical Node executable that already has the private Tailscale firewall rule. The launcher checks its hash before use; retain prior packages. This avoids changing an existing firewall rule when only app code changes.
+
+The companion's persistent data lives at `%USERPROFILE%\.personal-assistant\computer`, independently of Windows AppData virtualization. On upgrade it preserves an existing legacy store, including one redirected into Codex's MSIX cache, by copying its opaque account/certificate files and taking a consistent SQLite backup. Original files remain untouched. Multiple different populated stores require an explicit recovery choice; the app never silently merges them. Operational launch/update reports are in `%USERPROFILE%\.personal-assistant\logs`.
