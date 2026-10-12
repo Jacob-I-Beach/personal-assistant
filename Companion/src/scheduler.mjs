@@ -14,8 +14,9 @@ export class Scheduler {
     if(!Array.isArray(times)||times.length<1||times.length>30||times.some((time,index)=>!Number.isSafeInteger(time)||time<this.now()-60000||time>this.now()+90*86400000||(index>0&&time-times[index-1]<15*60000)))throw new Error('Choose 1–30 future runs within 90 days, at least 15 minutes apart.');
     const source=this.store.get(body.source_job_id,owner);
     if(this.list(owner).filter(item=>item.enabled).length>=20)throw new Error('Pause or finish an existing schedule before adding another.');
-    const inputFiles=this.store.files(source.id,owner).filter(file=>file.role==='input').map(file=>({id:file.id,version:file.version,sha:file.sha}));
-    const schedule={id:randomUUID(),owner,enabled:true,request_key:body.request_key,title:body.title,prompt:body.prompt,source_job_id:source.id,input_files:inputFiles,created_at:this.now(),runs:times.map(at=>({at,status:'scheduled',job_id:null}))};
+    const selected=this.store.files(source.id,owner).filter(file=>file.role==='input');
+    const inputFiles=selected.map(file=>({id:file.id,version:file.version,sha:file.sha}));
+    const schedule={id:randomUUID(),owner,enabled:true,request_key:body.request_key,title:body.title,prompt:body.prompt,source_job_id:source.id,input_files:inputFiles,contains_health_data:source.payload.contains_health_data===true||selected.some(file=>file.contains_health_data===true),created_at:this.now(),runs:times.map(at=>({at,status:'scheduled',job_id:null}))};
     this.save(schedule);return schedule;
   }
   setEnabled(owner,id,enabled){const value=this.list(owner).find(item=>item.id===id);if(!value)throw new Error('Schedule not found.');value.enabled=enabled===true;this.save(value);return value;}
@@ -39,7 +40,7 @@ export class Scheduler {
           body.instructions='You are Personal Assistant running a user-approved scheduled task on their computer. Complete the stated research, analysis or draft using the provided computer tools. This unattended run may research public information and create files only. It cannot send messages, change calendars, access new phone data or create another schedule. Source files are the snapshots explicitly attached to the original task, not automatically refreshed. Report the result and evidence concisely. Current time: '+new Date(this.now()).toISOString();
           const key='schedule:'+schedule.id+':'+run.at;
           const existing=this.store.find(schedule.owner,key);
-          const job=existing??this.store.create(schedule.owner,key,{request_key:key,conversation_id:conversation,turn_id:turn,profile_id:source.payload.profile_id,title:schedule.title,display_prompt:schedule.prompt,schedule_id:schedule.id,contains_health_data:source.payload.contains_health_data===true,body,catalog:[],limits:{maximum_seconds:600,maximum_tool_calls:12}}).job;
+          const job=existing??this.store.create(schedule.owner,key,{request_key:key,conversation_id:conversation,turn_id:turn,profile_id:source.payload.profile_id,title:schedule.title,display_prompt:schedule.prompt,schedule_id:schedule.id,contains_health_data:schedule.contains_health_data===true||source.payload.contains_health_data===true,body,catalog:[],limits:{maximum_seconds:600,maximum_tool_calls:12}}).job;
           for(const file of (schedule.input_files??[]).filter(file=>!this.store.files(job.id,schedule.owner).some(saved=>saved.id===file.id))){
             const original=this.store.file(source.id,schedule.owner,file.id,file.version);
             if(original.metadata.sha!==file.sha)throw new Error('A scheduled source snapshot no longer matches its recorded version.');
