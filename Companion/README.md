@@ -37,6 +37,8 @@ For a phone that is already paired, choose Connections > Computer > Update netwo
 
 ## Computer tools and task control
 
-Open a saved task in the control center to follow public progress, review its pending computer action or download a result. Scoped file tools retain revisions. Host PowerShell and desktop/browser interactions use explicit reviews. Host commands have normal Windows-user access and are not the Docker sandbox. Real desktop interaction requires an unlocked session; the separate Edge browser can run while Windows is locked. No PC-hosted local model streaming is configured.
+Open a saved task in the control center to follow public progress, review its pending computer action or download a result. Scoped file edits check current content and save a backup before replacement. Host PowerShell and desktop/browser interactions use explicit reviews. Host commands have normal Windows-user access and are not the Docker sandbox. Real desktop interaction requires an unlocked session; the separate Edge browser can run while Windows is locked. No PC-hosted local model streaming is configured.
 
 Apple Developer-dependent notification setup is documented in `Documentation/APPLE_DEVELOPER_SETUP.md` in the source repository. The key is added through the local control center only after matching app provisioning.
+
+Updates may reuse a byte-identical Node executable that already has the private Tailscale firewall rule. The launcher checks its hash before use; retain prior packages. This avoids changing an existing firewall rule when only app code changes.

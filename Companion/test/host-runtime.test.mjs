@@ -39,6 +39,13 @@ test('host command cancellation is honored before a process is created',async()=
     assert.equal(result.succeeded,true);assert.equal(ran,1);
   }finally{await f.close();}
 });
+test('computer-generated files retain the task Health classification',async()=>{
+  const f=await fixture();try{
+    f.job.payload.contains_health_data=true;
+    const result=await f.runtime.execute({id:'private-file',name:'write_computer_file',arguments:{path:'synthetic-private-note.txt',content:'Synthetic labelled content',expected_sha256:null}},f.job,f.signal);
+    assert.equal(result.containsHealthData,true);assert.equal(result.output.files[0].contains_health_data,true);
+  }finally{await f.close();}
+});
 test('desktop actions require the observation from the immediately inspected window',async()=>{
   if(process.platform!=='win32')return;
   const f=await fixture();let actions=0;

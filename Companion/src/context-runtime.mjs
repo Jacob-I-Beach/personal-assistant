@@ -33,5 +33,5 @@ export function contextResult(store,call,job){
     const actions=store.db.prepare('SELECT id,status FROM operations WHERE job_id=? ORDER BY rowid DESC LIMIT 80').all(job.id).map(row=>({operation_id:row.id,status:row.status}));
     output={task_id:job.payload.turn_id,job_id:job.id,goal:job.payload.title,status:store.metadata(job.id,job.owner).status,plan,actions,files:store.files(job.id,job.owner),notice:'Read exact saved outcomes with read_task_output. Task state is owned by the computer.'};
   }else throw new Error('Unsupported context operation.');
-  return {callID:call.id,name:call.name,succeeded:true,completedAt:new Date().toISOString(),output};
+  return {callID:call.id,name:call.name,succeeded:true,completedAt:new Date().toISOString(),containsHealthData:job.payload.contains_health_data===true,output};
 }

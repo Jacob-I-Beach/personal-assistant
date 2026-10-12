@@ -80,10 +80,11 @@ export class PushDelivery {
       const alertKey=job.status+':'+(event.call?.id??'');
       const duplicateStatusOnly=!event.call&&target.last_alert?.startsWith(job.status+':');
       if(needsAlert&&target.notifications&&target.device_token&&target.last_alert!==alertKey&&!duplicateStatusOnly){
-        const body=event.call?.name==='review_computer_action'?'A computer action is ready for your review. Open the task to see the exact step.':event.type==='phone_request'?String(event.call?.arguments?.question??'Open your chat to answer or review the next step.').slice(0,180):job.status==='completed'?'Open your chat to see the answer and saved results.':'Your task needs attention. Open the chat to see the next step.';
+        const health=job.payload.contains_health_data||job.checkpoint?.containsHealthData;
+        const body=health?(job.status==='completed'?'Your reply is ready. Open your chat to see the private results.':'Your task needs your attention. Open the app to review the private details.'):event.call?.name==='review_computer_action'?'A computer action is ready for your review. Open the task to see the exact step.':event.type==='phone_request'?String(event.call?.arguments?.question??'Open your chat to answer or review the next step.').slice(0,180):job.status==='completed'?'Open your chat to see the answer and saved results.':'Your task needs attention. Open the chat to see the next step.';
         await this.send(target,target.device_token,'alert',{aps:{alert:{title:payload.aps['content-state'].title,body},sound:'default','thread-id':job.payload.conversation_id},conversation_id:job.payload.conversation_id,job_id:id},'task-'+id);target.last_alert=alertKey;
       }
-      target.last_state=payload.aps['content-state'];this.save(id,target.owner,target);this.lastError=null;
+      const latest=this.target(id);if(latest)this.save(id,target.owner,{...latest,last_state:payload.aps['content-state'],last_alert:target.last_alert??latest.last_alert});this.lastError=null;
     }finally{this.sending.delete(id);}
   }
   close(){this.stopped=true;for(const record of this.pending.values())clearTimeout(record.timer);this.pending.clear();}
