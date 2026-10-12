@@ -119,5 +119,42 @@
     "sharing": true,
     "runtime_switch": "pending user-operated r4 update",
     "automated_checks": 4
+  },
+  "preferred_iphone_package": {
+    "file": "PersonalAssistant-Standard.ipa",
+    "sha256": "f023a5d0b23ddb5e2fe6deb3ef805fb4451ca1746b30b821fa98e6262a5b50df",
+    "bytes": 21752777,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.1.0",
+    "build": "15",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [],
+    "requested_entitlements": {},
+    "health_enabled_in_app": false,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing",
+    "source_sha256": "7bf76d18bf8608af4c41a24dfea5e3b69f923a7ade5da14d2180a9291529ca48",
+    "health_deferred": true,
+    "compiled_sections_unchanged": true,
+    "activity_extension_preserved": true,
+    "apple_adhoc_signature_verified": true,
+    "changed_files": [
+      "Payload/PersonalAssistant.app/_CodeSignature/CodeResources",
+      "Payload/PersonalAssistant.app/PersonalAssistant",
+      "Payload/PersonalAssistant.app/Info.plist"
+    ],
+    "note": "Unsigned installation input with a verified ad-hoc signature. Personal signing is still required."
+  },
+  "standard_packaging": {
+    "health_deferred_by_user": true,
+    "apple_account_used": false,
+    "compiled_code_changed": false,
+    "duration_seconds": 23,
+    "result": "success",
+    "run": 38321827965,
+    "source": "56e4582733f7ec514b98f1ab9ff06afc062bf587"
   }
 }

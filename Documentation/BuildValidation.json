@@ -2099,11 +2099,23 @@
       "rounded_minutes": 0,
       "runner_started": false,
       "note": "No runner execution occurred for this skipped or rejected job."
+    },
+    {
+      "run_id": 38321827965,
+      "attempt": 1,
+      "job_id": 115051452776,
+      "source_revision": "56e4582733f7ec514b98f1ab9ff06afc062bf587",
+      "completed_at": "2026-10-12T23:23:26Z",
+      "conclusion": "success",
+      "name": "standard-package",
+      "started_at": "2026-10-12T23:23:03Z",
+      "status": "completed",
+      "rounded_minutes": 1
     }
   ],
-  "rounded_runner_minutes": 1239,
+  "rounded_runner_minutes": 1240,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 76.818,
+  "estimated_compute_usd_if_fully_billable": 76.88,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",

@@ -12,12 +12,14 @@
     "download_progress_and_completion": "pending on the real model package",
     "qwen_generation_and_tool_use": "pending",
     "qwen_context_memory_and_thermal_fit": "pending",
-    "real_windows_desktop_interaction": "pending"
+    "real_windows_desktop_interaction": "pending",
+    "alternative_signer": "Sideloadly official installer downloaded; Apple login and matching installed identity remain unverified. USB lookup currently finds no connected phone."
   },
   "deferred": {
     "apple_developer_enrollment": "user will do later",
     "native_apns_and_suspended_activity_updates": "requires membership, credentials and matching signed profile",
-    "increased_phone_memory": "capability request prepared, grant and actual headroom not established"
+    "increased_phone_memory": "capability request prepared, grant and actual headroom not established",
+    "healthkit": "User deferred Health integration until later developer setup. Standard IPA is the preferred install input."
   },
   "not_requested_for_testing": [
     "live paid inference",
