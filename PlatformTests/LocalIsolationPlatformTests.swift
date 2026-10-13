@@ -35,7 +35,7 @@ import XCTest
         let client = try CompanionClient(baseURL: URL(string: "https://127.0.0.1:1")!, fingerprint: String(repeating: "a", count: 64), token: "synthetic")
         controller.begin(conversationID: UUID(), modelName: "Synthetic", computer: true, reconnecting: true, externalPresentation: true)
         controller.attach(jobID: UUID().uuidString, client: client, notifications: true, externalPresentation: true)
-        await controller.finish(completed: true)
+        await controller.finish(completed: true, detached: false)
         XCTAssertFalse(controller.remoteNotificationsAvailable)
     }
 }
