@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full UI suite, streaming repair, or a single capped EventKit/Release repair job
         type: choice
-        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification, response-09, health-09, foundation-10, companion-10, continuity-101, companion-tls, activity-103, activity-103-chat, server-110]
+        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification, response-09, health-09, foundation-10, companion-10, continuity-101, companion-tls, activity-103, activity-103-chat, server-110, coherence-111]
         default: full
 permissions:
   contents: read
@@ -156,6 +156,8 @@ jobs:
           python scripts/prepare_iloader_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/PersonalAssistant-iPhone-only.ipa
           python scripts/prepare_iloader_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/PersonalAssistant-HealthKit.ipa --healthkit
           (cd .build/device && shasum -a 256 *.ipa > SHA256SUMS.txt)
+          python scripts/prepare_standard_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/SHA256SUMS.txt .build/device/PersonalAssistant-Standard.ipa
+          (cd .build/device && shasum -a 256 *.ipa > SHA256SUMS.txt)
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-unsigned.ipa .build/device/SHA256SUMS.txt --report .build/device/CompletePackageValidation.json
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-iPhone-only.ipa .build/device/SHA256SUMS.txt --report .build/device/iPhonePackageValidation.json
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-HealthKit.ipa .build/device/SHA256SUMS.txt --report .build/device/HealthPackageValidation.json
@@ -170,6 +172,8 @@ jobs:
             .build/device/PersonalAssistant-iPhone-only.json
             .build/device/PersonalAssistant-HealthKit.ipa
             .build/device/PersonalAssistant-HealthKit.json
+            .build/device/PersonalAssistant-Standard.ipa
+            .build/device/PersonalAssistant-Standard.json
             .build/device/*PackageValidation.json
             .build/device/SHA256SUMS.txt
           include-hidden-files: true
@@ -191,7 +195,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.validation_scope == 'server-110' && '["server-110"]' || inputs.validation_scope == 'activity-103-chat' && '["activity-103-chat"]' || inputs.validation_scope == 'activity-103' && '["activity-103"]' || inputs.validation_scope == 'companion-tls' && '["companion-tls"]' || inputs.validation_scope == 'continuity-101' && '["continuity-101"]' || inputs.validation_scope == 'companion-10' && '["companion-10"]' || (inputs.validation_scope == 'foundation-10' && '["foundation-10"]' || (inputs.validation_scope == 'health-09' && '["health-review"]' || (inputs.validation_scope == 'response-09' && '["response-controls","health-recovery"]' || (inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))))))) }}
+        suite: ${{ fromJSON(inputs.validation_scope == 'coherence-111' && '["coherence-111"]' || inputs.validation_scope == 'server-110' && '["server-110"]' || inputs.validation_scope == 'activity-103-chat' && '["activity-103-chat"]' || inputs.validation_scope == 'activity-103' && '["activity-103"]' || inputs.validation_scope == 'companion-tls' && '["companion-tls"]' || inputs.validation_scope == 'continuity-101' && '["continuity-101"]' || inputs.validation_scope == 'companion-10' && '["companion-10"]' || (inputs.validation_scope == 'foundation-10' && '["foundation-10"]' || (inputs.validation_scope == 'health-09' && '["health-review"]' || (inputs.validation_scope == 'response-09' && '["response-controls","health-recovery"]' || (inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))))))) }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -224,6 +228,10 @@ jobs:
           fi
           test_options=()
           case "${{ matrix.suite }}" in
+            coherence-111)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests")
+              scenarios="testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings"
+              ;;
             server-110)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ActivityLifecyclePlatformTests")
               scenarios="testLocalQwenContextAndMemoryControlsAreReachable testComputerAndContactsHaveNativeConnectionControls"

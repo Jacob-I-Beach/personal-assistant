@@ -1,5 +1,6 @@
 # Personal Assistant 1.1.0 · Build 15
 
+October 13 acceptance: Jacob confirms 1.1.0 build 15 Standard is installed, chats remain, and GPT responds. Computer r4 is active with the preserved account/pairing/tasks. Earlier pending installation and runtime-switch notes below are historical. The next repair batch is documented in RELEASE_111.md.
 Status: packaged. The final ARM64 iPhone archive passed native compilation and package inspection. The corrected PC updater is ready; installation and physical iPhone acceptance remain user-operated checks. See ReleaseValidation110.json and DeviceValidation110.json.
 
 Preferred installation input is now **PersonalAssistant-Standard.ipa**, at Jacob's request to defer HealthKit until later developer setup. Packaging run 38321827965 reused the existing compiled 1.1.0 build 15 archive, removed Health usage descriptions and the temporary HealthKit entitlement, and verified Apple's ad-hoc signature. All compiled sections and the Live Activity extension are preserved. Final signing with the user's matching account/team/installed identifier is still required. This removes the Health capability requirement; it does not itself repair Apple's -80045 login response.

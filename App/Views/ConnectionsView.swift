@@ -21,7 +21,7 @@ struct ConnectionsView: View {
                     connection("Health", detail: "Connect measurements and records for relevant questions.", state: HealthOverviewService.isEnabledInThisBuild ? "Review Health access" : "Signing setup needed", icon: "heart", destination: .health)
                 }
                 Section("Your work") {
-                    connection("Computer", detail: "Extra tools and background continuation when needed.", state: model.settings.companion == nil ? "Connect your PC" : model.settings.useComputer ? "Available when needed" : "Connected · optional tools off", icon: "desktopcomputer", destination: .computer)
+                    connection("Computer", detail: "Connected tasks, files and computation.", state: model.settings.companion == nil ? "Connect your PC" : model.settings.useComputer ? (model.computerAccountNeedsAttention ? "Needs attention" : "Tasks enabled") : "Connected · task execution off", icon: "desktopcomputer", destination: .computer)
                     connection("Folders & files", detail: "Read selected folders and review edits in place.", state: "Manage selected folders", icon: "folder", destination: .folders)
                     connection("Models", detail: "Choose connected intelligence or an on-device model.", state: model.modelTitle, icon: "sparkles", destination: .models)
                     connection("Apple Watch", detail: "See requests handed to your iPhone.", state: "Open requests", icon: "applewatch", destination: .watch)

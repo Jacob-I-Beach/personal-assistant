@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
   "build": 15,
-  "state": "packaged; final PC data-location migration prepared; user-operated service switch pending",
+  "state": "Standard package installed in place with chats retained; PC r4 runtime verified; Docker engine starting and remaining feature acceptance separate",
   "native_source": "cb65929100dd0bae4bfa6a0016a17ccf80b01967",
   "computer_source": "6a789ffd92efa477f96c17161ae8c895f8bb765a",
   "archive_run": 38304430671,
@@ -53,7 +53,7 @@
     "directory": "../PersonalAssistant-Computer/1.1.0-release-r4",
     "manifest": "SHA256SUMS.txt",
     "verified_files": 4564,
-    "installation": "pending",
+    "installation": "verified running r4",
     "updater_repair": "Supports stopped services without startup registration. Uses a stable user-profile data root rather than MSIX-virtualized AppData. Account/pairing state is verified and reported after installation."
   },
   "iphone_package": {
@@ -117,7 +117,7 @@
     "saved_tasks": 11,
     "account_status": "connected",
     "sharing": true,
-    "runtime_switch": "pending user-operated r4 update",
+    "runtime_switch": "verified; restored account/pairing/tasks visible in running r4",
     "automated_checks": 4
   },
   "preferred_iphone_package": {
@@ -156,5 +156,14 @@
     "result": "success",
     "run": 38321827965,
     "source": "56e4582733f7ec514b98f1ab9ff06afc062bf587"
+  },
+  "physical_installation": {
+    "chats_retained": true,
+    "build": 15,
+    "variant": "Standard",
+    "date": "2026-10-13",
+    "signer": "Sideloadly with repaired Local Anisette",
+    "version": "1.1.0",
+    "source": "direct user confirmation"
   }
 }

@@ -17,7 +17,7 @@ test('authorized CSV becomes checked workbook and rendered PDF in the real isola
   try {
     assert.equal(await runtime.available(),true);
     const result = await runtime.execute({id:'calculate',name:'run_python',arguments:{file_ids:[input.id],timeout_seconds:60,input_json:null,state_file_id:null,code:`
-import assistant, pandas as pd, socket, os
+import pandas as pd, socket, os
 from pathlib import Path
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
@@ -51,6 +51,12 @@ assistant.publish({'total':total,'network_blocked':network_blocked,'outside_writ
     assert.equal(result.output.result.docker_socket_present,false);
     assert.equal(result.output.result.credentials_present,false);
     assert.ok(result.output.state_file.id);
+    const continued = await runtime.execute({id:'continue-calculation',name:'run_python',arguments:{
+      file_ids:[], state_file_id:result.output.state_file.id, input_json:JSON.stringify({extra:7}),
+      code:"import assistant as imported\nassert imported is assistant\nassistant.publish({'total':assistant.state['total']+assistant.input['extra'], 'fresh_scope':'data' not in globals()})"
+    }},job,new AbortController().signal);
+    assert.equal(continued.succeeded,true,JSON.stringify(continued.output));
+    assert.deepEqual(continued.output.result,{total:67,fresh_scope:true});
     const pdf = result.output.files.find(x=>x.filename==='report.pdf');
     const workbook = result.output.files.find(x=>x.filename==='report.xlsx');
     assert.ok(pdf); assert.ok(workbook);

@@ -172,8 +172,8 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
         excludedArtifactIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedArtifactIDs) ?? []
         excludedFileIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedFileIDs) ?? []
     }
-    public mutating func recoverInterruptedMessages() {
-        for i in messages.indices where messages[i].state == .streaming { messages[i].state = .interrupted }
+    public mutating func recoverInterruptedMessages(preserving messageIDs: Set<UUID> = []) {
+        for i in messages.indices where messages[i].state == .streaming && !messageIDs.contains(messages[i].id) { messages[i].state = .interrupted }
     }
 }
 

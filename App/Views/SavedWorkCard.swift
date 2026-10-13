@@ -5,10 +5,11 @@ struct SavedWorkCard: View {
     @EnvironmentObject private var model: AppModel
     let work: WorkTurn
     @State private var showContext = false
+    private var needsComputerSync: Bool { ["computer_detached", "computer_sync_attention"].contains(work.interruptionKind ?? "") }
     private var canRetryContext: Bool { work.permitsContextRetry(maximumTextBytes: model.settings.choice == .localMLX ? model.localContextBudget().inputTokens * 3 : model.contextBudget(for: model.settings)?.textByteBudget ?? 0) }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(work.interruptionKind == "computer_detached" ? "Saved task · reconnecting" : "Saved progress", systemImage: "arrow.clockwise.circle").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            Label(needsComputerSync ? "Saved task · waiting to sync" : "Saved progress", systemImage: "arrow.clockwise.circle").font(.caption.weight(.medium)).foregroundStyle(.secondary)
             Text(work.goal.isEmpty ? "Continue with your attachment" : work.goal).font(.subheadline).lineLimit(2)
             Text(model.conversation.messages.last?.failureReason == work.reason ? "The request and completed action results are kept here." : work.reason ?? "The request and completed action results are kept here.").font(.caption).foregroundStyle(.secondary)
             if work.needsChangedRequest == true && !canRetryContext {
@@ -19,8 +20,8 @@ struct SavedWorkCard: View {
                     Text("This runtime cannot enlarge its context here. Send a shorter request below; the completed work stays saved.").font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Button { Task { await model.resumeReply(work, reconnectOnly: work.interruptionKind == "computer_detached") } } label: {
-                    Label(work.interruptionKind == "computer_detached" ? "Sync latest reply" : "Continue reply", systemImage: "arrow.right").font(.subheadline.weight(.medium))
+                Button { Task { await model.resumeReply(work, reconnectOnly: needsComputerSync) } } label: {
+                    Label(needsComputerSync ? "Sync latest reply" : "Continue reply", systemImage: "arrow.right").font(.subheadline.weight(.medium))
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 5)
                 }.disabled(model.isRunning)
                 if work.interruptionKind == "output_limit" {

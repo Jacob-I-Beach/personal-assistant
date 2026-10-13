@@ -12,6 +12,14 @@ extension AppModel {
         chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":272000,"max_context_window":1050000},{"slug":"limited-context-fixture","display_name":"Limited context model","visibility":"list","context_window":128000,"max_context_window":268384}]}"#.utf8))) ?? []
         conversation = Conversation(title: "Coherent interaction fixture")
         conversation.messages = [Message(role: .user, text: "An earlier synthetic question"), Message(role: .assistant, text: "An earlier synthetic answer.")]
+        if ProcessInfo.processInfo.arguments.contains("--ui-computer-account") {
+            let connection = CompanionConnection(baseURL: URL(string: "https://127.0.0.1:1")!, certificateSHA256: String(repeating: "a", count: 64),
+                serverID: "synthetic-server", deviceID: "synthetic-phone", profileID: "synthetic-profile", name: "Test computer")
+            settings.companion = connection; settings.useComputer = true; settings.chatGPTAccountID = nil; accounts = []
+            try? applyComputerAccount(.object(["status": .string("connected"), "sharing": .bool(true), "profileId": .string(connection.profileID),
+                "identity": .object(["email": .string("fixture@example.test")])]), connection: connection)
+            conversation.messages = []
+        }
         try? await store.save(conversation)
         draft = ""
     }

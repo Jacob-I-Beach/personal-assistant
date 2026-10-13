@@ -20,6 +20,14 @@ public enum RemoteTaskEvent: Sendable {
 public protocol RemoteTaskBackend: ModelBackend {
     func runTask(_ request: ModelRequest) -> AsyncThrowingStream<RemoteTaskEvent, any Error>
 }
+public enum CompanionObservationPolicy {
+    public static func shouldRetry(_ error: any Error) -> Bool {
+        let value = error as NSError
+        return value.domain == NSURLErrorDomain && [NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost,
+            NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost,
+            NSURLErrorDNSLookupFailed].contains(value.code)
+    }
+}
 public struct CompanionRunRecord: Codable, Sendable {
     public var turnID: UUID
     public var connectionID: String
@@ -28,6 +36,9 @@ public struct CompanionRunRecord: Codable, Sendable {
     public var status: String
     public var stopRequested: Bool
     public var lastSyncedCursor: Int?
+    /// These states need observation of the same job, never a new model run.
+    /// A completed job may still have unseen events or files on the phone.
+    public var canReconnect: Bool { !stopRequested && !["failed", "cancelled", "interrupted"].contains(status) }
     public init(turnID: UUID, connectionID: String, payload: JSONValue) {
         self.turnID = turnID; self.connectionID = connectionID; self.payload = payload
         self.status = "queued"; self.stopRequested = false; self.lastSyncedCursor = 0

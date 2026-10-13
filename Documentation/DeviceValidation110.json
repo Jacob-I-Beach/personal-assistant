@@ -4,17 +4,18 @@
   "user_confirmed_baseline": {
     "tailscale_pairing": "connected",
     "background_execution": "User reported connected tasks continue after leaving the app on an earlier build.",
-    "current_installed_version": "1.0.3 build 14; verified through USB installation-proxy metadata on October 12"
+    "current_installed_version": "1.1.0 build 15; user confirmed October 13 after Sideloadly installation",
+    "previous_usb_version": "1.0.3 build 14, inspected October 12"
   },
   "physical_acceptance": {
-    "computer_update": "r3 launched successfully but used an empty unvirtualized AppData store. Original data migrated intact to a stable location; user-operated r4 service switch pending.",
-    "in_place_install_preserves_chats": "pending",
+    "computer_update": "Verified running 1.1.0-release-r4 with the stable data path, connected ChatGPT account, one active pairing and 11 saved tasks.",
+    "in_place_install_preserves_chats": "User confirmed: Installed; About shows 1.1.0 Build 15 and chats remain.",
     "server_task_survives_lock_and_return": "pending",
     "download_progress_and_completion": "pending on the real model package",
     "qwen_generation_and_tool_use": "pending",
     "qwen_context_memory_and_thermal_fit": "pending",
     "real_windows_desktop_interaction": "pending",
-    "alternative_signer": "Sideloadly installed. Local anisette DLL conflict with the Windows Swift Foundation runtime reproduced and repaired through a per-process launcher; user confirms Local Anisette is available. Installed app identifier was verified over USB. Apple login and final in-place installation remain pending."
+    "alternative_signer": "User-operated Sideloadly signing and in-place installation succeeded after the local anisette Foundation.dll search-order repair."
   },
   "deferred": {
     "apple_developer_enrollment": "user will do later",

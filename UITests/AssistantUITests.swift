@@ -2,6 +2,24 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-computer-account", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["home-chatgpt-sign-in"].exists)
+        app.buttons["Choose model"].tap()
+        XCTAssertTrue(app.staticTexts["fixture@example.test"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Continue with ChatGPT"].exists)
+        saveScreenshot(app, name: "Connected-account-models")
+        app.navigationBars["Models"].buttons["Done"].tap()
+        app.buttons["History"].tap()
+        app.buttons["Settings & access"].tap()
+        XCTAssertTrue(app.staticTexts["fixture@example.test"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Continue with ChatGPT"].exists)
+        saveScreenshot(app, name: "Connected-account-settings")
+    }
     func testLocalQwenContextAndMemoryControlsAreReachable() {
         continueAfterFailure = false
         let app = XCUIApplication()

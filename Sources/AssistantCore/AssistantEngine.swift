@@ -62,6 +62,13 @@ public actor AssistantEngine {
     }
     private func recordInterruption(_ id: UUID, error: any Error) async {
         guard var work = try? await store.workTurn(id), work.phase == .running else { return }
+        if let run = try? await store.companionRun(id), run.canReconnect {
+            let detached = Task.isCancelled || error is CancellationError || CompanionObservationPolicy.shouldRetry(error)
+            try? await store.finishWork(id, phase: .interrupted,
+                reason: detached ? "Your saved task will sync when the connection returns." : error.localizedDescription,
+                kind: detached ? "computer_detached" : "computer_sync_attention")
+            return
+        }
         if let failure = error as? AssistantError {
             switch failure {
             case .contextCapacity: work.needsChangedRequest = true; work.interruptionKind = "context_limit"
@@ -182,7 +189,14 @@ public actor AssistantEngine {
                                     additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor)
         let turnStart = conversation.messages.firstIndex(where: { $0.id == user.id })!
         if let remote = backend as? any RemoteTaskBackend {
-            var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: true, nativeFiles: backend.supportsFileInputs, appContext: appContext)
+            let savedRun = resuming ? try await store.companionRun(turnID) : nil
+            // Observing an accepted job needs its identity, not another prompt or
+            // copies of inputs that may since have been removed from the phone.
+            var request = if savedRun?.jobID != nil && savedRun?.status != "queued" {
+                ModelRequest(instructions: "", messages: [], tools: [])
+            } else {
+                try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: true, nativeFiles: backend.supportsFileInputs, appContext: appContext)
+            }
             request.workIdentity = ModelWorkIdentity(conversationID: conversation.id, turnID: turnID, containsHealthData: conversation.containsHealthData)
             request.toolCatalog = broker.availableDefinitions
             request.serverContext = ServerContextSnapshot.make(conversation: conversation, memories: availableMemories)
@@ -206,7 +220,7 @@ public actor AssistantEngine {
                 switch event {
                 case .transcript(let messages):
                     guard messages.allSatisfy({ !$0.containsLocalOnlyContext && ($0.role != .user || $0.replyToTaskID == turnID) }) else { throw AssistantError.networkNotAuthorized }
-                    conversation = try await store.loadConversation(remoteConversationID)
+                    conversation = try await store.loadConversation(remoteConversationID, preservingStreaming: true)
                     output.yield(.conversation(conversation))
                 case .receipt(_, let result):
                     try applyHealthAuthorization(result, destination: backend.networkDestination, conversation: &conversation)

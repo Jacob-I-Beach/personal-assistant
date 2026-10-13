@@ -24,7 +24,9 @@ struct ModelLibraryView: View {
                 }
                 Section("ChatGPT") {
                     if model.settings.useComputer, let connection = model.settings.companion {
-                        Label("Your ChatGPT plan", systemImage: "person.crop.circle")
+                        Label(model.chatGPTAccountLabel, systemImage: "person.crop.circle")
+                            .accessibilityIdentifier("connected-chatgpt-account")
+                        Text(model.computerAccountDetail).font(.subheadline).foregroundStyle(.secondary)
                         Text("The account connected on \(connection.name) runs these models. Your task continues there when this app closes.").font(.caption).foregroundStyle(.secondary)
                         ForEach(model.chatGPTModels) { entry in
                             Button { model.chooseChatGPTModel(entry) } label: {
@@ -32,6 +34,7 @@ struct ModelLibraryView: View {
                             }.disabled(model.isRunning)
                         }
                         Button("Refresh models") { Task { await model.refreshAccounts() } }
+                        NavigationLink("Account & connection") { ComputerConnectionView() }
                     } else if model.accounts.contains(where: \.isConnected) {
                         Menu {
                             ForEach(model.accounts.filter(\.isConnected)) { account in
@@ -59,7 +62,7 @@ struct ModelLibraryView: View {
                         Text("Sign in through OpenAI. Your password stays in the authentication browser.").font(.caption).foregroundStyle(.secondary)
                     }
                     if model.isConnecting { Button("Cancel sign-in", role: .cancel) { model.cancelConnection() } }
-                    ForEach(model.accounts.filter { !$0.isConnected }) { account in
+                    ForEach(model.usesComputerChatGPT ? [] : model.accounts.filter { !$0.isConnected }) { account in
                         Button(account.label) { model.connectChatGPT(clientID: account.id) }.disabled(model.isConnecting || model.isRunning)
                     }
                 }
@@ -114,7 +117,7 @@ struct ModelLibraryView: View {
             }
             .navigationTitle("Models")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads() }
+            .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads(); await model.refreshAccounts() }
             .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in
                 guard let entry = importEntry else { return }
                 switch result {

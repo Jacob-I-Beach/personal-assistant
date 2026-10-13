@@ -38,11 +38,16 @@ struct WelcomeWorkspaceView: View {
                     } else if let status = weather.status { Text(status).font(.caption).foregroundStyle(.secondary) }
                 }
             }
-            if model.accounts.allSatisfy({ !$0.isConnected }) {
+            if model.computerAccountNeedsAttention {
+                Button { navigation.showConnections = true } label: {
+                    Label(model.computerAccountDetail, systemImage: "exclamationmark.circle")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }.buttonStyle(.plain)
+            } else if model.shouldOfferChatGPTSignIn {
                 VStack(alignment: .leading, spacing: 10) {
                     Button { model.connectChatGPT() } label: {
                         HStack { Text(model.isConnecting ? "Connecting…" : "Continue with ChatGPT").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }.padding(8).foregroundStyle(Color(uiColor: .systemBackground))
-                    }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isConnecting)
+                    }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isConnecting).accessibilityIdentifier("home-chatgpt-sign-in")
                     Button("Choose an on-device model") { model.showModels = true }.font(.footnote).foregroundStyle(.secondary)
                 }
             }

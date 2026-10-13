@@ -12,6 +12,11 @@ struct SettingsView: View {
             Form {
                 Section { NavigationLink { DeviceAccessView() } label: { Label("Tools & device", systemImage: "iphone") } }
                 Section("ChatGPT") {
+                    if model.usesComputerChatGPT {
+                        Label(model.chatGPTAccountLabel, systemImage: "person.crop.circle")
+                        Text(model.computerAccountDetail).font(.footnote).foregroundStyle(.secondary)
+                        NavigationLink("Account & connection") { ComputerConnectionView() }
+                    } else {
                     ForEach(model.accounts) { account in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(account.label).font(.subheadline)
@@ -20,7 +25,8 @@ struct SettingsView: View {
                             } else { Button("Reconnect") { model.connectChatGPT(clientID: account.id) } }
                         }
                     }
-                    Button("Continue with ChatGPT") { model.connectChatGPT() }.disabled(model.isConnecting || model.isRunning)
+                    Button(model.accounts.contains(where: \.isConnected) ? "Add another ChatGPT account" : "Continue with ChatGPT") { model.connectChatGPT() }.disabled(model.isConnecting || model.isRunning)
+                    }
                     Link("Manage ChatGPT usage", destination: URL(string: "https://chatgpt.com/settings/usage")!)
                     Toggle("Allow web search with ChatGPT", isOn: preference(\.chatGPTWebSearch))
                     Text("Lets supported account models search the web and return source links. Availability follows the selected model and your account's policy. This does not grant browser control or network access to code.").font(.footnote).foregroundStyle(.secondary)
@@ -35,7 +41,7 @@ struct SettingsView: View {
                     Toggle("Confirm each new connected chat", isOn: preference(\.confirmNewConnectedChats))
                     Text("When off, Send uses the model you selected without another pop-up. Health sharing still has a separate review.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Continue connected tasks in background", isOn: preference(\.continueInBackground))
-                    Text("Tasks you start can keep working while you use another app, when iOS grants processing time. You can stop them from the system activity. Downloaded models still pause when the app leaves the foreground.").font(.footnote).foregroundStyle(.secondary)
+                    Text(model.usesComputerChatGPT ? "Accepted ChatGPT tasks continue on your computer while the iPhone is away. Keep the computer awake and online; phone actions wait for the phone. Downloaded models run on the iPhone and still pause in the background." : "Tasks you start can keep working while you use another app, when iOS grants processing time. You can stop them from the system activity. Downloaded models still pause when the app leaves the foreground.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Notify when a task needs attention", isOn: preference(\.taskNotifications))
                     Text("Allow notifications when iOS asks. Receive a notice for reviews, completed replies, or saved work that needs attention. Tapping opens its chat.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Automatic memory", isOn: preference(\.automaticMemory))
@@ -97,6 +103,7 @@ struct SettingsView: View {
                 }
             }
             .onAppear { draft = model.settings }
+            .task { await model.refreshAccounts() }
             .onChange(of: model.settings.chatGPTAccountID) { _, _ in
                 draft.chatGPTAccountID = model.settings.chatGPTAccountID
                 draft.chatGPTModel = model.settings.chatGPTModel

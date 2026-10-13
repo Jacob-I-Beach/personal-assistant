@@ -58,14 +58,25 @@ public actor LocalStore {
         }
         return revised
     }
-    public func loadConversation(_ id: UUID) throws -> Conversation {
+    public func loadConversation(_ id: UUID, preservingStreaming: Bool = false) throws -> Conversation {
         guard let record = try database.execute("SELECT payload FROM conversations WHERE id = ?", [.text(id.uuidString)]).first?[0].data else {
             throw AssistantError.provider("The saved conversation could not be found.")
         }
         var c = try Self.decode(Conversation.self, record)
         c.messages = try database.execute("SELECT payload FROM messages WHERE conversation_id = ? ORDER BY ordinal", [.text(id.uuidString)])
             .map { row in try Self.decode(Message.self, row[0].data!) }
-        c.recoverInterruptedMessages()
+        if !preservingStreaming {
+            var remoteMessages = Set<UUID>()
+            // Losing the phone's observer does not stop a computer-owned task.
+            // Leave its saved projection pending until authoritative events arrive.
+            if let start = c.messages.lastIndex(where: \.isRequest),
+               let work = try workTurn(c.messages[start].id), work.backendID.hasPrefix("companion:"),
+               let run = try companionRun(work.id), run.jobID != nil, run.canReconnect,
+               work.phase == .running || work.phase == .interrupted {
+                remoteMessages = Set(c.messages[start...].filter { $0.providerID == work.backendID }.map(\.id))
+            }
+            c.recoverInterruptedMessages(preserving: remoteMessages)
+        }
         return c
     }
     public func conversations() throws -> [Conversation] {

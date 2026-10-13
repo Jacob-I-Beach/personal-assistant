@@ -78,7 +78,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
             _ = try await client.json(path + "/cancel", method: "POST", body: .object([:]))
             throw CancellationError()
         }
-        let job = try await client.json(path)
+        let job = try await observe(path, output: output)
         let status = job["status"]?.stringValue ?? "unknown"
         if status == "queued" {
             for file in request.messages.flatMap(\.files) {
@@ -93,21 +93,13 @@ struct CompanionModelBackend: RemoteTaskBackend {
             _ = try await client.json(path + "/start", method: "POST", body: .object(["context_text_bytes": .number(Double(contextLimits.maximumTextBytes))]))
         }
         var transcript = CompanionTranscript(jobID: UUID(uuidString: jobID)!, providerID: id, health: identity.containsHealthData)
-        var pending: [String: ToolCall] = [:], answered = Set<String>(), retries = 0
+        var pending: [String: ToolCall] = [:], answered = Set<String>()
         var latestActivity = "Continuing your reply"
         var replay = CompanionReplayGate(lastSyncedCursor: record.lastSyncedCursor)
         var pendingReceipts: [(ToolCall, ToolResult)] = []
         while true {
             try Task.checkCancellation()
-            let batch: JSONValue
-            do { batch = try await client.json(path + "/events?after=\(transcript.cursor)&wait_ms=25000"); retries = 0 }
-            catch {
-                try Task.checkCancellation(); retries += 1
-                // The subscription cannot declare a server-owned job failed.
-                // Keep retrying the same ID until Stop or client suspension.
-                output.yield(.activity(retries <= 5 ? "Reconnecting \(retries)/5" : "Waiting for the connection to return"))
-                try await Task.sleep(for: .seconds(min(10, retries * 2))); continue
-            }
+            let batch = try await observe(path + "/events?after=\(transcript.cursor)&wait_ms=25000", output: output)
             let events = batch["events"]?.arrayValue ?? []
             var observedActivity: String?
             for event in events {
@@ -168,6 +160,20 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 let json = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(result))
                 _ = try await client.json(path + "/operations/" + call.id + "/result", method: "POST", body: json)
                 answered.insert(call.id)
+            }
+        }
+    }
+    private func observe(_ path: String, output: AsyncThrowingStream<RemoteTaskEvent, any Error>.Continuation) async throws -> JSONValue {
+        var retries = 0
+        while true {
+            try Task.checkCancellation()
+            do { return try await client.json(path) }
+            catch {
+                try Task.checkCancellation()
+                guard CompanionObservationPolicy.shouldRetry(error) else { throw error }
+                retries = min(5, retries + 1)
+                output.yield(.activity("Reconnecting to your saved task"))
+                try await Task.sleep(for: .seconds(retries * 2))
             }
         }
     }
