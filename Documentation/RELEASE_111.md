@@ -1,6 +1,6 @@
 # 1.1.1 build 16 — account, continuity and tool coherence
 
-Candidate dated October 13, 2026. Native compilation and packaging are pending. The installed baseline is user-confirmed 1.1.0 build 15 Standard, with prior chats retained and connected GPT responses working. The user-operated Computer r4 update is active with its preserved account, pairing and tasks.
+Packaged October 13, 2026 from source `b0b5e20a363ed30bfc54622dca78be251073007e`, successful [native run 38363290588](https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38363290588). Standard IPA SHA-256: `16b0c464134ee7eba37e265908ee7f9827cb739108b5a867697708507b19ea89`. Physical in-place installation is pending. The installed baseline is user-confirmed 1.1.0 build 15 Standard, with prior chats retained and connected GPT responses working. The user-operated Computer r4 update is active with its preserved account, pairing and tasks.
 
 ## Added
 
@@ -28,7 +28,7 @@ Candidate dated October 13, 2026. Native compilation and packaging are pending. 
 
 Local shared-core and targeted companion tests use synthetic data, not a live model account. The real Docker check executes a CSV calculation without importing the helper, reuses saved state in another execution, creates a workbook and PDF, and reopens both for structural/rendered inspection. It also verifies isolated file/network boundaries.
 
-Native build, focused account/recovery platform tests, account UI flow and archive inspection are required before handoff. Physical installation, long-duration locked-phone reconnection and live model answer quality remain phone acceptance checks; synthetic time advancement is not a claim of an actual 90-minute phone test.
+Validation passed: 198 shared-core checks on both Windows and macOS; three native account/recovery platform tests; one native account UI flow; four targeted companion checks; and actual isolated computation. Both account screenshots were inspected. The ARM64 iOS-device archive, version/build, SHA-256, deferred Health requirements and retained Live Activity extension were verified. Physical installation, long-duration locked-phone reconnection and live model answer quality remain phone acceptance checks; synthetic time advancement is not a claim of an actual 90-minute phone test.
 
 PC work continues while the phone is away as long as the PC can run the job and reach its provider. Phone-only actions can wait for the phone, and model/service/time allowances still apply. No unlimited-execution promise is made.
 

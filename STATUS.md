@@ -1,6 +1,6 @@
 # Implementation status
 
-**Current candidate: 1.1.1 build 16.** Account presentation, Python helper availability, app/tool prompting and remote-task synchronization repairs are implemented. Read [the change list](Documentation/RELEASE_111.md). Native build/packaging and physical acceptance are pending.
+**Current: 1.1.1 build 16 is packaged and verified for an in-place update.** Account presentation, Python helper availability, app/tool prompting and remote-task synchronization repairs are implemented. Read [the change list](Documentation/RELEASE_111.md). Native run 38363290588 passed: 198 Mac core checks, three platform checks, one focused UI flow and physical-device compilation. The Standard IPA has been inspected. Physical installation and locked-phone acceptance remain pending; see [release evidence](Documentation/ReleaseValidation111.json).
 
 **Installed baseline: 1.1.0 build 15 Standard.** Jacob confirmed the Sideloadly installation, retained chats and connected GPT replies on October 13. Computer r4 is running from the stable user-profile data directory with the existing connected account, pairing and saved tasks. The prior installation/authentication/runtime-switch pending statements are superseded. Docker computation is available again after quarantining stale IPC sockets; the documented Python helper now passes actual isolated execution and saved-state reuse.
 

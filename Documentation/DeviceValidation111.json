@@ -1,0 +1,14 @@
+{
+  "version": "1.1.1",
+  "build": 16,
+  "state": "Awaiting user-operated in-place update",
+  "previous_version_confirmed": "1.1.0 build 15 Standard, chats retained and connected GPT responding",
+  "pending": [
+    "About reports 1.1.1 build 16; existing chats retained",
+    "Existing connected account appears in Models/Settings; Home has no duplicate sign-in CTA",
+    "Generating and completed tasks synchronize after extended background/lock without false stopped labels",
+    "Normal-use assessment of revised app awareness, tool choice and answer depth/tone"
+  ],
+  "native_fixture_evidence": "ReleaseValidation111.json",
+  "signing_policy": "Same account and installed bundle identity; preserve extensions and existing app data"
+}

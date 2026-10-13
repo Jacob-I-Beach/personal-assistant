@@ -1,0 +1,92 @@
+{
+  "version": "1.1.1",
+  "build": 16,
+  "state": "Packaged and verified; physical in-place installation pending",
+  "source_revision": "b0b5e20a363ed30bfc54622dca78be251073007e",
+  "native_run": 38363290588,
+  "native_run_url": "https://github.com/Jacob-I-Beach/personal-assistant/actions/runs/38363290588",
+  "native_result": "success",
+  "shared_core_tests": {
+    "windows": 198,
+    "mac": 198
+  },
+  "native_platform_tests": 3,
+  "native_ui_scenarios": 1,
+  "native_ui_scope": "Paired-account email and absence of duplicate sign-in prompts in Home, Models and Settings",
+  "screenshots_inspected": [
+    "Connected-account-models",
+    "Connected-account-settings"
+  ],
+  "targeted_companion_tests": {
+    "passed": 4,
+    "scope": [
+      "streamed hosted-tool receipts",
+      "worker continues after subscriber disconnects",
+      "native action receipt handled once",
+      "paged durable replay after simulated 90-minute absence and database reopen"
+    ]
+  },
+  "actual_compute_validation": {
+    "passed": true,
+    "scope": [
+      "implicit assistant helper",
+      "explicit import identity",
+      "state reuse",
+      "fresh execution globals",
+      "authorized CSV aggregation",
+      "PDF/workbook generation and reinspection",
+      "isolated file/network boundaries"
+    ]
+  },
+  "phone_package": {
+    "file": "PersonalAssistant-Standard.ipa",
+    "sha256": "16b0c464134ee7eba37e265908ee7f9827cb739108b5a867697708507b19ea89",
+    "bytes": 21841501,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.1.1",
+    "build": "16",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [
+      {
+        "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+        "version": "1.1.1",
+        "build": "16"
+      }
+    ],
+    "requested_entitlements": {},
+    "health_enabled_in_app": false,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing",
+    "source_sha256": "b002ac651c5071da5cce0e1ef90e45b73ffa2cf4c9666a77205c8d74d91f5a68",
+    "health_deferred": true,
+    "compiled_sections_unchanged": true,
+    "activity_extension_preserved": true,
+    "apple_adhoc_signature_verified": true,
+    "changed_files": [
+      "Payload/PersonalAssistant.app/_CodeSignature/CodeResources",
+      "Payload/PersonalAssistant.app/PersonalAssistant",
+      "Payload/PersonalAssistant.app/Info.plist"
+    ],
+    "note": "Unsigned installation input with a verified ad-hoc signature. Personal signing is still required."
+  },
+  "pc_runtime": {
+    "installed_application_version": "1.1.0",
+    "service_update_required": false,
+    "account": "connected",
+    "computation_ready": true,
+    "active_compute_image": "sha256:dbcce7ebb18462786f7593019a5111734c6436eacab9c92032a94c88189c4ef1",
+    "old_compute_image_preserved": true
+  },
+  "limits": [
+    "Physical installation and extended locked-phone return remain unverified.",
+    "Simulated clock advancement is not a wall-clock phone trial.",
+    "Prompt quality has no live-model evaluation in this run.",
+    "Docker is running; recurrence across a full PC restart has not been excluded.",
+    "Health and native APNs provisioning remain deferred. Web Push alternative is researched, not implemented."
+  ],
+  "no_live_model_test": true,
+  "no_api_billing_added": true
+}
