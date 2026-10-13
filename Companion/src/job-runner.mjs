@@ -4,6 +4,14 @@ import { compactWorkingContext } from './working-context.mjs';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const busyCodes=new Set(['server_is_overloaded','overloaded_error','server_error','service_unavailable']);
+const connectionCodes=new Set(['network_error','connection_error','stream_interrupted','invalid_stream','response_incomplete','identity_verification_unavailable']);
+function retryableProviderError(error){
+  if(busyCodes.has(error?.code))return true;
+  // The SDK distinguishes temporary admission/transport failures from account,
+  // permission and sharing-limit errors. Preserve that distinction, including
+  // nonstandard upstream 5xx statuses such as the observed HTTP 520.
+  return error?.retryable===true&&(connectionCodes.has(error.code)||error.status===429||(error.status>=500&&error.status<600));
+}
 
 export function effectiveCall(call) {
   if (call.name !== 'use_tool') return call;
@@ -22,13 +30,15 @@ export function effectiveCall(call) {
 }
 
 function safeError(error) {
-  if(busyCodes.has(error?.code))return {code:error.code,message:'ChatGPT is busy right now. Your request and saved work are kept. Wait a moment, then continue.',retryable:true};
+  const identifier=value=>typeof value==='string'&&/^[A-Za-z0-9_.:[\]-]{1,160}$/.test(value)?value:undefined;
+  const diagnostic={provider_code:identifier(error?.code),status:Number.isInteger(error?.status)?error.status:undefined,param:identifier(error?.param),request_id:identifier(error?.requestId)};
+  if(busyCodes.has(error?.code))return {code:error.code,message:'ChatGPT is busy right now. Your request and saved work are kept. Wait a moment, then continue.',retryable:true,diagnostic};
+  if(retryableProviderError(error))return {code:'provider_unavailable',message:error.status>=500?`ChatGPT returned a temporary server error (HTTP ${error.status}). Automatic retries could not finish. Your request and saved work are kept; try again later.`:'The ChatGPT connection was interrupted. Automatic retries could not finish. Your request and saved work are kept; try again later.',retryable:true,diagnostic};
   if(/context.{0,80}(length|window|limit|exceed|large)/i.test(String(error?.code??'')+' '+String(error?.message??'')))return {code:'context_limit',message:'This model’s working context is full. Choose a larger context allowance or shorten the request; the full saved work remains available.'};
   const known = new Set(['cancelled','network_error','stream_interrupted','response_incomplete','response_too_large','reauth_required','sharing_required','usage_limit','subscription_sharing_usage_limit_exceeded']);
   const code = known.has(error?.code) ? error.code : 'task_error';
-  const identifier=value=>typeof value==='string'&&/^[A-Za-z0-9_.:[\]-]{1,160}$/.test(value)?value:undefined;
   return {code, message: error?.publicMessage ?? (code === 'task_error' ? 'This step could not finish. Your work and completed outcomes are saved.' : String(error.message).slice(0,600)),
-    diagnostic:{provider_code:identifier(error?.code),status:Number.isInteger(error?.status)?error.status:undefined,param:identifier(error?.param),request_id:identifier(error?.requestId)}};
+    diagnostic};
 }
 
 export class JobRunner extends EventEmitter {
@@ -42,9 +52,9 @@ export class JobRunner extends EventEmitter {
     for(let attempt=0;;attempt++){
       try{return await operation();}
       catch(error){
-        if(signal.aborted||!busyCodes.has(error?.code)||attempt>=this.retryDelays.length)throw error;
+        if(signal.aborted||!retryableProviderError(error)||attempt>=this.retryDelays.length)throw error;
         const wait=this.retryDelays[attempt];
-        this.publish(job.id,{type:'activity',title:`ChatGPT is busy · retrying in ${Math.ceil(wait/1000)} seconds`});
+        this.publish(job.id,{type:'activity',title:`${busyCodes.has(error.code)?'ChatGPT is busy':'Reconnecting to ChatGPT'} · retrying in ${Math.ceil(wait/1000)} seconds`});
         await this.sleep(wait,undefined,{signal});signal.throwIfAborted();onRetry();
       }
     }

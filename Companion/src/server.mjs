@@ -51,6 +51,9 @@ export async function startCompanion(options={}) {
   runner.on('settled',id=>{const job=store.db.prepare('SELECT status FROM jobs WHERE id=?').get(id);if(job&&['completed','cancelled'].includes(job.status))Promise.resolve(runtime.close?.(id)).catch(()=>{});});
   const serverId=createHash('sha256').update(tls.cert).digest('hex').slice(0,32);
   const bridge=new PushWardBridge(store,{...options.bridgeOptions,serverID:serverId});
+  // Remote delivery is deferred by the user's choice. Retain saved tasks and
+  // the future native APNs setup, but retire a previously enabled bridge.
+  if(bridge.config()?.enabled)await bridge.disconnect();
   runner.on('event',(id,event)=>bridge.queue(id,event));
   let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
   const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>!closing&&session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
@@ -210,9 +213,14 @@ export async function startCompanion(options={}) {
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
       if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.2',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,computation_ready:await runtime.available(),push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      if(url.pathname==='/api/check-connection'){
+        const connection=await provider.getSession();
+        if(connection.status!=='connected'||!connection.sharing)return jsonReply(response,200,{connected:false,sharing:connection.sharing===true});
+        const models=await provider.listModels({signal:AbortSignal.timeout(15000)});
+        return jsonReply(response,200,{connected:true,sharing:true,model_count:models.length,selected_model_available:typeof body.model==='string'?models.some(model=>model.slug===body.model):null,scope:'Account and model discovery only; no inference request was sent.'});
+      }
       if(url.pathname==='/api/push-configure'){push.configure(body);return jsonReply(response,200,push.status());}
-      if(url.pathname==='/api/pushward-configure')return jsonReply(response,200,await bridge.configure(body));
-      if(url.pathname==='/api/pushward-test')return jsonReply(response,200,await bridge.test());
+      if(['/api/pushward-configure','/api/pushward-test'].includes(url.pathname))throw Object.assign(new Error('PushWard delivery is deferred. Native remote notifications can be configured after Apple Developer setup.'),{status:409});
       if(url.pathname==='/api/pushward-clear-test')return jsonReply(response,200,await bridge.clearTest());
       if(url.pathname==='/api/pushward-refresh')return jsonReply(response,200,await bridge.refreshQuota());
       if(url.pathname==='/api/pushward-disconnect')return jsonReply(response,200,await bridge.disconnect());
