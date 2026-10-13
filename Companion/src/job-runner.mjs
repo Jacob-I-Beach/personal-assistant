@@ -176,7 +176,7 @@ export class JobRunner extends EventEmitter {
             else if (prior.status === 'started') {
               result = {callID: original.id, name: original.name, succeeded: false, output: {status: 'outcome_unknown', error: 'An earlier execution began without a final receipt. Inspect its result before repeating it.'}};
             } else if (location === 'computer') {
-              this.publish(job.id, {type: 'activity', title: this.runtime.title(call.name)});
+              this.publish(job.id, {type: 'activity', title: this.runtime.title(call.name), tool: call.name});
               // User review can wait indefinitely; host processes have their
               // own execution deadlines after the exact action is approved.
               result = this.runtime.reviewable?.(call.name) ? await this.runtime.execute(call,job,signal) : await active(lease => this.runtime.execute(call, job, lease));

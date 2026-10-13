@@ -27,21 +27,44 @@ test('bridge uses real task state, private status phrases, correct links and per
     f.store.status(f.job.id,'running','Private prompt must not leave');
     f.bridge.queue(f.job.id,{type:'activity',title:'Private topic alpha'});await f.bridge.deliver(f.job.id);
     const start=f.sent.find(x=>x.method==='PATCH');
-    assert.equal(start.body.content.state,'Working on your request');assert.equal(start.body.content.progress,null);
+    assert.equal(start.body.content.state,'Working on your request');assert.equal(start.body.content.template,'alert');assert.equal(start.body.content.severity_label,'Working');
     assert.match(start.body.content.tap_action.url,new RegExp(f.chat));assert.match(start.body.content.tap_action.url,new RegExp(f.job.id));
+    await f.bridge.viewed(f.owner,f.job.id);
+    assert.equal(f.bridge.record(f.job.id).viewed,undefined,'opening an active task must not mark it finished');
     f.store.status(f.job.id,'waiting_for_phone','Private question');
     f.bridge.queue(f.job.id,{type:'phone_request',call:{id:'question1',name:'request_input',arguments:{question:'Private question'}}});await f.bridge.deliver(f.job.id);
     f.bridge.queue(f.job.id,{type:'status',status:'waiting_for_phone'});await f.bridge.deliver(f.job.id);
     assert.equal(f.sent.filter(x=>x.path==='/notifications').length,1);
+    const open=f.sent.find(x=>x.path==='/notifications').body.actions[0];
+    assert.equal(open.title,'Open chat');assert.equal(open.foreground,false);assert.equal(open.url,start.body.content.tap_action.url);
     f.store.status(f.job.id,'completed','Ready');f.bridge.queue(f.job.id,{type:'status',status:'completed'});await f.bridge.deliver(f.job.id);
     const ready=f.sent.filter(x=>x.method==='PATCH').at(-1);
     assert.equal(ready.body.content.icon,'checkmark.circle.fill');assert.equal(ready.body.state,'ongoing');
+    assert.equal(ready.body.content.severity_label,'✓ Ready');
     assert.equal(f.sent.filter(x=>x.path==='/notifications').length,2);
     assert.equal(JSON.stringify(f.sent).includes('Private question'),false);
     assert.equal(JSON.stringify(f.bridge.status()).includes(f.key),false);
     assert.equal(Buffer.from(f.store.db.prepare('SELECT data FROM pushward_settings').get().data).includes(Buffer.from(f.key)),false);
     await f.bridge.viewed(f.owner,f.job.id);await f.bridge.deliver(f.job.id);
     assert.equal(f.sent.filter(x=>x.method==='PATCH').at(-1).body.state,'ended');
+  }finally{await f.bridge.close();f.store.close();}
+});
+
+test('phase icons follow actual tools, pending obsolete phases are replaced, and tests have bounded lifetime',async()=>{
+  const f=fixture();try{
+    await f.bridge.configure({key:f.key,owner:f.owner});f.store.status(f.job.id,'running','Working');
+    f.bridge.queue(f.job.id,{type:'activity',tool:'computer_desktop'});await f.bridge.deliver(f.job.id);
+    assert.equal(f.sent.filter(x=>x.method==='PATCH').at(-1).body.content.icon,'desktopcomputer');
+    f.bridge.queue(f.job.id,{type:'text_delta',phase:'final_answer'});
+    assert.equal(f.bridge.record(f.job.id).state.phase,'writing');
+    f.bridge.queue(f.job.id,{type:'activity',tool:'computer_desktop'});
+    assert.equal(f.bridge.record(f.job.id).state.phase,'desktop');assert.equal(f.bridge.record(f.job.id).due,0);
+    assert.equal(bridgeState({status:'running'},{type:'activity',tool:'run_python'}).icon,'function');
+    await f.bridge.test();
+    const demo=f.sent.find(x=>x.method==='POST'&&x.path==='/activities'&&x.body.slug==='pa-connection-test');
+    assert.equal(demo.body.stale_ttl,120);assert.equal(demo.body.dismissal_ttl,0);
+    assert.equal(f.sent.filter(x=>x.method==='PATCH').at(-1).body.content.severity_label,'Test');
+    await f.bridge.clearTest();assert.equal(f.sent.at(-1).method,'DELETE');assert.equal(f.sent.at(-1).path,'/activities/pa-connection-test');
   }finally{await f.bridge.close();f.store.close();}
 });
 

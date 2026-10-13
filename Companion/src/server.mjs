@@ -213,6 +213,7 @@ export async function startCompanion(options={}) {
       if(url.pathname==='/api/push-configure'){push.configure(body);return jsonReply(response,200,push.status());}
       if(url.pathname==='/api/pushward-configure')return jsonReply(response,200,await bridge.configure(body));
       if(url.pathname==='/api/pushward-test')return jsonReply(response,200,await bridge.test());
+      if(url.pathname==='/api/pushward-clear-test')return jsonReply(response,200,await bridge.clearTest());
       if(url.pathname==='/api/pushward-refresh')return jsonReply(response,200,await bridge.refreshQuota());
       if(url.pathname==='/api/pushward-disconnect')return jsonReply(response,200,await bridge.disconnect());
       if(url.pathname==='/api/task'){

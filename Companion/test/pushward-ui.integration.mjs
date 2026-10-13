@@ -26,6 +26,9 @@ try{
   await page.getByRole('button',{name:'Send a connection test'}).click();
   await page.getByText('Check your iPhone for the Live Activity and alert',{exact:false}).waitFor();
   assert.ok(sent.some(value=>value.path==='/notifications'));
+  await page.getByRole('button',{name:'Clear test activity'}).click();
+  await page.getByText('The connection-test activity was cleared.').waitFor();
+  assert.ok(sent.some(value=>value.path==='/activities/pa-connection-test'&&value.method==='DELETE'));
   const directory=resolve('../.build');await mkdir(directory,{recursive:true});
   await page.locator('#bridge-status').scrollIntoViewIfNeeded();
   await page.screenshot({path:join(directory,'pushward-controls.png')});

@@ -22,7 +22,7 @@ async function refresh(){
     const devicesKey=JSON.stringify(state.devices.map(device=>[device.id,device.name]));
     if(devicesKey!==bridgeDevicesKey){bridgeDevicesKey=devicesKey;byId('bridge-owner').replaceChildren(...state.devices.map(device=>{const option=document.createElement('option');option.value=device.id;option.textContent=device.name;return option;}));if(bridge.owner)byId('bridge-owner').value=bridge.owner;}
     const q=bridge.quota;byId('bridge-quota').textContent=q?`This month: ${q.activitiesUsed}/${q.activitiesLimit} Live Activity updates · ${q.notificationsUsed}/${q.notificationsLimit} alerts. `+(q.resetsAt?'Resets '+new Date(q.resetsAt).toLocaleString()+'.':''):'';
-    for(const name of ['bridge-test','bridge-refresh','bridge-disconnect'])byId(name).disabled=!bridge.enabled;
+    for(const name of ['bridge-test','bridge-clear-test','bridge-refresh','bridge-disconnect'])byId(name).disabled=!bridge.enabled;
     if(state.error)byId('notice').textContent=state.error;
   }catch(error){notice(error);}
 }
@@ -77,5 +77,6 @@ byId('push-form').addEventListener('submit',async event=>{event.preventDefault()
 
 byId('bridge-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;try{await api('/api/pushward-configure',{owner:byId('bridge-owner').value,key:byId('bridge-key').value.trim()});byId('bridge-key').value='';notice({message:'PushWard connected. Send a connection test, then check your iPhone.'});await refresh();}catch(error){notice(error);}finally{button.disabled=false;}});
 byId('bridge-test').addEventListener('click',async()=>{byId('bridge-test').disabled=true;try{const result=await api('/api/pushward-test');notice({message:result.notice});}catch(error){notice(error);}finally{await refresh();}});
+byId('bridge-clear-test').addEventListener('click',()=>api('/api/pushward-clear-test').then(()=>notice({message:'The connection-test activity was cleared.'})).catch(notice));
 byId('bridge-refresh').addEventListener('click',()=>api('/api/pushward-refresh').then(refresh).catch(notice));
 byId('bridge-disconnect').addEventListener('click',()=>api('/api/pushward-disconnect').then(refresh).catch(notice));

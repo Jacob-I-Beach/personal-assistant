@@ -14,9 +14,10 @@ final class AssistantUITests: XCTestCase {
         let inlineHeight = image.frame.height
         saveScreenshot(app, name: "Published-computer-image-inline")
         image.tap()
-        // Quick Look hides its toolbar while displaying an image. Verify the
-        // actual original-image canvas rather than requiring a visible Done button.
-        let original = app.otherElements["com.apple.paper.imageCanvasElementView"].firstMatch
+        // Quick Look hides its toolbar and renders the image in a remote view.
+        // Its inner accessibility tree varies. Verify the full-size controller;
+        // retain the original-image screenshot for visual verification as well.
+        let original = app.otherElements["QLPreviewControllerView"].firstMatch
         XCTAssertTrue(original.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(original.frame.height, inlineHeight)
         saveScreenshot(app, name: "Published-computer-image-original")

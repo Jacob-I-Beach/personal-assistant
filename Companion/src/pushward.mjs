@@ -8,19 +8,36 @@ const effectiveName=call=>call?.name==='use_tool'?call.arguments?.name:call?.nam
 // Only app-authored status phrases leave the PC. No prompt, answer, filename,
 // Health result or arbitrary model text is copied into this delivery channel.
 export function bridgeState(job,event={}){
-  const status=job.status,name=effectiveName(event.call);
+  const status=job.status,name=effectiveName(event.call)??event.tool;
   if(status==='completed')return {phase:'ready',title:'Your reply is ready',icon:'checkmark.circle.fill',color:'green'};
   if(status==='cancelled')return {phase:'stopped',title:'Stopped',icon:'stop.circle',color:'gray'};
   if(['failed','interrupted'].includes(status))return {phase:'attention',title:'Your task needs attention',icon:'exclamationmark.circle',color:'orange'};
   if(status.startsWith('waiting'))return {phase:'waiting',title:name==='request_input'||status==='waiting_for_input'?'Your answer is needed':'Your review is needed',icon:'questionmark.bubble.fill',color:'orange'};
   if(event.type==='web_activity')return {phase:'research',title:'Checking web sources',icon:'globe',color:'purple'};
   if(event.type==='text_delta'&&event.phase!=='commentary')return {phase:'writing',title:'Writing your reply',icon:'text.bubble',color:'purple'};
+  if(event.type!=='executed_tool'){
+    if(name==='computer_desktop')return {phase:'desktop',title:'Working with the computer screen',icon:'desktopcomputer',color:'purple'};
+    if(name==='computer_browser')return {phase:'browser',title:'Working with the website',icon:'globe',color:'purple'};
+    if(name==='run_computer_command')return {phase:'command',title:'Running a computer command',icon:'terminal',color:'purple'};
+    if(name==='run_python')return {phase:'compute',title:'Calculating with Python',icon:'function',color:'purple'};
+    if(name&&/file|document/.test(name))return {phase:'tools',title:'Working with files and documents',icon:'doc.text',color:'purple'};
+  }
   const hint=String(event.title??'').toLowerCase();
   if(/chatgpt is busy|retrying/.test(hint))return {phase:'provider_wait',title:'ChatGPT is busy · retrying',icon:'hourglass',color:'orange'};
   if(/python|calculat|data|document/.test(hint))return {phase:'tools',title:'Working with files and data',icon:'doc.text',color:'purple'};
   if(/browser|web|research/.test(hint))return {phase:'research',title:'Checking web sources',icon:'globe',color:'purple'};
   return {phase:'working',title:'Working on your request',icon:'brain',color:'purple'};
 }
+export function activityContent(state,link){
+  const labels={working:'Working',research:'Web',tools:'Files',desktop:'Screen',browser:'Web',command:'Command',compute:'Python',writing:'Writing',provider_wait:'Retrying',waiting:'Needs you',ready:'✓ Ready',stopped:'Stopped',attention:'Review',test:'Test'};
+  // The generic template always paints a percentage, including when progress
+  // is omitted. Alert's status badge does not imply a measurable task fraction.
+  return {template:'alert',state:state.title,subtitle:state.phase==='test'?'Delivery check · clears in two minutes':state.phase==='ready'?'Open your chat to see the answer':state.phase==='waiting'?'Open your chat to answer or review':'Open your chat for the latest work',
+    icon:state.icon,accent_color:state.color,severity:['waiting','attention'].includes(state.phase)?'warning':'info',severity_label:labels[state.phase]??'Working',
+    progress:state.phase==='ready'?1:0,fired_at:null,end_date:null,remaining_time:null,live_progress:null,
+    tap_action:{url:link},url_action:{url:link,title:state.phase==='waiting'?'Open question':'Open chat',icon:'arrow.up.forward'}};
+}
+export function openChatAction(link){return {id:'open-chat',title:'Open chat',icon:'bubble.left.and.bubble.right',url:link,foreground:false};}
 export function taskLink(job,serverID){
   if(!UUID.test(job.payload.conversation_id??'')||!UUID.test(job.id))return 'personalassistant://notifications';
   return `personalassistant://task/${job.payload.conversation_id}?job=${job.id}&server=${encodeURIComponent(serverID)}`;
@@ -92,15 +109,21 @@ export class PushWardBridge{
     q[used]++;this.saveConfig({...c,quota:q});return true;
   }
   queue(id,event){
-    if(this.stopped||!['status','activity','text_delta','web_activity','phone_request'].includes(event.type))return;
+    if(this.stopped||!['status','activity','text_delta','web_activity','phone_request','response_begin','executed_tool'].includes(event.type))return;
     const meta=this.store.db.prepare('SELECT owner FROM jobs WHERE id=?').get(id);if(!meta||!this.enabled(meta.owner))return;
     const job=this.store.get(id,meta.owner);if(job.payload.execution_only||job.status==='queued')return;
-    const state=bridgeState(job,event),prior=this.record(id);
+    let state=bridgeState(job,event);const prior=this.record(id);
+    const important=['ready','waiting','attention','stopped'].includes(state.phase);
+    // If this free-plan task exhausts its phase budget, leave a truthful broad
+    // Working status instead of freezing a specific tool name indefinitely.
+    if(!important&&(prior?.routineUpdates??0)>=3)state=bridgeState(job);
     const call=event.call?.id??(state.phase==='waiting'?prior?.call:null);
     const record={...prior,id,owner:job.owner,slug:'pa-'+id,state,call,revision:this.config().revision,attempts:0,generation:(prior?.generation??0)+1};
-    const important=['ready','waiting','attention','stopped'].includes(state.phase);
     if(prior?.viewed&&terminal.has(job.status))return;
-    if(prior?.lastPhase===state.phase&&(!important||prior.call===call))return;
+    if(prior?.lastPhase===state.phase&&(!important||prior.lastCall===call)){
+      if(prior.due>0)this.save(record);
+      return;
+    }
     if(prior?.due>0&&prior.state.phase===state.phase&&prior.call===call)return;
     if(!important&&prior?.routineUpdates>=4)return;
     const due=important?this.now():Math.max(this.now()+this.delay,(prior?.lastSentAt??0)+45000);
@@ -131,10 +154,9 @@ export class PushWardBridge{
       if(this.reserve('activity',important))try{
         if(!record.created){await this.retireReady(record.owner,record.id,c.key);await this.request('/activities',{method:'POST',key:c.key,body:{slug:record.slug,name:'Personal Assistant',priority:4,ended_ttl:86400,dismissal_ttl:0}});record.created=true;this.checkpoint(record);}
         const ending=record.viewed||s.phase==='stopped';
-        const content={template:'generic',state:s.title,subtitle:s.phase==='ready'?'Tap to open the answer':s.phase==='waiting'?'Open your chat to answer or review':'Your task continues on your computer',icon:s.icon,accent_color:s.color,
-          tap_action:{url:link},url_action:{url:link,title:s.phase==='waiting'?'Open question':'Open chat',icon:'arrow.up.forward'},progress:null};
+        const content=activityContent(s,link);
         await this.request('/activities/'+record.slug,{method:'PATCH',key:c.key,body:{state:ending?'ended':'ongoing',content,stale_ttl:s.phase==='ready'?7200:28800,dismissal_ttl:0}});
-        record.lastPhase=s.phase;record.lastSentAt=this.now();record.routineUpdates=(record.routineUpdates??0)+(important?0:1);record.ended=ending;
+        record.lastPhase=s.phase;record.lastCall=record.call;record.lastSentAt=this.now();record.routineUpdates=(record.routineUpdates??0)+(important?0:1);record.ended=ending;
         this.checkpoint(record);
       }catch(error){activityError=error;}
       const alertKey=s.phase+':'+(record.call??'');
@@ -142,7 +164,7 @@ export class PushWardBridge{
         // Do not retry an ambiguous alert POST: the service may have accepted it.
         record.alertAttempt=alertKey;this.checkpoint(record);
         const response=await this.request('/notifications',{method:'POST',key:c.key,body:{title:s.title,body:s.phase==='ready'?'Open Personal Assistant to see your answer and saved results.':'Open Personal Assistant to answer or review the next step.',url:link,
-          source:'personal-assistant',source_display_name:'Personal Assistant',thread_id:job.payload.conversation_id,collapse_id:'pa-'+id,level:'active'}});
+          actions:[openChatAction(link)],source:'personal-assistant',source_display_name:'Personal Assistant',thread_id:job.payload.conversation_id,collapse_id:'pa-'+id,level:'active'}});
         if(response.delivery==='none')throw new Error('PushWard has no reachable notification target.');
       }
       if(activityError)throw activityError;
@@ -164,6 +186,7 @@ export class PushWardBridge{
   async viewed(owner,id){
     this.store.assertOwner(id,owner);const record=this.record(id);if(!record||record.owner!==owner)return;
     if(!terminal.has(this.store.metadata(id,owner).status))return;
+    if(record.viewed&&record.ended)return;
     record.viewed=true;record.generation=(record.generation??0)+1;this.save(record,this.now());this.wake();
   }
   async disconnect(){
@@ -185,10 +208,15 @@ export class PushWardBridge{
     const link=job?taskLink(job,this.serverID):'personalassistant://notifications';
     if(!this.reserve('activity',true)||!this.reserve('notification',true))throw new Error('The free allowance is not available for a test.');
     const slug='pa-connection-test';
-    await this.request('/activities',{method:'POST',key:c.key,body:{slug,name:'Personal Assistant',stale_ttl:180,ended_ttl:60,dismissal_ttl:0}});
-    await this.request('/activities/'+slug,{method:'PATCH',key:c.key,body:{state:'ongoing',content:{template:'generic',state:'Connection test',subtitle:'Tap to open Personal Assistant',icon:'bubble.left.and.bubble.right.fill',accent_color:'purple',tap_action:{url:link},url_action:{url:link,title:'Open chat'}}}});
-    const response=await this.request('/notifications',{method:'POST',key:c.key,body:{title:'Personal Assistant is connected',body:'This is a delivery test. Tap to open your app.',url:link,source:'personal-assistant',thread_id:'personal-assistant-test',collapse_id:'personal-assistant-test',level:'active'}});
-    return {requested:true,delivery:response.delivery??'unconfirmed',notice:'Check your iPhone for the Live Activity and alert, then tap to open Personal Assistant.'};
+    await this.request('/activities',{method:'POST',key:c.key,body:{slug,name:'Personal Assistant',stale_ttl:120,ended_ttl:60,dismissal_ttl:0}});
+    await this.request('/activities/'+slug,{method:'PATCH',key:c.key,body:{state:'ongoing',content:activityContent({phase:'test',title:'Connection test',icon:'bubble.left.and.bubble.right.fill',color:'purple'},link)}});
+    const response=await this.request('/notifications',{method:'POST',key:c.key,body:{title:'Personal Assistant is connected',body:'Delivery test. Press and hold this notification, then choose Open chat.',url:link,actions:[openChatAction(link)],source:'personal-assistant',thread_id:'personal-assistant-test',collapse_id:'personal-assistant-test',level:'active'}});
+    return {requested:true,delivery:response.delivery??'unconfirmed',notice:'Check your iPhone for the Live Activity and alert. Use Open chat on the activity, or press and hold the notification and choose Open chat. The test card clears in two minutes.'};
+  }
+  async clearTest(){
+    const c=this.config();if(!c?.enabled)throw new Error('Connect PushWard first.');
+    try{await this.request('/activities/pa-connection-test',{method:'DELETE',key:c.key});}catch(error){if(error.status!==404)throw error;}
+    return {cleared:true};
   }
   async close(){this.stopped=true;clearTimeout(this.timer);await this.busy;}
 }
