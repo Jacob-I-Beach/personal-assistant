@@ -1,6 +1,7 @@
 #if DEBUG
 import AssistantCore
 import Foundation
+import UIKit
 
 extension AppModel {
     func installCoherenceFixture() async {
@@ -19,6 +20,21 @@ extension AppModel {
             try? applyComputerAccount(.object(["status": .string("connected"), "sharing": .bool(true), "profileId": .string(connection.profileID),
                 "identity": .object(["email": .string("fixture@example.test")])]), connection: connection)
             conversation.messages = []
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-published-file") {
+            let id = UUID(uuidString: "00000000-0000-4000-8000-000000000112")!
+            if (try? await store.workspaceFile(id)) == nil {
+                let image = UIGraphicsImageRenderer(size: CGSize(width: 360, height: 600)).image { context in
+                    UIColor.darkGray.setFill(); context.cgContext.fill(CGRect(x: 0, y: 0, width: 360, height: 600))
+                    UIColor.systemIndigo.setFill(); context.cgContext.fill(CGRect(x: 16, y: 20, width: 328, height: 100))
+                    ("Synthetic screen" as NSString).draw(at: CGPoint(x: 30, y: 54), withAttributes: [.font: UIFont.systemFont(ofSize: 28), .foregroundColor: UIColor.white])
+                    UIColor.systemGray.setFill(); context.cgContext.fill(CGRect(x: 16, y: 140, width: 328, height: 430))
+                }
+                if let data = image.pngData() {
+                    try? await store.saveWorkspaceFile(WorkspaceFile(id: id, filename: "synthetic-screen.png", mediaType: "image/png", byteCount: data.count, text: "", conversationID: conversation.id), data: data)
+                }
+            }
+            conversation.messages = [Message(role: .user, text: "Show the screenshot in chat."), Message(role: .assistant, text: "Here is the requested screenshot.", fileIDs: [id])]
         }
         try? await store.save(conversation)
         draft = ""

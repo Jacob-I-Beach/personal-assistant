@@ -16,10 +16,15 @@ import Foundation
     private var remoteJobID: String?
     private var remoteClient: CompanionClient?
     private var wantsNotifications = false
+    private var externalPresentation = false
+    private var lastContext: (conversationID: UUID, modelName: String, computer: Bool)?
     private(set) var remoteNotificationsAvailable = false
 
-    func begin(conversationID: UUID, modelName: String, computer: Bool, reconnecting: Bool) {
+    func begin(conversationID: UUID, modelName: String, computer: Bool, reconnecting: Bool, externalPresentation: Bool = false) {
         tokenUpdates?.cancel(); deviceUpdates?.cancel(); remoteJobID = nil; remoteClient = nil; remoteNotificationsAvailable = false
+        lastContext = (conversationID, modelName, computer)
+        self.externalPresentation = externalPresentation
+        if externalPresentation { useExternalPresentation(); return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         onComputer = computer; lastTitle = ""; lastUpdate = .distantPast; lastPhase = "working"
         let candidates = Activity<AssistantActivityAttributes>.activities.filter {
@@ -44,7 +49,15 @@ import Foundation
         currentID = try? Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(180)), pushType: computer && RemotePushRegistration.environment != nil ? .token : nil).id
     }
 
-    func attach(jobID: String, client: CompanionClient, notifications: Bool) {
+    func attach(jobID: String, client: CompanionClient, notifications: Bool, externalPresentation: Bool = false) {
+        if externalPresentation {
+            self.externalPresentation = true; remoteJobID = jobID; remoteClient = client
+            useExternalPresentation(); remoteNotificationsAvailable = notifications
+            return
+        }
+        if self.externalPresentation, let context = lastContext {
+            begin(conversationID: context.conversationID, modelName: context.modelName, computer: context.computer, reconnecting: true)
+        }
         guard remoteJobID != jobID else { return }
         remoteJobID = jobID; remoteClient = client; wantsNotifications = notifications
         tokenUpdates?.cancel(); deviceUpdates?.cancel()
@@ -63,6 +76,18 @@ import Foundation
             for await _ in NotificationCenter.default.notifications(named: RemotePushRegistration.changed) {
                 if Task.isCancelled { return }
                 await self?.registerTokens()
+            }
+        }
+    }
+    private func useExternalPresentation() {
+        tokenUpdates?.cancel(); deviceUpdates?.cancel(); currentID = nil
+        let ids = Activity<AssistantActivityAttributes>.activities.map(\.id).filter { !endingIDs.contains($0) }
+        endingIDs.formUnion(ids)
+        let previous = pendingUpdate
+        pendingUpdate = Task.detached {
+            await previous?.value
+            for id in ids {
+                if let activity = Activity<AssistantActivityAttributes>.activities.first(where: { $0.id == id }) { await activity.end(nil, dismissalPolicy: .immediate) }
             }
         }
     }

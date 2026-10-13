@@ -32,7 +32,7 @@ export class ComputeRuntime {
     this.root = resolve(root); this.store = store; this.docker = docker;
   }
   get definitions() { return computerTools; }
-  supports(name) { return ['run_python','inspect_document','list_task_files','read_task_output'].includes(name); }
+  supports(name) { return ['run_python','inspect_document','list_task_files','read_task_output','publish_task_files'].includes(name); }
   title(name) { return name === 'inspect_document' ? 'Inspecting the actual document' : 'Working with your data'; }
   summary() { return 'Python on your computer with selected file inputs, scientific and document libraries, bounded execution and task-scoped state. Native phone actions still require the iPhone.'; }
   async available() {
@@ -44,6 +44,17 @@ export class ComputeRuntime {
     } catch { return false; }
   }
   async execute(call, job, signal) {
+    if(call.name==='publish_task_files'){
+      const ids=call.arguments.file_ids,caption=call.arguments.caption;
+      if(!Array.isArray(ids)||!ids.length||ids.length>8||ids.some(id=>typeof id!=='string')||typeof caption!=='string'||caption.length>1000)throw new Error('Choose one to eight task file IDs and a short caption.');
+      const files=[];let health=job.payload.contains_health_data===true;
+      for(const id of new Set(ids)){
+        const source=this.store.file(job.id,job.owner,id);health ||= source.metadata.contains_health_data===true;
+        const published=this.store.files(job.id,job.owner).find(file=>file.role==='artifact'&&file.publication_source_id===id&&file.sha===source.metadata.sha);
+        files.push(published??(source.metadata.publication_source_id?source.metadata:this.store.saveFile(job.id,{filename:source.metadata.filename,role:'artifact',source_operation_id:call.id,publication_source_id:id,publication_source_version:source.metadata.version,contains_health_data:source.metadata.contains_health_data===true},source.data)));
+      }
+      return {callID:call.id,name:call.name,succeeded:true,containsHealthData:health,output:{status:'published_to_chat',caption,presented_files:files,notice:'These saved files are attached to the conversation as it synchronizes. Images render inline; documents open in the native preview. This is not evidence that the user has viewed them.'}};
+    }
     if(call.name==='list_task_files')return {callID:call.id,name:call.name,succeeded:true,output:{status:'available',files:this.store.files(job.id,job.owner)}};
     if(call.name==='read_task_output'){
       const operation=this.store.operation(job.id,call.arguments.call_id);
@@ -131,6 +142,7 @@ export class ComputeRuntime {
 const nullableString = {type: ['string','null']};
 const object = properties => ({type: 'object', properties, required: Object.keys(properties), additionalProperties: false});
 export const computerTools = [
+  {name:'publish_task_files',description:'Show selected task files in the conversation. Use this when the user asks to see a computer/browser screenshot, a rendered page, chart, or other output. Inspection images are otherwise private working material, not chat attachments. Uses actual file IDs from tool receipts or list_task_files; never invent a file path or claim an image was sent without this publication receipt. Existing bytes and source versions are preserved.',parameters:object({file_ids:{type:'array',items:{type:'string'},minItems:1,maxItems:8},caption:{type:'string',maxLength:1000}})},
   {name:'list_task_files',description:'List the actual files currently available to this task on the computer, with stable IDs and versions. Use after uploading a Library file or recovering an interrupted transfer.',parameters:object({})},
   {name:'read_task_output',description:'Read a bounded exact excerpt of a completed tool receipt in this computer task. Useful after working context was compacted. Does not rerun the operation.',parameters:object({call_id:{type:'string'},offset:{type:'integer',minimum:0}})},
   {name: 'run_python', description: 'Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. Isolated from network and general host files. Default 60 seconds and 2 GiB; request up to 1800 seconds, 8 GiB and 8 CPU cores when warranted. Use reviewed run_computer_command for installed GPU programs or host resources.',

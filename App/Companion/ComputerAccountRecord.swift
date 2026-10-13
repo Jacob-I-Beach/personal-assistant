@@ -10,8 +10,9 @@ struct ComputerAccountRecord: Codable, Equatable, Sendable {
     let email: String?
     let name: String?
     let status: Status
+    let activityProvider: String?
 
-    init(connection: CompanionConnection, profile: JSONValue) throws {
+    init(connection: CompanionConnection, profile: JSONValue, activityProvider: String? = nil) throws {
         guard let rawStatus = profile["status"]?.stringValue,
               ["connected", "connecting", "disconnected", "reauth_required"].contains(rawStatus) else {
             throw AssistantError.provider("The computer did not return its account status.")
@@ -19,6 +20,7 @@ struct ComputerAccountRecord: Codable, Equatable, Sendable {
         serverID = connection.serverID; deviceID = connection.deviceID; profileID = connection.profileID
         let reportedProfile = profile["profileId"]?.stringValue
         let matches = reportedProfile == connection.profileID
+        self.activityProvider = matches && activityProvider == "pushward" ? "pushward" : nil
         email = matches ? Self.displayValue(profile["identity"]?["email"]?.stringValue) : nil
         name = matches ? Self.displayValue(profile["identity"]?["name"]?.stringValue) : nil
         if let reportedProfile, reportedProfile != connection.profileID { status = .accountChanged }

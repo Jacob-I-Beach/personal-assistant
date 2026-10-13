@@ -124,7 +124,7 @@ public struct NetworkModelBackend: ModelBackend {
                         content += entry.files.map { .object(["type": .string("input_file"), "filename": .string($0.filename),
                             "file_data": .string("data:\($0.mediaType);base64," + $0.data.base64EncodedString())]) }
                     }
-                    items.append(.object(["role": .string(m.role.rawValue), "content": .array(content)]))
+                    if !content.isEmpty { items.append(.object(["role": .string(m.role.rawValue), "content": .array(content)])) }
                 }
                 for call in m.toolCalls {
                     var item: [String: JSONValue] = ["type": .string("function_call"), "call_id": .string(call.id),

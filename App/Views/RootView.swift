@@ -109,8 +109,9 @@ struct RootView: View {
         .sheet(isPresented: $model.showInbox) { AssistantInboxView() }
         .sheet(isPresented: $model.showPlanningAccess) { PlanningAccessView(service: model.planning) }
         .onOpenURL { url in
-            guard url.scheme == "personalassistant", url.host == "task", let id = UUID(uuidString: url.lastPathComponent) else { return }
-            Task { await model.openTaskAttention(id) }
+            guard let link = AssistantTaskLink(url) else { return }
+            showHistory = false; showSettings = false; showTaskActivity = false; model.showModels = false
+            Task { await model.openAssistantLink(link) }
         }
         .sheet(item: $model.nativeAction, onDismiss: { model.nativeReviewDidDismiss() }) { NativeActionView(request: $0) }
         .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {

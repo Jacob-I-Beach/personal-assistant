@@ -189,6 +189,16 @@ public struct CompanionTranscript: Sendable {
             var receipt = Message(id: identifier(sequence, role: 1), role: .tool, text: try result.modelText(), state: succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: health || result.containsHealthData == true)
             receipt.createdAt = date; messages.append(receipt)
             if let response = result.userResponse { messages.append(response) }
+            let actualTool = call.name == "use_tool" ? call.arguments["name"]?.stringValue : call.name
+            if actualTool == "publish_task_files" && result.succeeded {
+                let files = (result.output["presented_files"]?.arrayValue ?? []).prefix(8).compactMap { $0["id"]?.stringValue.flatMap(UUID.init(uuidString:)) }
+                if !files.isEmpty {
+                    var published = Message(id: identifier(sequence, role: 2), role: .assistant,
+                        text: String((result.output["caption"]?.stringValue ?? "").prefix(1000)), fileIDs: files,
+                        providerID: providerID, containsHealthData: health || result.containsHealthData == true)
+                    published.createdAt = date; messages.append(published)
+                }
+            }
             activeIndex = nil
             return (call, result)
         case "status":

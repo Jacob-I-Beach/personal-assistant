@@ -59,13 +59,14 @@ extension AppModel {
         ]))
         return .init(callID: call.id, name: call.name, succeeded: true, output: .object(["status": .string("scheduled"), "schedule_id": result["id"] ?? .null, "title": .string(title), "runs": .number(Double(count)), "manage": .string("Connections → Computer → Tasks & schedules"), "execution": .string("Your awake, connected PC owns these future runs. The phone alone cannot run this schedule.")]))
     }
-    func openComputerJob(_ id: String) async throws {
+    func openComputerJob(_ id: String, expectedConversationID: UUID? = nil) async throws {
         guard !isRunning, let connection = settings.companion, let store, UUID(uuidString: id) != nil else { throw AssistantError.provider("Finish the current response before opening another computer task.") }
         let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
         let info = try await client.json("/v1/jobs/" + id + "/resume-info")
         guard let payload = info["payload"], payload["profile_id"] == .string(connection.profileID),
               let chatID = payload["conversation_id"]?.stringValue.flatMap(UUID.init(uuidString:)), let turnID = payload["turn_id"]?.stringValue.flatMap(UUID.init(uuidString:)),
               let modelID = payload["body"]?["model"]?.stringValue else { throw AssistantError.provider("Reconnect the original computer account to open this task.") }
+        guard expectedConversationID == nil || expectedConversationID == chatID else { throw AssistantError.provider("This notification does not match the saved task.") }
         var next = settings; next.choice = .chatGPT; next.useComputer = true; next.chatGPTModel = modelID
         try saveSettings(next)
         if let existing = try? await store.loadConversation(chatID) {

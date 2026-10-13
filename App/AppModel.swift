@@ -567,7 +567,8 @@ final class AppModel: ObservableObject {
             ?? (selection.choice == .chatGPT && selection.useComputer && selection.companion != nil && !selection.localOnly)
         let computerReply = responseOnComputer
         beginResponseWindow()
-        replyActivity.begin(conversationID: original.id, modelName: modelTitle, computer: computerReply, reconnecting: savedWork != nil)
+        replyActivity.begin(conversationID: original.id, modelName: modelTitle, computer: computerReply, reconnecting: savedWork != nil,
+            externalPresentation: computerReply && activeComputerAccount?.activityProvider == "pushward")
         if computerReply { ReplyReturnRoute.remember(original.id) }
         requiresManualResume = false
         let previousTitleTask = titleTask
@@ -590,8 +591,8 @@ final class AppModel: ObservableObject {
                 if var computer = selectedBackend as? CompanionModelBackend {
                     computer.allowJobRestart = savedWork != nil && !automaticResume && !reconnectOnly
                     let client = computer.client
-                    computer.onJobAccepted = { [weak self] jobID in
-                        await self?.attachRemoteActivity(jobID: jobID, client: client)
+                    computer.onJobAccepted = { [weak self] jobID, provider in
+                        await self?.attachRemoteActivity(jobID: jobID, client: client, provider: provider)
                     }
                     selectedBackend = computer
                 }
@@ -696,7 +697,10 @@ final class AppModel: ObservableObject {
             await replyActivity.finish(completed: completedTurn, detached: computerStillWorking,
                 handingOff: handingOffToComputer && !completedTurn, waiting: pausedForInput || responseAwaitingAttention,
                 keepReady: UIApplication.shared.applicationState != .active)
-            if completedTurn && UIApplication.shared.applicationState == .active { ReplyReturnRoute.clear(); await replyActivity.viewed(conversationID: current.id) }
+            if completedTurn && UIApplication.shared.applicationState == .active {
+                ReplyReturnRoute.clear(); await replyActivity.viewed(conversationID: current.id)
+                if let jobID = savedComputerRun?.jobID { Task { await self.markComputerResultViewed(jobID: jobID) } }
+            }
             if responseWasBackgrounded, !userRequestedStop, !handingOffToComputer, selection.taskNotifications, UIApplication.shared.applicationState != .active,
                !computerReply || !replyActivity.remoteNotificationsAvailable,
                completedTurn || !computerReply || pausedForInput || responseAwaitingAttention {
@@ -777,7 +781,7 @@ final class AppModel: ObservableObject {
                 let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: token)
                 let wire = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel, wireProtocol: .responses,
                     chatGPTAccountID: connection.profileID, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort, contextBudget: contextBudget(for: selection))
-                return CompanionModelBackend(connection: connection, client: client, wire: wire, store: store)
+                return CompanionModelBackend(connection: connection, client: client, wire: wire, store: store, notificationsEnabled: selection.taskNotifications)
             }
             guard let account = selection.chatGPTAccountID, let accountService, !selection.chatGPTModel.isEmpty else { throw AccountConnectionError.signInRequired }
             let access = try await accountService.accessToken(for: account)
@@ -1177,8 +1181,8 @@ final class AppModel: ObservableObject {
         }
         if let activeTurnID { completionWindow.identifyTurn(activeTurnID) }
     }
-    private func attachRemoteActivity(jobID: String, client: CompanionClient) {
-        replyActivity.attach(jobID: jobID, client: client, notifications: settings.taskNotifications)
+    private func attachRemoteActivity(jobID: String, client: CompanionClient, provider: String? = nil) {
+        replyActivity.attach(jobID: jobID, client: client, notifications: settings.taskNotifications, externalPresentation: provider == "pushward")
     }
     private func handoffResponseToComputer() {
         guard computerHandoff == nil, let connection = settings.companion, let store else { return }
@@ -1245,7 +1249,7 @@ final class AppModel: ObservableObject {
                     token: CredentialStore.read(account: connection.credentialAccount))
                 let capabilities = try await client.json("/v1/capabilities")
                 guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }
-                try applyComputerAccount(capabilities["profile"] ?? .null, connection: connection)
+                try applyComputerAccount(capabilities["profile"] ?? .null, connection: connection, activityProvider: capabilities["presentation"]?["provider"]?.stringValue)
                 verifiedAccount = true
                 guard activeComputerAccount?.isConnected == true else { return }
                 let catalog = try await client.json("/v1/models")
@@ -1273,9 +1277,9 @@ final class AppModel: ObservableObject {
             if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
         } catch { chatGPTModels = []; noticeMessage = error.localizedDescription }
     }
-    func applyComputerAccount(_ profile: JSONValue, connection: CompanionConnection) throws {
+    func applyComputerAccount(_ profile: JSONValue, connection: CompanionConnection, activityProvider: String? = nil) throws {
         guard settings.companion == connection else { return }
-        let record = try ComputerAccountRecord(connection: connection, profile: profile)
+        let record = try ComputerAccountRecord(connection: connection, profile: profile, activityProvider: activityProvider)
         computerAccount = record; computerAccountReachability = .reachable
         if let computerAccountURL, let data = try? JSONEncoder().encode(record) { try? data.write(to: computerAccountURL, options: .atomic) }
     }

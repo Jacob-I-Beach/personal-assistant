@@ -8,7 +8,8 @@ struct CompanionModelBackend: RemoteTaskBackend {
     let wire: NetworkModelBackend
     let store: LocalStore
     var allowJobRestart = false
-    var onJobAccepted: (@Sendable (String) async -> Void)?
+    var notificationsEnabled = true
+    var onJobAccepted: (@Sendable (String, String?) async -> Void)?
     var id: String { "companion:" + connection.serverID + ":" + connection.profileID + ":" + wire.id }
     var networkDestination: String? { connection.destination }
     var contextLimits: ContextLimits { wire.contextLimits }
@@ -49,6 +50,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 "title": .string(String((request.messages.last(where: { $0.message.isRequest })?.message.text ?? "Assistant task").prefix(120))),
                 "contains_health_data": .bool(identity.containsHealthData), "body": try wire.responsesBody(request, includeFileContents: false),
                 "start_when_ready": .bool(true),
+                "presentation": .object(["notifications": .bool(notificationsEnabled)]),
                 "expected_file_ids": .array(Array(Set(request.messages.flatMap(\.files).compactMap(\.id))).map { .string($0.uuidString) }),
                 "catalog": .array(request.toolCatalog.map { .object(["name": .string($0.name), "description": .string($0.description), "parameters": $0.parameters]) }),
                 "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40), "context_text_bytes": .number(Double(contextLimits.maximumTextBytes))])
@@ -73,12 +75,12 @@ struct CompanionModelBackend: RemoteTaskBackend {
             try await store.saveCompanionRun(record)
         }
         let jobID = record.jobID!, path = "/v1/jobs/" + jobID
-        await onJobAccepted?(jobID)
         if record.stopRequested {
             _ = try await client.json(path + "/cancel", method: "POST", body: .object([:]))
             throw CancellationError()
         }
         let job = try await observe(path, output: output)
+        await onJobAccepted?(jobID, job["presentation_provider"]?.stringValue)
         let status = job["status"]?.stringValue ?? "unknown"
         if status == "queued" {
             for file in request.messages.flatMap(\.files) {
@@ -119,6 +121,8 @@ struct CompanionModelBackend: RemoteTaskBackend {
             let snapshotCursor = Int(batch["job"]?["cursor"]?.numberValue ?? 0)
             let canPublish = replay.canPublish(cursor: transcript.cursor, snapshotCursor: snapshotCursor)
             if !events.isEmpty && canPublish {
+                let visibleFiles = Set(transcript.messages.flatMap(\.fileIDs))
+                if !visibleFiles.isEmpty { _ = try await importOutputs(path: path, identity: identity, requiredIDs: visibleFiles) }
                 try await request.commitRemoteTranscript?(transcript.messages, pendingReceipts.map(\.1))
                 for (call, result) in pendingReceipts { output.yield(.receipt(call, result)) }
                 pendingReceipts.removeAll()
@@ -136,7 +140,8 @@ struct CompanionModelBackend: RemoteTaskBackend {
             let caughtUp = transcript.cursor >= snapshotCursor
             if !caughtUp { continue }
             if record.status == "completed" {
-                let files = try await importOutputs(path: path, identity: identity)
+                let alreadyAttached = Set(transcript.messages.flatMap(\.fileIDs))
+                let files = try await importOutputs(path: path, identity: identity).filter { !alreadyAttached.contains($0) }
                 var messages = transcript.messages
                 if let index = messages.lastIndex(where: { $0.role == .assistant }), !files.isEmpty {
                     messages[index].fileIDs = files
@@ -177,12 +182,16 @@ struct CompanionModelBackend: RemoteTaskBackend {
             }
         }
     }
-    private func importOutputs(path: String, identity: ModelWorkIdentity) async throws -> [UUID] {
+    private func importOutputs(path: String, identity: ModelWorkIdentity, requiredIDs: Set<UUID>? = nil) async throws -> [UUID] {
         let catalog = try await client.json(path + "/files")
+        let entries = catalog["files"]?.arrayValue ?? []
+        let publishedSources = Set(entries.compactMap { $0["publication_source_id"]?.stringValue })
         var imported: [UUID] = []
-        for entry in catalog["files"]?.arrayValue ?? [] {
+        for entry in entries {
             guard entry["role"] == .string("artifact"), let rawID = entry["id"]?.stringValue, let id = UUID(uuidString: rawID),
                   let name = entry["filename"]?.stringValue else { continue }
+            if let requiredIDs { guard requiredIDs.contains(id) else { continue } }
+            else if publishedSources.contains(rawID) { continue }
             imported.append(id)
             if (try? await store.workspaceFile(id)) != nil { continue }
             let data = try await client.data(path + "/files/" + rawID)
@@ -193,6 +202,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 containsHealthData: identity.containsHealthData || entry["contains_health_data"] == .bool(true))
             try await store.saveWorkspaceFile(file, data: data)
         }
+        if let requiredIDs, !requiredIDs.isSubset(of: Set(imported)) { throw AssistantError.provider("A shared file is not available from the computer yet. Sync this task again to retrieve it.") }
         return imported
     }
 }

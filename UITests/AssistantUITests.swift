@@ -2,6 +2,21 @@ import XCTest
 
 @MainActor
 final class AssistantUITests: XCTestCase {
+    func testPublishedComputerImageRendersInlineAndOpensOriginal() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-published-file", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let image = app.buttons["Open image synthetic-screen.png"]
+        XCTAssertTrue(image.waitForExistence(timeout: 15))
+        for _ in 0..<30 { if image.frame.height > 150 { break }; Thread.sleep(forTimeInterval: 0.1) }
+        XCTAssertGreaterThan(image.frame.height, 150)
+        saveScreenshot(app, name: "Published-computer-image-inline")
+        image.tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Published-computer-image-original")
+        app.buttons["Done"].tap()
+    }
     func testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings() {
         continueAfterFailure = false
         let app = XCUIApplication()

@@ -97,7 +97,7 @@ struct ComputerConnectionView: View {
         do {
             let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
             let info = try await client.json("/v1/capabilities")
-            try model.applyComputerAccount(info["profile"] ?? .null, connection: connection)
+            try model.applyComputerAccount(info["profile"] ?? .null, connection: connection, activityProvider: info["presentation"]?["provider"]?.stringValue)
             state = info["profile"]?["status"] == .string("connected") ? (info["computation_ready"] == .bool(true) ? "ChatGPT, Python and document tools are ready." : "ChatGPT is connected. Open the computer setup to finish computation tools.") : "Sign in to ChatGPT on your computer."
             error = nil
         } catch { self.error = error.localizedDescription }

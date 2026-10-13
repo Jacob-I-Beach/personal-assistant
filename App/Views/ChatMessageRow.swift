@@ -62,10 +62,14 @@ struct MessageRow: View {
         }
         ForEach(message.fileIDs, id: \.self) { id in
             if let file = model.files.first(where: { $0.id == id }) {
+                if ["png", "jpg", "jpeg", "webp", "gif", "heic", "heif", "tiff"].contains(URL(fileURLWithPath: file.filename).pathExtension.lowercased()) {
+                    ChatFileImage(file: file)
+                } else {
                 Button { chatNavigation.destination = .file(id) } label: {
                     Label(file.filename, systemImage: file.icon).font(.footnote).lineLimit(2).padding(10)
                         .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain).accessibilityLabel("Open attached file \(file.filename)")
+                }
             } else { Label("File removed from Library", systemImage: "doc").font(.caption).foregroundStyle(.secondary) }
         }
     }

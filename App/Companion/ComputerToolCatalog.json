@@ -1,5 +1,31 @@
 [
   {
+    "name": "publish_task_files",
+    "description": "Show selected task files in the conversation. Use this when the user asks to see a computer/browser screenshot, a rendered page, chart, or other output. Inspection images are otherwise private working material, not chat attachments. Uses actual file IDs from tool receipts or list_task_files; never invent a file path or claim an image was sent without this publication receipt. Existing bytes and source versions are preserved.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "file_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "file_ids",
+        "caption"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "list_task_files",
     "description": "List the actual files currently available to this task on the computer, with stable IDs and versions. Use after uploading a Library file or recovering an interrupted transfer.",
     "parameters": {

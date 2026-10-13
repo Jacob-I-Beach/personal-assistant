@@ -19,6 +19,7 @@ import {Scheduler} from './scheduler.mjs';
 import {ToolSessions} from './tool-sessions.mjs';
 import {HostRuntime} from './host-runtime.mjs';
 import {PushDelivery} from './push-delivery.mjs';
+import {PushWardBridge} from './pushward.mjs';
 import {computerDataRoot,resolveComputerDataRoot} from './data-location.mjs';
 
 const assets=fileURLToPath(new URL('../ui/',import.meta.url));
@@ -46,9 +47,11 @@ export async function startCompanion(options={}) {
   const runner=new JobRunner(store,provider,runtime,job=>toolSessions.prepareHandoff(job));
   if(runtime instanceof HostRuntime)runtime.approve=(job,call,review,signal)=>runner.reviewComputer(job,call,review,signal);
   const push=new PushDelivery(store,options.pushOptions);
-  runner.on('event',(id,event)=>push.queue(id,event));
+  runner.on('event',(id,event)=>{const owner=store.db.prepare('SELECT owner FROM jobs WHERE id=?').get(id)?.owner;if(!bridge.enabled(owner))push.queue(id,event);});
   runner.on('settled',id=>{const job=store.db.prepare('SELECT status FROM jobs WHERE id=?').get(id);if(job&&['completed','cancelled'].includes(job.status))Promise.resolve(runtime.close?.(id)).catch(()=>{});});
   const serverId=createHash('sha256').update(tls.cert).digest('hex').slice(0,32);
+  const bridge=new PushWardBridge(store,{...options.bridgeOptions,serverID:serverId});
+  runner.on('event',(id,event)=>bridge.queue(id,event));
   let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
   const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>!closing&&session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
   provider.subscribe?.(value=>{session=value;});
@@ -80,7 +83,7 @@ export async function startCompanion(options={}) {
   const api=https.createServer({cert:tls.cert,key:tls.key},async(request,response)=>{
     try {
       const url=new URL(request.url,'https://computer.invalid');
-      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.0',server_id:serverId,name:'Personal Assistant Computer'});
+      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.2',server_id:serverId,name:'Personal Assistant Computer'});
       if(url.pathname==='/v1/pair'&&request.method==='POST'){
         if(session.status!=='connected'||!session.sharing)throw new Error('Sign in to ChatGPT on the computer before connecting a phone.');
         const body=await jsonBody(request,4096),device=pairing.redeem(body.pairing_code,body.device_name);
@@ -96,7 +99,7 @@ export async function startCompanion(options={}) {
         if(job)runner.cancel(job.id,owner);
         return jsonReply(response,200,{status:job?.status==='completed'?'completed':'cancelled',notice:'Stop recorded for this request. Any already-started action retains its actual receipt.'});
       }
-      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.0',profile:session,computer_tools:runtime.definitions,computation_ready:await runtime.available(),push:push.status(),background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
+      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.2',profile:session,computer_tools:runtime.definitions,computation_ready:await runtime.available(),push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
       if(url.pathname==='/v1/models'&&request.method==='GET')return jsonReply(response,200,{profile_id:session.profileId,models:(await provider.listModels()).map(model=>({...model,display_name:model.displayName,visibility:'list',context_window:model.contextWindow,max_context_window:model.maximumContextWindow,supported_reasoning_levels:model.reasoningEfforts}))});
       if(url.pathname==='/v1/metadata'&&request.method==='POST'){
         const body=await jsonBody(request,128*1024),connection=await provider.getSession();
@@ -132,8 +135,9 @@ export async function startCompanion(options={}) {
       const match=url.pathname.match(/^\/v1\/jobs\/([a-zA-Z0-9-]+)(?:\/(.*))?$/);
       if(!match)return jsonReply(response,404,{error:'That action is not available.'});
       const id=match[1],action=match[2]??'',job=store.metadata(id,owner);
-      if(!action&&request.method==='GET')return jsonReply(response,200,publicJob(job));
+      if(!action&&request.method==='GET')return jsonReply(response,200,{...publicJob(job),presentation_provider:bridge.enabled(owner)?'pushward':'native'});
       if(action==='push'&&request.method==='POST')return jsonReply(response,200,push.register(owner,id,await jsonBody(request,8192)));
+      if(action==='presentation/viewed'&&request.method==='POST'){await jsonBody(request,1024);await bridge.viewed(owner,id);return jsonReply(response,200,{recorded:true});}
       if(action==='resume-info'&&request.method==='GET')return jsonReply(response,200,{job:publicJob(job),payload:store.get(id,owner).payload});
       if(action==='start'&&request.method==='POST'){const body=await jsonBody(request,4096);if(store.get(id,owner).payload.execution_only)throw new Error('This workspace is for tools only.');if(body.context_text_bytes!=null)store.contextBudget(id,owner,body.context_text_bytes);return jsonReply(response,200,publicJob(await startJob(store.get(id,owner))));}
       if(action==='execute-tool'&&request.method==='POST')return jsonReply(response,200,toolSessions.start(id,owner,await jsonBody(request,256*1024)));
@@ -205,8 +209,12 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.0',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,computation_ready:await runtime.available(),push:push.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.2',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,computation_ready:await runtime.available(),push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       if(url.pathname==='/api/push-configure'){push.configure(body);return jsonReply(response,200,push.status());}
+      if(url.pathname==='/api/pushward-configure')return jsonReply(response,200,await bridge.configure(body));
+      if(url.pathname==='/api/pushward-test')return jsonReply(response,200,await bridge.test());
+      if(url.pathname==='/api/pushward-refresh')return jsonReply(response,200,await bridge.refreshQuota());
+      if(url.pathname==='/api/pushward-disconnect')return jsonReply(response,200,await bridge.disconnect());
       if(url.pathname==='/api/task'){
         const entry=store.list().find(job=>job.id===body.job_id);if(!entry)throw new Error('Task not found.');
         return jsonReply(response,200,{job:publicJob(entry),events:store.events(entry.id,entry.owner,Number(body.after)||0),files:store.files(entry.id,entry.owner)});
@@ -264,7 +272,7 @@ export async function startCompanion(options={}) {
   }
   let closePromise;
   closeService=()=>closePromise??=(async()=>{
-    closing=true;clearInterval(scheduleTimer);push.close();scheduler.stopped=true;powerLease?.stdin.end();
+      closing=true;clearInterval(scheduleTimer);push.close();await bridge.close();scheduler.stopped=true;powerLease?.stdin.end();
     while(scheduler.busy)await new Promise(resolveWait=>setTimeout(resolveWait,20));
     for(const job of store.incomplete())if(runner.active.has(job.id))runner.interrupt(job.id);
     await Promise.all([...runner.active.values()].map(value=>value.promise));
@@ -272,7 +280,8 @@ export async function startCompanion(options={}) {
     await runtime.close?.();
     await Promise.all([new Promise(r=>setup.close(r)),new Promise(r=>api.close(r))]);store.close();
   })();
-  return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,push,close:closeService};
+  bridge.wake();
+  return {setupURL:setupOrigin,apiPort,store,runner,pairing,provider,tls,push,bridge,close:closeService};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){

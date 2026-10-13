@@ -3,7 +3,7 @@ async function api(path,body={}){const response=await fetch(path,{method:'POST',
 function notice(error){byId('notice').textContent=error?.message??'';}
 const labels={queued:'Waiting to start',running:'Working',waiting_for_phone:'Needs your iPhone',waiting_for_input:'Needs your answer',completed:'Ready',failed:'Needs attention',cancelled:'Stopped',interrupted:'Ready to continue'};
 function action(text,handler){const button=document.createElement('button');button.textContent=text;button.addEventListener('click',()=>handler().catch(notice));return button;}
-let addressesKey='',jobsKey='';
+let addressesKey='',jobsKey='',bridgeDevicesKey='';
 async function refresh(){
   try{const state=await api('/api/status');const session=state.session;
     byId('account').textContent=session.status==='connected'?(session.sharing?'Connected · '+(session.identity?.name??session.profileLabel??'ChatGPT plan'):'Connected; plan sharing needs authorization'):'Connect the ChatGPT account you want this computer to use.';
@@ -17,6 +17,12 @@ async function refresh(){
     if(!state.jobs.length){const empty=document.createElement('p');empty.className='empty';empty.textContent='Tasks from your iPhone will appear here.';byId('jobs').append(empty);}
     for(const job of state.jobs){const row=document.createElement('div');row.className='job';const content=document.createElement('div'),title=document.createElement('h3'),detail=document.createElement('p');title.textContent=job.title;detail.textContent=(labels[job.status]??job.status)+' · '+job.model;content.append(title,detail);row.append(content,action('Open task',()=>openTask(job)));if(!['completed','cancelled','failed','interrupted'].includes(job.status))row.append(action('Stop',()=>api('/api/cancel',{job_id:job.id}).then(refresh)));byId('jobs').append(row);}}
     byId('devices').replaceChildren(...state.devices.map(device=>{const row=document.createElement('div');row.className='device';const label=document.createElement('span');label.textContent=device.name;row.append(label,action('Disconnect',()=>api('/api/revoke',{device_id:device.id}).then(refresh)));return row;}));
+    const bridge=state.pushward??{};
+    byId('bridge-status').textContent=bridge.enabled?(bridge.last_error??'Connected · brief task updates go to PushWard.'):'Not connected · optional free-plan delivery.';
+    const devicesKey=JSON.stringify(state.devices.map(device=>[device.id,device.name]));
+    if(devicesKey!==bridgeDevicesKey){bridgeDevicesKey=devicesKey;byId('bridge-owner').replaceChildren(...state.devices.map(device=>{const option=document.createElement('option');option.value=device.id;option.textContent=device.name;return option;}));if(bridge.owner)byId('bridge-owner').value=bridge.owner;}
+    const q=bridge.quota;byId('bridge-quota').textContent=q?`This month: ${q.activitiesUsed}/${q.activitiesLimit} Live Activity updates · ${q.notificationsUsed}/${q.notificationsLimit} alerts. `+(q.resetsAt?'Resets '+new Date(q.resetsAt).toLocaleString()+'.':''):'';
+    for(const name of ['bridge-test','bridge-refresh','bridge-disconnect'])byId(name).disabled=!bridge.enabled;
     if(state.error)byId('notice').textContent=state.error;
   }catch(error){notice(error);}
 }
@@ -68,3 +74,8 @@ byId('close-task').addEventListener('click',()=>{taskView=null;byId('task-dialog
 byId('task-dialog').addEventListener('close',()=>{taskView=null;});
 setInterval(refreshTask,2000);
 byId('push-form').addEventListener('submit',async event=>{event.preventDefault();try{const file=byId('push-file').files[0];if(!file||file.size>8192)throw new Error('Choose the APNs .p8 key file.');await api('/api/push-configure',{team_id:byId('push-team').value.trim(),key_id:byId('push-key').value.trim(),topic:byId('push-topic').value.trim(),private_key:await file.text()});byId('push-file').value='';await refresh();}catch(error){notice(error);}});
+
+byId('bridge-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;try{await api('/api/pushward-configure',{owner:byId('bridge-owner').value,key:byId('bridge-key').value.trim()});byId('bridge-key').value='';notice({message:'PushWard connected. Send a connection test, then check your iPhone.'});await refresh();}catch(error){notice(error);}finally{button.disabled=false;}});
+byId('bridge-test').addEventListener('click',async()=>{byId('bridge-test').disabled=true;try{const result=await api('/api/pushward-test');notice({message:result.notice});}catch(error){notice(error);}finally{await refresh();}});
+byId('bridge-refresh').addEventListener('click',()=>api('/api/pushward-refresh').then(refresh).catch(notice));
+byId('bridge-disconnect').addEventListener('click',()=>api('/api/pushward-disconnect').then(refresh).catch(notice));
