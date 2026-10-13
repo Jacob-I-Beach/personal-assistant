@@ -14,7 +14,7 @@
     "qwen_generation_and_tool_use": "pending",
     "qwen_context_memory_and_thermal_fit": "pending",
     "real_windows_desktop_interaction": "pending",
-    "alternative_signer": "Sideloadly official installer downloaded. Installed app identifier verified over USB and recorded in private installation notes. Apple login, output signing identity and physical installation remain unverified."
+    "alternative_signer": "Sideloadly installed. Local anisette DLL conflict with the Windows Swift Foundation runtime reproduced and repaired through a per-process launcher; user confirms Local Anisette is available. Installed app identifier was verified over USB. Apple login and final in-place installation remain pending."
   },
   "deferred": {
     "apple_developer_enrollment": "user will do later",
