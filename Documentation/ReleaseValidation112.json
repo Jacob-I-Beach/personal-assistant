@@ -1,7 +1,7 @@
 {
   "version": "1.1.2",
   "build": 17,
-  "state": "Native package and focused UI verified; PC r3 installed; physical phone update pending",
+  "state": "Native build17 unchanged; PC r4 installed, PushWard deferred; authenticated ChatGPT route still returning HTTP520",
   "native_source_revision": "4e8e58812e1b8afaef9b927e9ebace1678231816",
   "native_run": 38373464461,
   "native_results": {
@@ -75,22 +75,22 @@
   },
   "pc_runtime": {
     "version": "1.1.2",
-    "package": "1.1.2-release-r3",
-    "code_revision": "ed6104976c6953054313b10989c9783a854b84bd",
+    "package": "1.1.2-release-r4",
+    "code_revision": "a6bf90c6469f3e38ce22b4e79dd7325b7c015c50",
     "installed": true,
     "account": "connected",
     "paired_devices": 1,
     "computation_ready": true,
     "existing_data_preserved": true,
-    "windows_startup": "CIM verified real per-user startup points at r3",
+    "windows_startup": "Updated through CIM to r4; verified after installation",
     "firewall": "Reuses the byte-identical, previously authorized Node runtime and Tailscale rule",
     "authorization": "User explicitly authorized the update; normal updater completed successfully"
   },
-  "companion_tests": 36,
+  "companion_tests": 38,
   "updater_tests": 7,
   "synthetic_pc_ui": "Setup, key clearing, allowance, test and clear-test controls passed in Edge with mocked delivery",
   "pushward": {
-    "configured": true,
+    "configured": false,
     "key_storage": "Existing encrypted Windows vault",
     "user_confirmed": [
       "Live Activity appears",
@@ -114,7 +114,8 @@
       "notifications": 3,
       "notification_limit": 500
     },
-    "no_custom_looping_spinner": true
+    "no_custom_looping_spinner": true,
+    "current_state": "Deferred by user; key cleared, zero pending delivery, all created cards ended"
   },
   "limits": [
     "Physical installation of 1.1.2 and real task view/dismissal remain pending.",
@@ -126,5 +127,17 @@
   ],
   "no_live_model_test": true,
   "no_api_billing_added": true,
-  "no_plan_purchase": true
+  "no_plan_purchase": true,
+  "pc_r4_followup": {
+    "date": "2026-10-13",
+    "observed_error": "api_error, HTTP520, pre-stream",
+    "affected": "new and existing chat",
+    "model_discovery": "Authenticated read-only catalog also HTTP520",
+    "anonymous_api": "401 as expected",
+    "retry": "2 attempts after the first failure, at 5s and 15s; explicit retryable transport/server errors",
+    "generation_restored": false,
+    "live_inference_sent": false,
+    "paired_devices": 1,
+    "preserved_tasks": 23
+  }
 }

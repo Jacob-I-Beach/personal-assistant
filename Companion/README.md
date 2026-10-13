@@ -43,6 +43,8 @@ Apple Developer-dependent notification setup is documented in `Documentation/APP
 
 ## Optional PushWard delivery
 
+Current status (October 13, r4): deferred at Jacob's request. The installed service disconnects any previously enabled bridge and refuses new configure/test requests; the control center hides these controls. The integration key was cleared and existing bridge cards were ended. The implementation details below are retained for historical reference. Native APNs setup remains available for later Apple Developer provisioning.
+
 The control center can connect a PushWard integration key with Activities: Manage and Notifications: Send, optionally restricted to `pa-*`. It stores the key in the existing Windows-protected vault. Only fixed task status and a chat link are sent; prompts, answers, screenshots, documents and Health data are excluded.
 
 The status layout uses a phase icon and label without a fabricated percentage. Use **Open chat** on a Live Activity, or press and hold an alert and choose **Open chat**. A normal notification-body tap opens PushWard's detail screen. PushWard may also confirm a link according to its link settings. Its available templates do not expose a custom looping spinner.

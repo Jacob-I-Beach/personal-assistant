@@ -1,5 +1,15 @@
 # 1.1.2 build 17 — remote activity delivery and visible outputs
 
+## Later October 13 PC repair — r4
+
+Jacob asked to defer the notification bridge until Apple Developer setup after every prompt appeared to fail. PushWard is disconnected, its saved key is cleared, pending deliveries are zero, and all created bridge activities have end receipts. The PC control center hides its controls and refuses new configure/test requests. Native APNs remains unprovisioned; the existing phone-local notification/progress settings are separate and unchanged by this PC repair.
+
+The latest new-chat and existing-chat failures both occurred before any response text or tool execution, with provider `api_error`, HTTP 520. The SDK marked the error retryable, but the worker only retried a small named-overload list. The worker now preserves retryable transport/direct-admission failures, retries twice after 5 and 15 seconds, and reports the actual provider/server error if still unavailable. It does not retry permission or ChatGPT sharing-limit failures and does not replay completed tool effects.
+
+Computer package `1.1.2-release-r4`, code `a6bf90c`, is installed with the existing account, pairing, 23 saved tasks and Windows startup preserved. Thirty-eight companion tests and the focused deferred-delivery UI check pass. No native source changed or iPhone rebuild was performed; build17 remains the phone package. A real read-only account model-discovery check still returns HTTP520 after the update, while the unauthenticated API responds with the expected HTTP401. No live inference request was sent. This establishes an unresolved authenticated connection failure, not restored generation or a proven global outage.
+
+Added: transient-error handling and a read-only connection diagnostic. Changed: clear server-error wording and bounded retry. Removed from the active setup: PushWard delivery and its controls. Still pending: recovery of the ChatGPT-plan connection and a normal successful phone reply. Earlier PushWard delivery evidence below is historical, not the current enabled state.
+
 Prepared October 13, 2026. The physical-device archive is from source `4e8e58812e1b8afaef9b927e9ebace1678231816`, native run 38373464461. PC package `1.1.2-release-r3` is installed from code revision `ed6104976c6953054313b10989c9783a854b84bd`, with the existing account, pairing and saved tasks. Includes the complete 1.1.1 repairs; this is one phone update. Physical installation remains pending. The Standard IPA SHA-256 is `70c7c8f16f4b752aaa119064ba30bbfe81e48c01ac0d4f16cd62c4b323dd9c49`.
 
 ## Added

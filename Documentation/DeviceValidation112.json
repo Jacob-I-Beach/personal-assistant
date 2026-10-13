@@ -3,19 +3,20 @@
   "build": 17,
   "state": "Awaiting user-operated in-place phone update",
   "previous_version_confirmed": "1.1.0 build 15 Standard; chats retained and connected GPT replies",
-  "pc_update": "1.1.2 release r3 active; account, pairing, saved tasks and startup verified",
+  "pc_update": "1.1.2 release r4 active; account, pairing, 23 tasks and startup preserved",
   "confirmed_pushward": [
     "Installed and signed in with permissions",
     "Live Activity and alert delivered",
     "PushWard detail Link opens the chat"
   ],
   "pending": [
-    "About reports 1.1.2 build 17; existing chats retained",
-    "New status layout replaces 0%; expanded notification Open chat reaches the correct chat",
-    "Opening running work preserves its activity; viewing a finished result clears it",
-    "Published screenshots show inline and open full size",
-    "Normal-use long background/locked return preserves the response and live tool history"
+    "About reports 1.1.2 build17 and existing chats remain, if not already installed",
+    "ChatGPT-plan connection recovers from HTTP520 and a normal reply succeeds",
+    "Published screenshots render inline and open full size",
+    "Extended background or locked return preserves the same saved task after connection recovery"
   ],
   "signing": "Same Apple account; custom installed bundle ID dev.jacob.personalassistant.2932Q6J456; keep extensions and existing app",
-  "native_fixture_evidence": "ReleaseValidation112.json"
+  "native_fixture_evidence": "ReleaseValidation112.json",
+  "pushward_current": "Deferred at user request; previous delivery results are historical",
+  "connection_pending": "Authenticated ChatGPT route returned HTTP520 for inference and model discovery; successful reply not yet confirmed"
 }
