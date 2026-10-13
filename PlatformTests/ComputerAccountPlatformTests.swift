@@ -37,9 +37,11 @@ final class ComputerAccountPlatformTests: XCTestCase {
             payload: .object(["body": .object(["model": .string("original-model")])]))
         var current = ModelSettings(); current.companion = connection; current.useComputer = true; current.localOnly = false
         current.choice = .appleOnDevice; current.chatGPTModel = "next-model"
+        XCTAssertThrowsError(try ComputerTaskRecovery.selection(for: work, record: record, current: current), "A local selection must not resume GPT")
+        current.choice = .chatGPT
         let restored = try ComputerTaskRecovery.selection(for: work, record: record, current: current)
         XCTAssertEqual(restored.choice, .chatGPT); XCTAssertEqual(restored.chatGPTModel, "original-model")
-        XCTAssertEqual(current.choice, .appleOnDevice); XCTAssertEqual(current.chatGPTModel, "next-model")
+        XCTAssertEqual(current.choice, .chatGPT); XCTAssertEqual(current.chatGPTModel, "next-model")
         current.localOnly = true
         XCTAssertThrowsError(try ComputerTaskRecovery.selection(for: work, record: record, current: current))
         current.localOnly = false; current.companion?.profileID = "another-account"

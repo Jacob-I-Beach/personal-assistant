@@ -36,6 +36,22 @@ extension AppModel {
             }
             conversation.messages = [Message(role: .user, text: "Show the screenshot in chat."), Message(role: .assistant, text: "Here is the requested screenshot.", fileIDs: [id])]
         }
+        if ProcessInfo.processInfo.arguments.contains("--ui-local-isolation") {
+            let connection = CompanionConnection(baseURL: URL(string: "https://127.0.0.1:1")!, certificateSHA256: String(repeating: "a", count: 64),
+                serverID: "synthetic-server", deviceID: "synthetic-phone", profileID: "synthetic-profile", name: "Test computer")
+            settings.companion = connection; settings.useComputer = true; settings.choice = .appleOnDevice
+            appleDevice = .init(title: "AFM on-device test", isAvailable: true, detail: "Synthetic local-routing check")
+            conversation = Conversation(title: "Local selection with saved GPT work")
+            let previous = Message(role: .user, text: "An earlier saved GPT request")
+            conversation.messages = [previous, Message(role: .assistant, text: "Earlier work remains saved.", state: .interrupted)]
+            var work = WorkTurn(id: previous.id, conversationID: conversation.id, userMessageID: previous.id,
+                backendID: "companion:synthetic-prior", destination: connection.destination, goal: previous.text)
+            work.phase = .interrupted; work.interruptionKind = "computer_detached"
+            var record = CompanionRunRecord(turnID: work.id, connectionID: connection.destination,
+                payload: .object(["body": .object(["model": .string("gpt-6.1-sol")])]))
+            record.status = "running"; record.jobID = UUID().uuidString.lowercased()
+            try? await store.saveCompanionRun(record); try? await store.saveWorkTurn(work)
+        }
         try? await store.save(conversation)
         draft = ""
     }
@@ -48,6 +64,15 @@ struct UICoherenceBackend: ModelBackend {
             output.yield(.transportProgress(64))
             output.yield(.textDelta("Your synthetic request started without another connection prompt."))
             output.yield(.completed); output.finish()
+        }
+    }
+}
+struct UILocalIsolationBackend: ModelBackend {
+    let id = "apple:on-device"
+    var networkDestination: String? { nil }
+    func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
+        AsyncThrowingStream { output in
+            output.yield(.textDelta("Answered on this iPhone.")); output.yield(.completed); output.finish()
         }
     }
 }

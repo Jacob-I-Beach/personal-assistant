@@ -19,8 +19,15 @@ import Foundation
     private var externalPresentation = false
     private var lastContext: (conversationID: UUID, modelName: String, computer: Bool)?
     private(set) var remoteNotificationsAvailable = false
+    private let statusEnabled: Bool
+
+    init(statusEnabled: Bool? = nil) {
+        self.statusEnabled = statusEnabled ?? TaskPresentationPolicy.isEnabled
+        if !self.statusEnabled { useExternalPresentation() }
+    }
 
     func begin(conversationID: UUID, modelName: String, computer: Bool, reconnecting: Bool, externalPresentation: Bool = false) {
+        guard statusEnabled else { useExternalPresentation(); return }
         tokenUpdates?.cancel(); deviceUpdates?.cancel(); remoteJobID = nil; remoteClient = nil; remoteNotificationsAvailable = false
         lastContext = (conversationID, modelName, computer)
         self.externalPresentation = externalPresentation
@@ -50,6 +57,7 @@ import Foundation
     }
 
     func attach(jobID: String, client: CompanionClient, notifications: Bool, externalPresentation: Bool = false) {
+        guard statusEnabled else { return }
         if externalPresentation {
             self.externalPresentation = true; remoteJobID = jobID; remoteClient = client
             useExternalPresentation(); remoteNotificationsAvailable = notifications

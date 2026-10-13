@@ -319,7 +319,7 @@ final class AppModel: ObservableObject {
             selectedImagePoints = (try? JSONDecoder().decode([String: [ImagePoint]].self, from: Data((drafts["points:" + summary.id.uuidString] ?? "{}").utf8))) ?? [:]
             draft = drafts[summary.id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + summary.id.uuidString] == "true"
             noticeMessage = nil; errorMessage = nil
-            if let work = unfinishedReplies.first(where: { $0.conversationID == summary.id && $0.backendID.hasPrefix("companion:") }),
+            if settings.choice == .chatGPT, let work = unfinishedReplies.first(where: { $0.conversationID == summary.id && $0.backendID.hasPrefix("companion:") }),
                let record = try? await store.companionRun(work.id), !record.stopRequested,
                !["failed", "cancelled", "interrupted"].contains(record.status) {
                 Task { if !self.isRunning && self.conversation.id == summary.id { await self.resumeReply(work, reconnectOnly: true) } }
@@ -505,7 +505,7 @@ final class AppModel: ObservableObject {
         responseWasBackgrounded = true; responseTask?.cancel()
     }
     private func continueInterruptedReplyIfEligible() async {
-        if !isRunning, !handingOffToComputer, !userRequestedStop, UIApplication.shared.applicationState == .active,
+        if settings.choice == .chatGPT, !isRunning, !handingOffToComputer, !userRequestedStop, UIApplication.shared.applicationState == .active,
            let work = try? await store?.unfinishedWork().first(where: { $0.conversationID == conversation.id }),
            work.backendID.hasPrefix("companion:"), work.interruptionKind != "computer_sync_attention", let record = try? await store?.companionRun(work.id), !record.stopRequested,
            !["failed", "cancelled", "interrupted"].contains(record.status) {
@@ -519,6 +519,10 @@ final class AppModel: ObservableObject {
     }
     func resumeReply(_ work: WorkTurn, automatic: Bool = false, reconnectOnly: Bool = false) async {
         guard !isRunning, let store, UIApplication.shared.applicationState == .active else { return }
+        if work.backendID.hasPrefix("companion:"), settings.choice != .chatGPT {
+            if !automatic && !reconnectOnly { noticeMessage = "This saved reply uses ChatGPT. Send a new message with \(modelTitle), or select ChatGPT to continue the original task." }
+            return
+        }
         do {
             let restored = try await store.loadConversation(work.conversationID)
             guard restored.messages.last(where: \.isRequest)?.id == work.userMessageID else { throw AssistantError.provider("A newer request followed this reply. Open its conversation to choose what should continue.") }
@@ -529,6 +533,7 @@ final class AppModel: ObservableObject {
             guard work.conversationID == conversation.id else { return }
             // Never silently change the selected account, model or its access policy.
             let selectedSettings = settings
+            if work.backendID.hasPrefix("companion:"), selectedSettings.choice != .chatGPT { return }
             let selected = try await backend(forSavedWork: work, selection: selectedSettings)
             guard selected.id == work.backendID, selected.networkDestination == work.destination else {
                 throw AssistantError.provider("Choose the model previously used for this reply before continuing it.")
@@ -760,6 +765,10 @@ final class AppModel: ObservableObject {
     }
     func backend(for selection: ModelSettings, onComputer: Bool = false) async throws -> any ModelBackend {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-local-isolation") {
+            guard selection.choice == .appleOnDevice, !onComputer else { throw AssistantError.provider("The local-routing fixture refused a connected backend.") }
+            return UILocalIsolationBackend()
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { return UIInteractionBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { return UIStreamingBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { return UIContinuityBackend() }
@@ -802,6 +811,8 @@ final class AppModel: ObservableObject {
         if value.choice != settings.choice || value.networkDestination != settings.networkDestination || value.localRepository != settings.localRepository
             || value.chatGPTModel != settings.chatGPTModel || value.openAIModel != settings.openAIModel || value.localOnly || !value.automaticChatTitles {
             titleTask?.cancel()
+            activity = nil; activeToolCall = nil; noticeMessage = nil
+            responseWasBackgrounded = false
         }
         guard !value.includeInDeviceBackup || !libraryContainsHealthData else { throw AssistantError.provider("A library containing Health-derived information stays excluded from device backups. You can export selected items yourself.") }
         if let endpoint = value.endpoint { try EndpointPolicy.validate(endpoint) }
@@ -966,7 +977,7 @@ final class AppModel: ObservableObject {
                 "automatic_memory": .bool(settings.automaticMemory), "workspace_history_enabled": .bool(settings.workspaceSearchEnabled),
                 "location_context_enabled": .bool(settings.locationContextEnabled), "location_authorization": .string(locationService.authorizationSummary),
                 "local_only": .bool(settings.localOnly), "background_tracking": .bool(false), "weather": .null,
-                "continued_background_requested": .bool(settings.continueInBackground), "task_notifications_enabled": .bool(settings.taskNotifications)]
+                "continued_background_requested": .bool(settings.continueInBackground), "task_notifications_enabled": .bool(TaskPresentationPolicy.isEnabled && settings.taskNotifications)]
             if !settings.localOnly, let weather = try await store?.cachedHomeWeather(), weather.isFresh(),
                (settings.weatherFollowsLocation && settings.locationContextEnabled && weather.place.name == "Nearby") || (!settings.weatherFollowsLocation && settings.weatherPlace == weather.place) {
                 context["weather"] = .object(["place": .string(weather.place.name), "celsius": .number(weather.celsius), "conditions": .string(weather.condition),
@@ -1173,7 +1184,7 @@ final class AppModel: ObservableObject {
         }
     }
     private func beginResponseWindow() {
-        let continued = !responseOnComputer && settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
+        let continued = TaskPresentationPolicy.isEnabled && !responseOnComputer && settings.continueInBackground && [.chatGPT, .openAI, .compatibleServer].contains(settings.choice)
         completionWindow.begin(allowContinued: continued, preservingCurrent: handingOffToComputer) { [weak self] cancelledBySystem in
             guard let self else { return }
             self.systemEndedBackgroundWork = !self.responseOnComputer && cancelledBySystem
@@ -1258,7 +1269,9 @@ final class AppModel: ObservableObject {
                 chatGPTModels = try ChatGPTModel.catalog(from: JSONEncoder().encode(catalog))
             } catch {
                 guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }
-                if verifiedAccount { noticeMessage = "Your ChatGPT account is connected, but its model list could not refresh." }
+                if verifiedAccount {
+                    if settings.choice == .chatGPT { noticeMessage = "Your ChatGPT sign-in is saved, but the model service could not be reached." }
+                }
                 else { computerAccountReachability = .unavailable }
             }
             return
@@ -1275,7 +1288,7 @@ final class AppModel: ObservableObject {
             chatGPTModels = models
             if !isRunning && !chatGPTModels.contains(where: { $0.id == settings.chatGPTModel }) { settings.chatGPTModel = chatGPTModels.first?.id ?? "" }
             if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
-        } catch { chatGPTModels = []; noticeMessage = error.localizedDescription }
+        } catch { chatGPTModels = []; if settings.choice == .chatGPT { noticeMessage = error.localizedDescription } }
     }
     func applyComputerAccount(_ profile: JSONValue, connection: CompanionConnection, activityProvider: String? = nil) throws {
         guard settings.companion == connection else { return }

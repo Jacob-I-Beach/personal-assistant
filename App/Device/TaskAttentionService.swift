@@ -12,8 +12,13 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
     private override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
+        if !TaskPresentationPolicy.isEnabled {
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        }
     }
     func requestPermission() async {
+        guard TaskPresentationPolicy.isEnabled else { return }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--ui-") }) { return }
         #endif
@@ -24,6 +29,7 @@ final class TaskAttentionService: NSObject, UNUserNotificationCenterDelegate {
         RemotePushRegistration.register()
     }
     func notify(conversationID: UUID, title: String, explanation: String) async {
+        guard TaskPresentationPolicy.isEnabled else { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }

@@ -42,8 +42,12 @@ struct SettingsView: View {
                     Text("When off, Send uses the model you selected without another pop-up. Health sharing still has a separate review.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Continue connected tasks in background", isOn: preference(\.continueInBackground))
                     Text(model.usesComputerChatGPT ? "Accepted ChatGPT tasks continue on your computer while the iPhone is away. Keep the computer awake and online; phone actions wait for the phone. Downloaded models run on the iPhone and still pause in the background." : "Tasks you start can keep working while you use another app, when iOS grants processing time. You can stop them from the system activity. Downloaded models still pause when the app leaves the foreground.").font(.footnote).foregroundStyle(.secondary)
-                    Toggle("Notify when a task needs attention", isOn: preference(\.taskNotifications))
-                    Text("Allow notifications when iOS asks. Receive a notice for reviews, completed replies, or saved work that needs attention. Tapping opens its chat.").font(.footnote).foregroundStyle(.secondary)
+                    if TaskPresentationPolicy.isEnabled {
+                        Toggle("Notify when a task needs attention", isOn: preference(\.taskNotifications))
+                        Text("Receive a notice for reviews, completed replies, or saved work that needs attention. Tapping opens its chat.").font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Text("Notifications and Live Activities are paused in this build. Questions and task status remain available in chat.").font(.footnote).foregroundStyle(.secondary)
+                    }
                     Toggle("Automatic memory", isOn: preference(\.automaticMemory))
                     Text("Remember useful things you share and keep them current. Inferences stay tentative. Inspect changes and undo them in Library → Saved memory.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow workspace search", isOn: preference(\.workspaceSearchEnabled))

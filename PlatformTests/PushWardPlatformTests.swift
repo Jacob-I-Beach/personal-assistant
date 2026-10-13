@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class PushWardPlatformTests: XCTestCase {
     func testBridgeAttentionDoesNotDependOnTheNativePushEntitlement() async throws {
-        let controller = ReplyLiveActivity()
+        let controller = ReplyLiveActivity(statusEnabled: true)
         let client = try CompanionClient(baseURL: URL(string: "https://127.0.0.1:1")!, fingerprint: String(repeating: "a", count: 64), token: "synthetic")
         controller.begin(conversationID: UUID(), modelName: "Synthetic", computer: true, reconnecting: false, externalPresentation: true)
         controller.attach(jobID: UUID().uuidString, client: client, notifications: true, externalPresentation: true)
