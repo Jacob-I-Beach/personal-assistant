@@ -1,0 +1,130 @@
+{
+  "version": "1.1.2",
+  "build": 17,
+  "state": "Native package and focused UI verified; PC r3 installed; physical phone update pending",
+  "native_source_revision": "4e8e58812e1b8afaef9b927e9ebace1678231816",
+  "native_run": 38373464461,
+  "native_results": {
+    "device_package": "success",
+    "simulator_compile": "success",
+    "shared_core_mac": 202,
+    "platform_tests_passed": 2
+  },
+  "shared_core_windows": 202,
+  "ui_scenario": "Published computer image renders inline; tapping opens the full-screen Quick Look controller",
+  "ui_recheck": {
+    "run": 38378990326,
+    "source": "ed6104976c6953054313b10989c9783a854b84bd",
+    "passed": 1,
+    "production_source_unchanged": true,
+    "only_test_bundle_rebuilt": true
+  },
+  "earlier_ui_failures": [
+    {
+      "run": 38373464461,
+      "cause": "Test required a Done button while Quick Look hides its toolbar. The full original image was visible."
+    },
+    {
+      "run": 38377817709,
+      "cause": "Test depended on an internal image-canvas accessibility node absent in this remote-view snapshot. The same original image was visible."
+    }
+  ],
+  "screenshots_inspected": [
+    "Published-computer-image-inline",
+    "Published-computer-image-original",
+    "PushWard synthetic PC setup"
+  ],
+  "visual_evidence": {
+    "inline": "38378990326/C8419A78-B1E4-4474-84D7-86F18A68B772.png",
+    "full_original": "38377817709/E4ADA95D-E910-4A7F-99D1-0D0646CB5762.jpeg; same compiled app from 4e8e588",
+    "final_recheck_original_capture": "Captured Quick Look controls before its asynchronously rendered image arrived. Full-image visual evidence is retained from the prior unchanged-app run."
+  },
+  "phone_package": {
+    "file": "PersonalAssistant-Standard.ipa",
+    "sha256": "70c7c8f16f4b752aaa119064ba30bbfe81e48c01ac0d4f16cd62c4b323dd9c49",
+    "bytes": 21882260,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.1.2",
+    "build": "17",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [
+      {
+        "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+        "version": "1.1.2",
+        "build": "17"
+      }
+    ],
+    "requested_entitlements": {},
+    "health_enabled_in_app": false,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing",
+    "source_sha256": "09df40d022398fbe0d00ecdae40f79845d2b52c382cf5f19e6c02777dc61d720",
+    "health_deferred": true,
+    "compiled_sections_unchanged": true,
+    "activity_extension_preserved": true,
+    "apple_adhoc_signature_verified": true,
+    "changed_files": [
+      "Payload/PersonalAssistant.app/_CodeSignature/CodeResources",
+      "Payload/PersonalAssistant.app/PersonalAssistant",
+      "Payload/PersonalAssistant.app/Info.plist"
+    ],
+    "note": "Unsigned installation input with a verified ad-hoc signature. Personal signing is still required."
+  },
+  "pc_runtime": {
+    "version": "1.1.2",
+    "package": "1.1.2-release-r3",
+    "code_revision": "ed6104976c6953054313b10989c9783a854b84bd",
+    "installed": true,
+    "account": "connected",
+    "paired_devices": 1,
+    "computation_ready": true,
+    "existing_data_preserved": true,
+    "windows_startup": "CIM verified real per-user startup points at r3",
+    "firewall": "Reuses the byte-identical, previously authorized Node runtime and Tailscale rule",
+    "authorization": "User explicitly authorized the update; normal updater completed successfully"
+  },
+  "companion_tests": 36,
+  "updater_tests": 7,
+  "synthetic_pc_ui": "Setup, key clearing, allowance, test and clear-test controls passed in Edge with mocked delivery",
+  "pushward": {
+    "configured": true,
+    "key_storage": "Existing encrypted Windows vault",
+    "user_confirmed": [
+      "Live Activity appears",
+      "Ordinary alert appears",
+      "Link in PushWard detail opens the chat"
+    ],
+    "observed_defects": [
+      "Normal notification-body tap opens PushWard detail",
+      "Generic activity template displays 0% without supplied progress"
+    ],
+    "changes": [
+      "Alert status layout with phase icons",
+      "Expanded-notification Open chat action",
+      "Completed-result view acknowledgment; active tasks stay visible",
+      "Test expires after 120 seconds or explicit clear"
+    ],
+    "latest_test_api_result": "delivery all; physical action and new layout confirmation pending",
+    "actual_usage_at_check": {
+      "activity_updates": 5,
+      "activity_limit": 250,
+      "notifications": 3,
+      "notification_limit": 500
+    },
+    "no_custom_looping_spinner": true
+  },
+  "limits": [
+    "Physical installation of 1.1.2 and real task view/dismissal remain pending.",
+    "PushWard owns the notification and activity rendering. A normal alert tap opens its detail screen; expanded action behavior is a separate phone check.",
+    "Phase updates are coalesced for the free allowance, not streamed on every token or tool event.",
+    "iOS/PushWard lifetime and delivery budgets still apply. This is not directly provisioned APNs for Personal Assistant.",
+    "Extended locked-phone behavior and live answer quality have not been tested with a real model in this run.",
+    "Health, paid Apple Developer provisioning and physical Qwen memory/download acceptance remain deferred or unverified."
+  ],
+  "no_live_model_test": true,
+  "no_api_billing_added": true,
+  "no_plan_purchase": true
+}

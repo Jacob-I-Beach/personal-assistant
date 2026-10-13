@@ -25,7 +25,7 @@ Ask the assistant to schedule research or a draft while using the Computer conne
 
 Python executions default to 2 GiB, two CPU cores and 60 seconds, and may request up to 8 GiB, eight cores and 1800 seconds. Inputs remain scoped and read-only; outputs remain bounded. The environment includes numerical, statistical, spreadsheet, Word, presentation, plotting and PDF libraries. Document inspection distinguishes spreadsheet formulas from cached values and renders actual PDF/Office pages. Office pagination uses LibreOffice and can differ from Microsoft Office. Generated code cannot access the host filesystem, network, credentials or Docker socket.
 
-See the repository's 1.0 release ledger for native and device validation. Sustained remote push/Live Activity updates while iOS fully suspends the app are not provisioned by this free-signing package; the activity labels stale information and refreshes on reconnection. The PC job can continue regardless.
+See the repository's release ledger for native and device validation. Direct APNs updates are not provisioned by this free-signing package. The optional PushWard bridge below can deliver status and alerts using its App Store app. The PC job continues independently of notification delivery.
 
 The vendored Sign in with ChatGPT SDK retains its upstream noncommercial license and a modification notice. This package is for the current personal, noncommercial app.
 
@@ -40,6 +40,14 @@ For a phone that is already paired, choose Connections > Computer > Update netwo
 Open a saved task in the control center to follow public progress, review its pending computer action or download a result. Scoped file edits check current content and save a backup before replacement. Host PowerShell and desktop/browser interactions use explicit reviews. Host commands have normal Windows-user access and are not the Docker sandbox. Real desktop interaction requires an unlocked session; the separate Edge browser can run while Windows is locked. No PC-hosted local model streaming is configured.
 
 Apple Developer-dependent notification setup is documented in `Documentation/APPLE_DEVELOPER_SETUP.md` in the source repository. The key is added through the local control center only after matching app provisioning.
+
+## Optional PushWard delivery
+
+The control center can connect a PushWard integration key with Activities: Manage and Notifications: Send, optionally restricted to `pa-*`. It stores the key in the existing Windows-protected vault. Only fixed task status and a chat link are sent; prompts, answers, screenshots, documents and Health data are excluded.
+
+The status layout uses a phase icon and label without a fabricated percentage. Use **Open chat** on a Live Activity, or press and hold an alert and choose **Open chat**. A normal notification-body tap opens PushWard's detail screen. PushWard may also confirm a link according to its link settings. Its available templates do not expose a custom looping spinner.
+
+Opening an active task preserves its activity; the updated iPhone app acknowledges a completed task when opened through its link or completed while visible. Ready cards then dismiss immediately. Test cards are separate and clear after two minutes, or with **Clear test activity**. iOS lifetime and provider delivery limits still apply. Economy mode permits four routine phase updates per task and prioritizes attention/completion within the free allowances of 250 activity updates and 500 notifications per UTC month. No plan upgrade or purchase is automatic.
 
 Updates may reuse a byte-identical Node executable that already has the private Tailscale firewall rule. The launcher checks its hash before use; retain prior packages. This avoids changing an existing firewall rule when only app code changes.
 
