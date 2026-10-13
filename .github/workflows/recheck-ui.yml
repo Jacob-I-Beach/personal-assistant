@@ -14,6 +14,7 @@ on:
         options:
           - testToolExpansionAndLatestButtonPreserveIntentionalPosition
           - testPublishedComputerImageRendersInlineAndOpensOriginal
+          - testLocalMessageStaysLocalWithSavedComputerWork
 permissions:
   contents: read
   actions: read

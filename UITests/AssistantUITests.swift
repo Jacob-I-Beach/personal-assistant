@@ -7,14 +7,15 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-coherence", "--ui-local-isolation", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["AFM on-device test"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["On this iPhone"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Sync latest reply"].waitForExistence(timeout: 5))
         let composer = app.textFields["message-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         composer.tap(); composer.typeText("Answer this new local request")
         app.buttons["Send message"].tap()
         XCTAssertTrue(app.staticTexts["Answered on this iPhone."].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["AFM on-device test"].exists)
+        XCTAssertTrue(app.staticTexts["On this iPhone"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Reconnecting to ChatGPT")).firstMatch.exists)
         saveScreenshot(app, name: "Local-message-with-saved-GPT-task")
         app.buttons["History"].tap(); app.buttons["Settings & access"].tap()
