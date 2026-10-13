@@ -3,19 +3,28 @@ on:
   workflow_dispatch:
     inputs:
       source_run:
-        description: Successful simulator build containing the unchanged app under test
+        description: Run with a compiled simulator bundle containing the unchanged app under test
         required: true
         type: string
+      test_case:
+        description: Focused UI scenario to recheck
+        required: true
+        type: choice
+        default: testToolExpansionAndLatestButtonPreserveIntentionalPosition
+        options:
+          - testToolExpansionAndLatestButtonPreserveIntentionalPosition
+          - testPublishedComputerImageRendersInlineAndOpensOriginal
 permissions:
   contents: read
   actions: read
 jobs:
-  scroll-check:
+  ui-check:
     runs-on: xcode-27
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_RUN: ${{ inputs.source_run }}
+      TEST_CASE: ${{ inputs.test_case }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +60,7 @@ jobs:
             -framework XCTest -lXCTestSwiftSupport -o "$test_bundle/PersonalAssistantUITests" 2>&1 | tee -a .build/ui-recheck-build.log
           codesign --force --sign - "$test_bundle"
           codesign --force --sign - "$(dirname "$(dirname "$test_bundle")")"
-      - name: Verify the existing app's disclosure anchoring and jump visibility
+      - name: Verify the focused scenario against the existing app
         run: |
           set -o pipefail
           xcrun simctl list devices available --json > .build/simulators.json
@@ -61,7 +70,7 @@ jobs:
           bundle=$(find DerivedData/Build/Products -maxdepth 1 -name '*.xctestrun' -print -quit)
           xcodebuild test-without-building -xctestrun "$bundle" -destination "platform=iOS Simulator,id=$simulator_id" \
             -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never \
-            -only-testing:PersonalAssistantUITests/AssistantUITests/testToolExpansionAndLatestButtonPreserveIntentionalPosition \
+            "-only-testing:PersonalAssistantUITests/AssistantUITests/$TEST_CASE" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots
         if: always()
@@ -72,7 +81,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-ui-scroll-recheck
+          name: native-ui-recheck
           include-hidden-files: true
           path: |
             .build/production-source.txt

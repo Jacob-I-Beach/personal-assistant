@@ -11,11 +11,15 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(image.waitForExistence(timeout: 15))
         for _ in 0..<30 { if image.frame.height > 150 { break }; Thread.sleep(forTimeInterval: 0.1) }
         XCTAssertGreaterThan(image.frame.height, 150)
+        let inlineHeight = image.frame.height
         saveScreenshot(app, name: "Published-computer-image-inline")
         image.tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        // Quick Look hides its toolbar while displaying an image. Verify the
+        // actual original-image canvas rather than requiring a visible Done button.
+        let original = app.otherElements["com.apple.paper.imageCanvasElementView"].firstMatch
+        XCTAssertTrue(original.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(original.frame.height, inlineHeight)
         saveScreenshot(app, name: "Published-computer-image-original")
-        app.buttons["Done"].tap()
     }
     func testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings() {
         continueAfterFailure = false
