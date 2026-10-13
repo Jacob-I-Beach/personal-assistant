@@ -1,6 +1,6 @@
 # 1.1.3 build 18 — local-model isolation and paused external updates
 
-Candidate October 13. Phone validation and installation are pending. The PC-only 1.1.2 r4 repair is already active and keeps PushWard disabled. Authenticated ChatGPT model discovery and inference currently return HTTP520; a redacted read-only capture identified an upstream Cloudflare response-parsing error. This release does not claim to repair that remote service.
+Packaged and verified October 13. The device archive is from source `7ffdfbfd3c872f65c1b0f2d1b3f649f91528cad2`, run `38475203635`; its Standard IPA SHA-256 is `6ea3b287ccf8c7d95bd7999d02b70b1fe3a1abd606e6f6525c072069137a917d`. Physical installation remains pending. The PC-only 1.1.2 r4 repair is already active and keeps PushWard disabled. Authenticated ChatGPT model discovery and inference returned HTTP520; a redacted read-only capture identified an upstream Cloudflare response-parsing error. The final model-list check at 22:49 UTC still failed. This release does not claim to repair that remote service.
 
 ## Added
 
@@ -22,6 +22,14 @@ Candidate October 13. Phone validation and installation are pending. The PC-only
 
 ## Still pending
 
-- Native build and focused validation, then a user-operated in-place phone update.
+- A user-operated in-place phone update with the same signing account and installed bundle identity.
 - Physical confirmation that a new AFM message stays local and no GPT recovery status takes over the chat.
 - Recovery of the authenticated ChatGPT connection from HTTP520. No live-model test or alternate billing path is authorized or used.
+
+## Verification
+
+The physical-device archive and simulator build succeeded. Run `38477001942` passed 202 Mac shared-core checks and eight native platform checks. UI recheck `38479449366` passed the new local-message/paused-settings scenario using the unchanged app; both screenshots were inspected. The existing 202-check Windows shared-core baseline remains applicable because no shared-core source changed. The active PC r4 repair passes 38 companion checks and its deferred-delivery UI check.
+
+Two validation issues were confined to tests: an omitted required lifecycle argument, then a UI assertion that expected a temporary fixture name which scene activation replaced with the simulator's standard Apple model name. The corrected UI test verifies the stable on-device location label and a saved GPT task before sending. The actual phone archive was not rebuilt for either correction. The scene uses a synthetic local response; it does not establish physical AFM inference quality or prove the exact reported fresh-message reproduction.
+
+See ReleaseValidation113.json and DeviceValidation113.json for the evidence and remaining phone checks. No new ChatGPT sign-in, PC pairing, API billing or PushWard test is required for this package.

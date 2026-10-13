@@ -1,0 +1,108 @@
+{
+  "version": "1.1.3",
+  "build": 18,
+  "state": "Packaged and native-verified; physical in-place installation and reported AFM behavior pending",
+  "archive_source": "7ffdfbfd3c872f65c1b0f2d1b3f649f91528cad2",
+  "archive_run": 38475203635,
+  "validation_source": "38866c04d592f00bfecb02ff498832eecb2cf2c1",
+  "validation_run": 38477001942,
+  "ui_recheck": {
+    "run": 38479449366,
+    "source": "dc486baa4e5c63333d403ddedb45bd92c1068be2",
+    "only_ui_test_bundle_rebuilt": true
+  },
+  "production_source_matches_archive": true,
+  "first_run_note": "Device archive succeeded. Simulator test build failed because the new test omitted a required detached argument. Only that test and validation bookkeeping changed before the simulator-only rerun.",
+  "ui_correction": "The first UI assertion expected a temporary fixture name that scene activation replaced with the simulator name Apple on this iPhone. The corrected check uses the stable On this iPhone execution-location label and verifies the saved GPT card is present before sending.",
+  "shared_core_mac": 202,
+  "shared_core_windows": {
+    "baseline_passed": 202,
+    "source_unchanged_in_this_repair": true
+  },
+  "native_platform_tests": 8,
+  "native_ui_scenarios": 1,
+  "native_scope": [
+    "Actual Apple backend factory remains on-device with computer enabled; no inference",
+    "Local/other-provider selections cannot recover a saved GPT task",
+    "Deferred presentation ignores old bridge hints",
+    "Account identity/privacy, original GPT-model recovery within GPT selection, and legacy bridge policy isolation",
+    "New synthetic local message with an older saved GPT task; paused presentation in Settings"
+  ],
+  "screenshots_inspected": [
+    "Local-message-with-saved-GPT-task",
+    "Paused-native-task-notifications"
+  ],
+  "phone_package": {
+    "file": "PersonalAssistant-Standard.ipa",
+    "sha256": "6ea3b287ccf8c7d95bd7999d02b70b1fe3a1abd606e6f6525c072069137a917d",
+    "bytes": 21883422,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.1.3",
+    "build": "18",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [
+      {
+        "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+        "version": "1.1.3",
+        "build": "18"
+      }
+    ],
+    "requested_entitlements": {},
+    "health_enabled_in_app": false,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing",
+    "source_sha256": "4d3737641017a1a9913321d96155fd1ee2b6ec360153b1f04e1101285c1d29bb",
+    "health_deferred": true,
+    "compiled_sections_unchanged": true,
+    "activity_extension_preserved": true,
+    "apple_adhoc_signature_verified": true,
+    "changed_files": [
+      "Payload/PersonalAssistant.app/_CodeSignature/CodeResources",
+      "Payload/PersonalAssistant.app/PersonalAssistant",
+      "Payload/PersonalAssistant.app/Info.plist"
+    ],
+    "note": "Unsigned installation input with a verified ad-hoc signature. Personal signing is still required."
+  },
+  "external_presentation": {
+    "build_environment": "disabled",
+    "local_alerts_paused": true,
+    "native_activities_paused": true,
+    "continued_processing_banner_paused": true,
+    "health_deferred": true,
+    "note": "These are deliberate product choices for this rollout. Local alerts do not technically require APNs."
+  },
+  "pc": {
+    "package": "1.1.2-release-r4",
+    "active": true,
+    "additional_update_required": false,
+    "account_and_pairing_preserved": true,
+    "companion_tests_passed": 38,
+    "pushward_enabled": false,
+    "key_saved": false,
+    "pending_delivery": 0,
+    "active_created_bridge_cards": 0
+  },
+  "provider_failure": {
+    "status": 520,
+    "code": "api_error",
+    "observed_before_response_or_tools": true,
+    "authenticated_model_discovery": "Also HTTP520; last checked during this repair",
+    "redacted_response_detail": "Cloudflare reported an unparseable origin-server response",
+    "anonymous_model_endpoint": "Expected HTTP401",
+    "generation_restored": false,
+    "global_outage_established": false,
+    "last_checked_utc": "2026-10-13T22:49:45Z"
+  },
+  "evidence_limit": "The user reported GPT retry text after a new AFM message. PC records showed an older GPT task restart, not a fresh GPT job at that point. The source recovery/isolation gap is repaired; the exact physical fresh-message reproduction is not independently proven.",
+  "no_agent_live_inference": true,
+  "no_api_billing_added": true,
+  "pending": [
+    "User installs build18 with the same signing identity and retains chats",
+    "A new AFM reply stays local on the physical phone",
+    "No external assistant alerts or activities appear in the paused build",
+    "Authenticated ChatGPT route recovers and a normal connected reply succeeds"
+  ]
+}

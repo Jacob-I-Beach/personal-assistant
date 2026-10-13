@@ -2355,11 +2355,29 @@
         "xcode-27"
       ],
       "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38479449366,
+      "attempt": 1,
+      "job_id": 115578163428,
+      "source_revision": "dc486baa4e5c63333d403ddedb45bd92c1068be2",
+      "completed_at": "2026-10-13T22:49:39Z",
+      "conclusion": "success",
+      "name": "ui-check",
+      "started_at": "2026-10-13T22:41:31Z",
+      "status": "completed",
+      "rounded_minutes": 9,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
     }
   ],
-  "rounded_runner_minutes": 1362,
+  "rounded_runner_minutes": 1371,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 84.444,
+  "estimated_compute_usd_if_fully_billable": 85.002,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",
@@ -2387,5 +2405,5 @@
       "https://docs.github.com/en/actions/reference/runners/github-hosted-runners"
     ]
   },
-  "verified_free_public_runner_minutes": 774
+  "verified_free_public_runner_minutes": 783
 }
