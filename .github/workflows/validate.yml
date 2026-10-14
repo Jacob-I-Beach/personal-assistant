@@ -175,6 +175,8 @@ jobs:
             .build/device/PersonalAssistant-HealthKit.json
             .build/device/PersonalAssistant-Standard.ipa
             .build/device/PersonalAssistant-Standard.json
+            .build/device/PersonalAssistant-Memory.ipa
+            .build/device/PersonalAssistant-Memory.json
             .build/device/*PackageValidation.json
             .build/device/SHA256SUMS.txt
           include-hidden-files: true

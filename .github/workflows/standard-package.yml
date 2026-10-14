@@ -10,6 +10,10 @@ on:
         description: Expected iPhone-only archive checksum
         required: true
         default: '7bf76d18bf8608af4c41a24dfea5e3b69f923a7ade5da14d2180a9291529ca48'
+      increased_memory:
+        description: Reuse the Standard archive to request only the regular increased-memory entitlement
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -29,12 +33,21 @@ jobs:
       - name: Verify exact input and remove Health signing requirements
         env:
           EXPECTED_SHA256: ${{ inputs.source_sha256 }}
+          INCREASED_MEMORY: ${{ inputs.increased_memory }}
         run: |
           set -euo pipefail
           [[ "$EXPECTED_SHA256" =~ ^[a-f0-9]{64}$ ]]
-          actual=$(shasum -a 256 .build/input/PersonalAssistant-iPhone-only.ipa | cut -d ' ' -f 1)
+          source=.build/input/PersonalAssistant-iPhone-only.ipa
+          destination=.build/standard/PersonalAssistant-Standard.ipa
+          options=()
+          if [ "$INCREASED_MEMORY" = true ]; then
+            source=.build/input/PersonalAssistant-Standard.ipa
+            destination=.build/standard/PersonalAssistant-Memory.ipa
+            options+=(--increased-memory)
+          fi
+          actual=$(shasum -a 256 "$source" | cut -d ' ' -f 1)
           test "$actual" = "$EXPECTED_SHA256"
-          python3 scripts/prepare_standard_package.py .build/input/PersonalAssistant-iPhone-only.ipa .build/input/SHA256SUMS.txt .build/standard/PersonalAssistant-Standard.ipa
+          python3 scripts/prepare_standard_package.py "$source" .build/input/SHA256SUMS.txt "$destination" "${options[@]}"
       - uses: actions/upload-artifact@v4
         with:
           name: standard-iphone-app
