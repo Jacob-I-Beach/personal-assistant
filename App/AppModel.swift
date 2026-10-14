@@ -341,6 +341,7 @@ final class AppModel: ObservableObject {
             guard conversationSelectionID == selection, !isRunning else { return }
             conversation = loaded
             await replyActivity.viewed(conversationID: summary.id)
+            guard conversationSelectionID == selection, conversation.id == summary.id, !isRunning else { return }
             attachedFileIDs = (drafts["files:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }.filter { id in files.contains { $0.id == id } }
             attachedCaptureIDs = (drafts["captures:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }
             selectedImagePoints = (try? JSONDecoder().decode([String: [ImagePoint]].self, from: Data((drafts["points:" + summary.id.uuidString] ?? "{}").utf8))) ?? [:]

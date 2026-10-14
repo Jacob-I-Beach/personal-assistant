@@ -46,5 +46,5 @@ The unifying problem was ownership: controls frequently lost which draft, saved 
 - Preserve the existing app identifier, signing team, account, phone pairing, chats, files and model weights.
 - Keep Health, APNs, PushWard and external Live Activity presentation deferred.
 - Preserve the requested 64K Qwen target; the UI cannot grant a larger iOS process allowance. Apple login/profile and physical inference are still pending.
-- Do not classify HTTP 520 as a successful model connection or repeat credential resets. The earlier diagnostic remains applicable until a fresh service check establishes a change.
+- Do not classify HTTP 520 as a successful connection or repeat credential resets. A fresh check at 22:16 UTC on October 14 returned eight models with the saved account; generation was not tested and no root-cause attribution is established. See ConnectionDiagnostic117.json.
 - No claims of live answer quality, background-hour acceptance, audio fidelity, VoiceOver completion or restore capability are inferred from screenshots or passing synthetic tests.

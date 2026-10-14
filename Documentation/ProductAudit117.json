@@ -40,7 +40,7 @@
       "priority": "Now",
       "disposition": "implemented",
       "change": "Computer account, model catalog and computation observations are separate. One core parser validates profile ownership and rejects unknown catalog states.",
-      "remaining": "The real HTTP 520 remains unresolved; a saved account is not verified model availability.",
+      "remaining": "Fresh discovery at22:20UTC returned eight models including GPT-6.1-Sol; real generation remains untested, and the earlier520 cause is not established.",
       "source_paths": [
         "App/Views/ModelLibraryView.swift",
         "App/Views/ConnectionsView.swift",
@@ -495,5 +495,6 @@
       "source_evidence_type": "validation proposal; no new tests executed",
       "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
     }
-  ]
+  ],
+  "live_connection_observation": "2026-10-14T22:16:24Z: existing account returned8models; no reset or inference; earlier520 no longer reproduced in this check."
 }

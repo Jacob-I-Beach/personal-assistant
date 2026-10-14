@@ -1,0 +1,18 @@
+{
+  "checked_at_utc": "2026-10-14T22:20:12.330Z",
+  "check": "Existing saved-account model discovery; no inference",
+  "account_connected": true,
+  "sharing": true,
+  "catalog": "ready",
+  "model_count": 8,
+  "network": {
+    "status": 200,
+    "version": "1.1.7",
+    "certificatePinned": true
+  },
+  "computation_ready": true,
+  "credential_reset": false,
+  "interpretation": "The prior HTTP520 is not reproduced by this check. Model generation is untested; no cause or fix attribution is established.",
+  "selected_model": "gpt-6.1-sol",
+  "selected_model_available": true
+}

@@ -21,7 +21,7 @@ extension AppModel {
         guard !isRunning, nativeAction == nil, let store else { noticeMessage = "Finish the current response or review before adding this context."; return }
         do {
             let validated = try await store.validateContextReferences([reference], conversationID: conversation.id, remote: false)[0]
-            guard conversation.id == reference.conversationID, !isRunning else { throw AssistantError.provider("The active conversation changed. Your draft was kept.") }
+            guard conversation.id == reference.conversationID, !isRunning, nativeAction == nil else { throw AssistantError.provider("The active conversation or review changed. Your draft was kept.") }
             let proposal = ContextualDraftProposal(reference: validated, prompt: prompt)
             if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachedFileIDs.isEmpty || !attachedCaptureIDs.isEmpty || !draftContextReferences.isEmpty {
                 pendingContextualDraft = proposal
@@ -58,7 +58,7 @@ extension AppModel {
             default: break
             }
             let validated = try await store.validateContextReferences([latest], conversationID: conversation.id, remote: false)[0]
-            guard let index = draftContextReferences.firstIndex(where: { $0.id == reference.id }), conversation.id == reference.conversationID else { return }
+            guard !isRunning, let index = draftContextReferences.firstIndex(where: { $0.id == reference.id }), conversation.id == reference.conversationID else { return }
             draftContextReferences[index] = validated; draftContainsHealthData = draftContainsHealthData || validated.containsHealthData; flushDraft()
         } catch { noticeMessage = error.localizedDescription }
     }
