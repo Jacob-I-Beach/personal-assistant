@@ -984,6 +984,7 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Product117-file-preview")
         app.buttons["Done"].tap(); app.buttons["Preview journey-preview.pdf"].tap()
         XCTAssertTrue(app.buttons["File info"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Synthetic preview of the original PDF.")).firstMatch.waitForExistence(timeout: 20), "Verify the document content, not just the preview toolbar.")
         XCTAssertFalse(app.staticTexts["Preview unavailable"].exists)
         saveScreenshot(app, name: "Product117-original-PDF-preview")
         app.buttons["Done"].tap(); app.buttons["Select journey-table.csv"].tap(); app.buttons["Cancel"].tap()
