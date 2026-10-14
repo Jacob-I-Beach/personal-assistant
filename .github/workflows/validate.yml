@@ -229,7 +229,7 @@ jobs:
           test_options=()
           case "${{ matrix.suite }}" in
             catalog-layout-114)
-              scenarios="testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable"
+              scenarios="testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testLocalMessageStaysLocalWithSavedComputerWork"
               ;;
             audit-114)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests" "-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ResponseRenderingTests")
