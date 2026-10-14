@@ -1,0 +1,128 @@
+{
+  "version": "1.1.6",
+  "build": 21,
+  "source": "ac94870072ba48983c5c67a5fafe6c0f06d93315",
+  "native_run": 38538093895,
+  "test_only_recheck": 38539415407,
+  "state": "Packaged and verified on native builds/simulator; PC installed; user deferred Apple profile and phone steps",
+  "tests": {
+    "windows_core": 233,
+    "mac_core": 233,
+    "native_platform": 11,
+    "native_ui_covered": 9,
+    "companion": 67,
+    "updater": 7,
+    "memory_helper": 2
+  },
+  "attempts": [
+    {
+      "run": 38536287585,
+      "source": "2ec7b7cb6b6b8853d2a6b6749a6a4698305b3667",
+      "result": "Archive/compile/core/platform passed; 7 of 9 UI passed; high-memory fixture and scroll assumptions identified"
+    },
+    {
+      "run": 38538093895,
+      "source": "ac94870072ba48983c5c67a5fafe6c0f06d93315",
+      "result": "Final archive and 233 core/11 platform passed; 7 UI passed"
+    },
+    {
+      "run": 38539415407,
+      "source": "7e18eea7af84d6a356f276d7aa42426eb9aafa79",
+      "production_source": "ac94870072ba48983c5c67a5fafe6c0f06d93315",
+      "result": "2 corrected UI scenarios passed against the unchanged final app"
+    }
+  ],
+  "phone_packages": {
+    "Standard": {
+      "file": "PersonalAssistant-Standard.ipa",
+      "sha256": "851cba2b39489c7890317d51b701fb689fc57af6b28f515c31924aed248e1367",
+      "bytes": 22003208,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.1.6",
+      "build": "21",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.1.6",
+          "build": "21"
+        }
+      ],
+      "requested_entitlements": {},
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "Memory": {
+      "file": "PersonalAssistant-Memory.ipa",
+      "sha256": "8ef4b46e9ba6fca3cd7d6098d2005c1c37675f7ee17dc9035eb1d489cd904932",
+      "bytes": 22003301,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.1.6",
+      "build": "21",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.1.6",
+          "build": "21"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.kernel.increased-memory-limit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "computer": {
+    "source": "ac94870072ba48983c5c67a5fafe6c0f06d93315",
+    "package": "1.1.6-release-r2",
+    "installed": true,
+    "account_pairing_tasks_certificate_preserved": true,
+    "paired_phones": 1,
+    "saved_tasks": 25,
+    "actual_windows_startup_verified": true,
+    "pinned_tailscale_https_verified": true,
+    "computation_ready": true
+  },
+  "qwen": {
+    "automatic_context_tokens": 65536,
+    "attention_cache": "highest fitting native,8,4bit precision",
+    "reported_3_05_gib_fits_automatic_64k": false,
+    "explicit_32k_estimated_to_fit": true,
+    "six_gib_fixture_64k_native_cache_estimated_to_fit": true,
+    "physical_64k_verified": false,
+    "memory_profile_grant_verified": false
+  },
+  "gpt": {
+    "authenticated_catalog_http_status": 520,
+    "anonymous_control_status": 401,
+    "fresh_no_cookie_no_redirect_reproduces": true,
+    "authorization_bytes": 2113,
+    "restored": false,
+    "live_inference_tested": false
+  },
+  "audit": "All 18 findings and seven watch items are dispositioned in AUDIT_116.md. Tests are not an exhaustive interleaving proof.",
+  "helper": {
+    "version": "2.3.7",
+    "isideload": "0.4.5",
+    "package": "iLoader-Assistant-Memory/r2",
+    "user_profile_step": "explicitly deferred"
+  },
+  "health_and_notifications": "Deferred",
+  "pending": [
+    "User-operated Apple profile check and final signing",
+    "Phone installation and retained chats check",
+    "Physical Qwen 64K input, performance and thermal validation",
+    "Resolution of GPT HTTP520",
+    "Additional audit ZIP when supplied"
+  ]
+}

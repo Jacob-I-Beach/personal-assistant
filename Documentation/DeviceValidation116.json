@@ -1,0 +1,11 @@
+{
+  "version": "1.1.6",
+  "build": 21,
+  "baseline_AFM_works": true,
+  "baseline_qwen_download_completed": true,
+  "reported_headroom_gib": 3.05,
+  "phone_install": "deferred by user",
+  "memory_profile_verification": "user will do later",
+  "physical_64k_inference": "pending",
+  "GPT_catalog": "HTTP520 remains"
+}

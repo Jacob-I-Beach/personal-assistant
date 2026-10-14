@@ -1,6 +1,6 @@
 # 1.1.6 — explicit context targets and audit follow-through
 
-Candidate version 1.1.6, build 21. Physical installation and the Apple-granted memory allowance are separate acceptance steps. Health and remote task presentation remain deferred.
+Version 1.1.6, build 21 is packaged and native-verified from `ac94870072ba48983c5c67a5fafe6c0f06d93315`. Computer release r2 is installed with account, pairing, 25 tasks, certificate and startup preserved. Physical installation and the Apple-granted memory allowance are separate acceptance steps. Health and remote task presentation remain deferred.
 
 ## Added
 
@@ -27,4 +27,4 @@ Candidate version 1.1.6, build 21. Physical installation and the Apple-granted m
 - GPT service recovery: fresh authenticated model-list requests still return HTTP 520 while the anonymous control returns 401. No client cookies, redirect following or connection reuse were needed to reproduce it. Token/header shape checks pass; they cannot establish every upstream account/grant condition. No credentials were erased and no live inference was used.
 - Physical sustained 64K input, answer quality, performance and thermal measurements. A larger context estimate does not establish reliable reasoning across every token. Apple Foundation Models retains Apple's own context limit.
 
-See AUDIT_116.md for the complete supplied-audit reconciliation and evidence limits. Native validation results are recorded separately after the workflow completes.
+See AUDIT_116.md for the complete supplied-audit reconciliation and evidence limits. Validation: 233 Windows and Mac shared-core checks, 67 companion checks, seven updater checks, 11 native platform checks and nine UI scenarios with passing coverage. Run 38538093895 supplies the final app; 38539415407 verifies the two corrected test scenarios against that unchanged binary. Physical checks remain pending.

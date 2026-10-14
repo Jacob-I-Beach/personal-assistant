@@ -1,0 +1,82 @@
+{
+  "purpose": "Redacted ChatGPT model-discovery diagnosis; no inference was requested",
+  "transport": {
+    "checkedAt": "2026-10-14T08:13:05.966Z",
+    "state": {
+      "version": 2,
+      "activeProfileFound": true,
+      "accessTokenIsString": true,
+      "scopesAreArray": true,
+      "clientMatchesClaim": true,
+      "tokenUnexpired": true,
+      "tokenIsThreeBase64URLSegments": true,
+      "tokenContainsWhitespace": false
+    },
+    "requestShape": {
+      "method": "GET",
+      "destination": "https://api.openai.com/v1/models",
+      "bodyPresent": false,
+      "authorizationHasExactlyOneBearerPrefix": true,
+      "headerNames": [
+        "authorization",
+        "accept"
+      ],
+      "cookieHeaderPresent": false,
+      "redirectFollowing": false,
+      "connectionReuse": false
+    },
+    "freshHTTP1Authenticated": {
+      "status": 520,
+      "locationPresent": false,
+      "setCookieCount": 1,
+      "serverIsCloudflare": true,
+      "bodyIsHTML": false,
+      "bodyMentionsOriginParse": false,
+      "requestIDPresent": false
+    },
+    "freshHTTP1Anonymous": {
+      "status": 401,
+      "locationPresent": false,
+      "setCookieCount": 2,
+      "serverIsCloudflare": true,
+      "bodyIsHTML": false,
+      "bodyMentionsOriginParse": false,
+      "requestIDPresent": true
+    },
+    "fetchWithRedirectsRejected": {
+      "status": 520,
+      "locationPresent": false,
+      "setCookieCount": 1,
+      "serverIsCloudflare": true,
+      "bodyIsHTML": false,
+      "bodyMentionsOriginParse": true,
+      "requestIDPresent": false,
+      "redirected": false
+    }
+  },
+  "latestControlCheck": {
+    "checked_at": "2026-10-14T08:55:55.269Z",
+    "network": {
+      "status": 200,
+      "version": "1.1.6",
+      "certificatePinned": true
+    },
+    "account_connected": true,
+    "sharing": true,
+    "catalog": "unavailable",
+    "http_status": 520,
+    "model_count": 0,
+    "computation_ready": true,
+    "active_work_count": 0
+  },
+  "conclusion": "HTTP520 reproduces without client cookies, redirects or reused HTTP connections. Header/token shape checks pass. These checks do not prove every upstream account/grant condition or establish a global outage.",
+  "accountOrPairingReset": false,
+  "credentialsIncluded": false,
+  "headerSizeCheck": {
+    "checkedAt": "2026-10-14T09:04:37.839Z",
+    "authorizationValueBytes": 2113,
+    "tokenContainsWhitespace": false,
+    "tokenIsThreeBase64URLSegments": true,
+    "networkRequestsSent": 0
+  }
+}
