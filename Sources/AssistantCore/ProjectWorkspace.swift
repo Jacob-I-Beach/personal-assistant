@@ -71,9 +71,11 @@ public enum ProjectTools {
             project.containsHealthData = project.containsHealthData || artifacts.contains { ids.contains($0.id) && $0.containsHealthData } || files.contains { ids.contains($0.id) && $0.containsHealthData }
             try await store.saveProjectWorkspace(project, expectedRevision: revision)
             result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: project.summary)
+            result.containsLocalOnlyContext = project.containsLocalOnlyContext
+            result.containsHealthData = project.containsHealthData
         }
-        result.containsLocalOnlyContext = localOnly || current?.containsLocalOnlyContext == true
-        result.containsHealthData = health || current?.containsHealthData == true
+        result.containsLocalOnlyContext = result.containsLocalOnlyContext == true || localOnly || current?.containsLocalOnlyContext == true
+        result.containsHealthData = result.containsHealthData == true || health || current?.containsHealthData == true
         return result
     }
 }

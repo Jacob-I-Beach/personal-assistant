@@ -233,7 +233,7 @@ jobs:
           case "${{ matrix.suite }}" in
             models-115)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests")
-              scenarios="testLocalQwenContextAndMemoryControlsAreReachable testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings testLocalMessageStaysLocalWithSavedComputerWork testWelcomeCatalogAndSettings testDarkAndLargeTextControlsRemainUsable testAttachmentPreviewWorkingSurfacesAndActualMessageEdit"
+              scenarios="testLocalQwenContextAndMemoryControlsAreReachable testInsufficientQwenAllowanceRequiresAnExplicitSmallerContext testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings testLocalMessageStaysLocalWithSavedComputerWork testWelcomeCatalogAndSettings testDarkAndLargeTextControlsRemainUsable testAttachmentPreviewWorkingSurfacesAndActualMessageEdit"
               ;;
             catalog-layout-114)
               scenarios="testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testLocalMessageStaysLocalWithSavedComputerWork"

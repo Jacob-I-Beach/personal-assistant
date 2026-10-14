@@ -21,6 +21,7 @@ extension ModelSettings {
 extension AppModel {
     var localMemoryHeadroom: Int64 {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-qwen-memory-granted") { return 6 * 1_073_741_824 }
         if ProcessInfo.processInfo.arguments.contains("--ui-qwen-memory") { return Int64(3.05 * 1_073_741_824) }
         #endif
         return Int64(os_proc_available_memory())

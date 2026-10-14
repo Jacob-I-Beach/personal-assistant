@@ -20,7 +20,7 @@ struct ReasoningEffortView: View {
                 List {
                     Section {
                         Text(model.modelTitle).font(.headline)
-                        Text(model.settings.choice == .localMLX ? "Context adapts to the memory this iPhone makes available." : "Your choices are remembered for this model.").font(.subheadline).foregroundStyle(.secondary)
+                        Text(model.settings.choice == .localMLX ? "Choose how much conversation the model can use. Memory is checked before it loads." : "Your choices are remembered for this model.").font(.subheadline).foregroundStyle(.secondary)
                     }
                     if !model.supportedReasoningEfforts.isEmpty {
                         Section("Thinking") {
@@ -54,18 +54,19 @@ struct ReasoningEffortView: View {
                     } else if model.settings.choice == .localMLX {
                         let local = model.localContextBudget(memoryGiB: memoryGiB, tokens: context)
                         Section {
-                            choice("Automatic", tokens: nil)
-                            if local.fits {
-                                ForEach(local.presets, id: \.self) { value in choice(value.formatted() + " tokens", tokens: value) }
-                                LabeledContent("Estimated working context", value: local.selectedContextTokens.formatted() + " tokens")
-                                    .accessibilityElement(children: .ignore).accessibilityLabel("Estimated working context")
+                            choice("Automatic · " + local.automaticContextTokens.formatted() + " tokens", tokens: nil)
+                            ForEach(local.presets, id: \.self) { value in choice(value.formatted() + " tokens", tokens: value) }
+                                LabeledContent("Requested working context", value: local.selectedContextTokens.formatted() + " tokens")
+                                    .accessibilityElement(children: .ignore).accessibilityLabel("Requested working context")
                                     .accessibilityValue(local.selectedContextTokens.formatted() + " tokens").accessibilityIdentifier("local-working-context")
+                            if local.fits {
+                                LabeledContent("Attention cache", value: local.attentionCacheBits.map { "\($0)-bit" } ?? "Native precision")
                             } else {
                                 Label("More memory headroom needed", systemImage: "memorychip")
-                                Text("The runtime cannot fit at this moment. Your download is kept; this is separate from the size of your message.").font(.caption).foregroundStyle(.secondary)
+                                Text("This context does not fit the current allowance. Choose a smaller listed context, or use a build with a verified higher memory allowance. Your downloaded weights stay unchanged.").font(.caption).foregroundStyle(.secondary)
                             }
                         } header: { Text("Working context").id("context") } footer: {
-                            Text("Uses the model's compressed attention cache. These are estimated fitting sizes; actual speed and sustained memory use need measurement on this iPhone.")
+                            Text("Qwen uses the highest cache precision estimated to fit your context. The app never silently lowers your chosen context. Speed and sustained memory use still need measurement on this iPhone.")
                         }
                         Section {
                             DisclosureGroup("Memory settings") {

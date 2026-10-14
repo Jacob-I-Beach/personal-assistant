@@ -2,6 +2,24 @@ import XCTest
 @testable import AssistantCore
 
 final class AuditRegressionTests: XCTestCase, @unchecked Sendable {
+    func testIdleMeansTheInterruptionCheckpointHasAlreadyFinished() async throws {
+        let store = try makeTestStore(), engine = AssistantEngine(store: store)
+        var observedRunning = 0
+        for _ in 0..<30 {
+            let chat = Conversation(), backend = AuditFailureBackend(); try await store.save(chat)
+            let consumer = Task { do { for try await _ in engine.respond(conversation: chat, text: "Fail deterministically", captureIDs: [], backend: backend) { } } catch { } }
+            await backend.waitForStart()
+            let idle = Task { await engine.waitUntilIdle() }
+            await backend.fail()
+            await idle.value
+            let saved = try await store.loadConversation(chat.id)
+            let work = try await store.workTurn(saved.messages.first(where: \.isRequest)!.id)
+            if work?.phase == .running { observedRunning += 1 }
+            await consumer.value
+        }
+        XCTAssertEqual(observedRunning, 0, "A resumed task must not race the previous run's interruption persistence.")
+    }
+
     func testUnsafeIntegerArgumentsAreRejectedBeforeActualDispatch() async throws {
         let schema: JSONValue = .object(["type": .string("integer"), "minimum": .number(0)])
         for value in [JSONValue.number(1e30), .string("1e30"), .number(Double(Int.max)), .number(9_007_199_254_740_992), .number(1.5), .number(-1)] {
@@ -16,6 +34,60 @@ final class AuditRegressionTests: XCTestCase, @unchecked Sendable {
         let result = try await tools.execute(call)
         XCTAssertFalse(result.succeeded)
         let projects = try await store.projectWorkspaces(); XCTAssertTrue(projects.isEmpty)
+    }
+
+    func testProjectReceiptCarriesProtectionInheritedFromItsOutput() async throws {
+        let store = try makeTestStore(), chat = Conversation(); try await store.save(chat)
+        var artifact = ArtifactRecord(conversationID: chat.id, filename: "private.txt", content: "private canary")
+        artifact.containsLocalOnlyContext = true; artifact.containsHealthData = true
+        try await store.saveArtifact(artifact)
+        let call = ToolCall(id: "project", name: "update_project", arguments: .object([
+            "title": .string("Protected project"), "goal": .string("Maintain selected work"), "status": .string("active"),
+            "decisions": .array([]), "open_questions": .array([]), "output_ids": .array([.string(artifact.id.uuidString)]), "expected_revision": .number(0)]))
+        let receipt = try await ProjectTools.execute(call, store: store, conversationID: chat.id, workspace: true, remote: false, localOnly: false, health: false)
+        XCTAssertTrue(receipt.containsLocalOnlyContext == true); XCTAssertTrue(receipt.containsHealthData == true)
+        let remote = try await store.projectWorkspace(conversationID: chat.id, remote: true); XCTAssertNil(remote)
+    }
+
+    func testConcurrentAdmissionsStopBeforeEffectsAndRejectRepeatedIdentities() async throws {
+        let admission = ToolAdmission(previous: []), effects = AuditEffectCounter()
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<60 { group.addTask {
+                do { try await admission.admit(.init(id: "concurrent-\(index)", name: "effect", arguments: .object([:]))); await effects.record() } catch { }
+            } }
+        }
+        let count = await effects.count; XCTAssertEqual(count, 24)
+        let duplicate = ToolAdmission(previous: ["already-done"])
+        do { try await duplicate.admit(.init(id: "already-done", name: "effect", arguments: .object([:]))); XCTFail("Repeated effect admitted") } catch { }
+    }
+
+    func testSurfaceInteractionRollbackAndLegacyOrphanCleanupAfterReopen() async throws {
+        let store = try makeTestStore(); var chat = Conversation()
+        var invocation = Message(role: .assistant, text: "Created")
+        invocation.toolCalls = [.init(id: "surface", name: "present_surface", arguments: .object([:]))]
+        chat.messages = [invocation]; try await store.save(chat)
+        let original = try WorkSurface(conversationID: chat.id, sourceCallID: "surface", spec: surfaceSpec("Original"), localOnly: false, health: false)
+        try await store.saveSurface(original)
+        try await store.auditSQL("CREATE TEMP TRIGGER reject_interaction BEFORE UPDATE ON work_surfaces BEGIN SELECT RAISE(FAIL,'synthetic failure'); END")
+        do { _ = try await store.interactWithSurface(id: original.id, conversationID: chat.id, expectedRevision: 1, selected: ["one"], inputs: [:]); XCTFail("Injected failure") } catch { }
+        let before = try await store.auditCount("surface_history"); XCTAssertEqual(before, 0)
+        let reopened = try LocalStore(root: store.root)
+        let kept = try await reopened.surfaces(conversationID: chat.id); XCTAssertEqual(kept.first?.revision, 1)
+        _ = try await reopened.interactWithSurface(id: original.id, conversationID: chat.id, expectedRevision: 1, selected: ["one"], inputs: [:])
+        // Emulate the older release leaving a historical payload for a missing
+        // parent. Existing live history must survive startup reconciliation.
+        try await reopened.auditSQL("INSERT INTO surface_history SELECT 'orphan',revision,payload FROM surface_history LIMIT 1")
+        let migrated = try LocalStore(root: store.root)
+        let live = try await migrated.auditCount("surface_history"); XCTAssertEqual(live, 1)
+        let independent = Conversation(); try await migrated.save(independent)
+        let artifact = ArtifactRecord(conversationID: independent.id, filename: "keep.txt", content: "Independent")
+        try await migrated.saveArtifact(artifact)
+        _ = try await migrated.reviseArtifact(id: artifact.id, expectedRevision: 1, content: "Still independent")
+        try await migrated.removeConversation(chat.id)
+        let finalStore = try LocalStore(root: store.root)
+        let surfaceHistory = try await finalStore.auditCount("surface_history"), artifactHistory = try await finalStore.auditCount("artifact_history")
+        XCTAssertEqual(surfaceHistory, 0); XCTAssertEqual(artifactHistory, 1)
+        let remaining = try await finalStore.artifacts(conversationID: independent.id); XCTAssertEqual(remaining.first?.content, "Still independent")
     }
 
     func testDerivedPlansRetainProtectionAcrossPersistenceAndStaleCheckpoints() async throws {
@@ -52,6 +124,19 @@ final class AuditRegressionTests: XCTestCase, @unchecked Sendable {
         XCTAssertEqual(received?.authorizedHealthDestination, "synthetic"); XCTAssertEqual(received?.userResponse, answer)
         XCTAssertEqual(received?.completedAt, expected.completedAt)
         XCTAssertTrue(transcript.messages.first(where: { $0.role == .tool })?.containsLocalOnlyContext == true)
+    }
+    func testRemoteReceiptCommitsOnlyAnAnswerForItsOwnTurn() async throws {
+        for foreign in [false, true] {
+            let store = try makeTestStore(), chat = Conversation(), workspace = UUID()
+            try await store.save(chat)
+            do {
+                for try await _ in AssistantEngine(store: store).respond(conversation: chat, text: "Authorize the synthetic workspace", captureIDs: [], backend: AuditReceiptBackend(workspace: workspace, foreign: foreign)) { }
+                XCTAssertFalse(foreign)
+            } catch { XCTAssertTrue(foreign) }
+            let saved = try await store.loadConversation(chat.id)
+            XCTAssertEqual(saved.workspaceIDs.contains(workspace), !foreign)
+            XCTAssertEqual(saved.messages.contains { $0.text == "Synthetic answer" }, !foreign)
+        }
     }
 
     func testLegacyAndNewlyHealthDerivedWorkCannotBeReadAsPublicContext() async throws {
@@ -151,6 +236,36 @@ final class AuditRegressionTests: XCTestCase, @unchecked Sendable {
 }
 
 private actor AuditEffectCounter { var count = 0; func record() { count += 1 } }
+private struct AuditReceiptBackend: RemoteTaskBackend {
+    let workspace: UUID, foreign: Bool
+    let id = "audit-remote-receipt"
+    let networkDestination: String? = nil
+    func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> { AsyncThrowingStream { $0.finish() } }
+    func runTask(_ request: ModelRequest) -> AsyncThrowingStream<RemoteTaskEvent, any Error> {
+        AsyncThrowingStream { output in Task {
+            do {
+                var answer = Message(role: .user, text: "Synthetic answer")
+                answer.replyToTaskID = foreign ? UUID() : request.workIdentity!.turnID
+                var receipt = ToolResult(callID: "connect", name: "connect_workspace", succeeded: true, output: .object(["status": .string("connected")]))
+                receipt.authorizedWorkspaceID = workspace; receipt.userResponse = answer
+                try await request.commitRemoteTranscript!([answer], [receipt])
+                output.yield(.transcript([answer])); output.yield(.completed); output.finish()
+            } catch { output.finish(throwing: error) }
+        } }
+    }
+}
+private actor AuditFailureBackend: ModelBackend {
+    nonisolated let id = "audit-idle-checkpoint"
+    nonisolated let networkDestination: String? = nil
+    private var output: AsyncThrowingStream<ModelEvent, any Error>.Continuation?
+    private var started: [CheckedContinuation<Void, Never>] = []
+    func waitForStart() async { if output == nil { await withCheckedContinuation { started.append($0) } } }
+    func fail() { output?.finish(throwing: AssistantError.incompleteResponse) }
+    private func attach(_ value: AsyncThrowingStream<ModelEvent, any Error>.Continuation) { output = value; started.forEach { $0.resume() }; started = [] }
+    nonisolated func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
+        AsyncThrowingStream { output in Task { await self.attach(output) } }
+    }
+}
 private actor AuditNativeBackend: ModelBackend {
     nonisolated let id = "audit-native"
     nonisolated let networkDestination: String? = nil

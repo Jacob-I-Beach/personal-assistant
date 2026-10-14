@@ -90,14 +90,14 @@ final class AssistantUITests: XCTestCase {
     func testLocalQwenContextAndMemoryControlsAreReachable() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory-granted", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
         app.buttons["Response settings"].tap()
         let context = app.descendants(matching: .any).matching(identifier: "local-working-context").firstMatch
         for _ in 0..<5 { if context.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(context.waitForExistence(timeout: 5))
-        XCTAssertEqual(context.value as? String, "32,768 tokens")
+        XCTAssertEqual(context.value as? String, "65,536 tokens")
         XCTAssertFalse(app.staticTexts["0 tokens"].exists)
         let memory = app.buttons["Memory settings"]
         for _ in 0..<4 { if memory.isHittable { break }; app.swipeUp() }
@@ -107,10 +107,29 @@ final class AssistantUITests: XCTestCase {
         app.navigationBars["Response settings"].buttons["Done"].tap()
         XCTAssertTrue(app.buttons["Choose model"].exists)
     }
-    func testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads() {
+    func testInsufficientQwenAllowanceRequiresAnExplicitSmallerContext() {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
+        app.buttons["Response settings"].tap()
+        let warning = app.staticTexts["More memory headroom needed"]
+        for _ in 0..<5 { if warning.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(warning.exists)
+        let smaller = app.buttons["32,768 tokens"]
+        for _ in 0..<5 { if smaller.isHittable { break }; app.swipeDown() }
+        smaller.tap()
+        let context = app.descendants(matching: .any).matching(identifier: "local-working-context").firstMatch
+        for _ in 0..<5 { if context.isHittable { break }; app.swipeUp() }
+        XCTAssertEqual(context.value as? String, "32,768 tokens")
+        XCTAssertFalse(warning.exists)
+        saveScreenshot(app, name: "Qwen-explicit-smaller-context")
+    }
+    func testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory-granted", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         app.buttons["Choose model"].tap()
@@ -122,7 +141,7 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Details for Qwen 3.5 4B"].tap()
         let estimate = app.descendants(matching: .any).matching(identifier: "local-context-estimate").firstMatch
         XCTAssertTrue(estimate.waitForExistence(timeout: 5))
-        XCTAssertEqual(estimate.value as? String, "32,768 tokens")
+        XCTAssertEqual(estimate.value as? String, "65,536 tokens")
         saveScreenshot(app, name: "Qwen-model-details")
         app.navigationBars["Model details"].buttons["Done"].tap()
         let downloads = app.buttons["Browse downloads"]

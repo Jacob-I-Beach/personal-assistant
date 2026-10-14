@@ -314,7 +314,7 @@ actor MLXLocalBackend: ModelBackend {
                 return prepared.text.tokens.size
             }
         guard tokenCount <= budget.inputTokens else { throw AssistantError.contextCapacity }
-        let parameters = GenerateParameters(maxTokens: budget.responseTokens, kvBits: repository.contains("Qwen3.5-4B") ? 4 : nil,
+        let parameters = GenerateParameters(maxTokens: budget.responseTokens, kvBits: budget.attentionCacheBits,
             kvGroupSize: 64, quantizedKVStart: 0, temperature: 0.4,
             prefill: .init(stepSize: ProcessInfo.processInfo.thermalState == .serious ? 16 : 32))
         let session = ChatSession(container, generateParameters: parameters,

@@ -8,9 +8,11 @@ final class LocalModelPlatformTests: XCTestCase {
         let backend = MLXLocalBackend(repository: "mlx-community/Qwen3.5-4B-4bit", revision: "fixture", root: FileManager.default.temporaryDirectory,
             responseTokens: 2048, supportsVision: true, weightBytes: 3_034_300_695, textWeightBytes: 2_367_118_848, requestedContextTokens: 131_072)
         let reported = backend.planningBudget(memoryGiB: 8, contextTokens: nil, availableBytes: Int64(3.05 * 1_073_741_824))
-        XCTAssertTrue(reported.fits); XCTAssertEqual(reported.selectedContextTokens, 32_768)
+        XCTAssertFalse(reported.fits); XCTAssertEqual(reported.selectedContextTokens, 65_536)
+        let granted = backend.planningBudget(memoryGiB: 8, contextTokens: nil, availableBytes: 6 * 1_073_741_824)
+        XCTAssertTrue(granted.fits); XCTAssertNil(granted.attentionCacheBits)
         let automatic = backend.planningBudget(memoryGiB: 8, contextTokens: nil, availableBytes: 10_000_000_000)
-        XCTAssertEqual(automatic.selectedContextTokens, 32_768)
+        XCTAssertEqual(automatic.selectedContextTokens, 65_536)
         let manual = backend.planningBudget(memoryGiB: 8, contextTokens: 131_072, availableBytes: 10_000_000_000)
         XCTAssertEqual(manual.selectedContextTokens, 131_072)
         XCTAssertEqual(backend.residentBytes, 0, "Planning alone must not initialize Metal or load weights.")

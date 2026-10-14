@@ -35,7 +35,6 @@ public actor AssistantEngine {
                                        additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, automaticResume: false, configuration: configuration, appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
-                    await self.recordInterruption(turnID, error: error)
                     continuation.finish(throwing: error)
                 }
             }
@@ -53,7 +52,6 @@ public actor AssistantEngine {
                                        additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, automaticResume: automatic, configuration: .object([:]), appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
-                    await self.recordInterruption(turnID, error: error)
                     continuation.finish(throwing: error)
                 }
             }
@@ -98,6 +96,10 @@ public actor AssistantEngine {
                 for waiter in waiting { waiter.resume() }
             }
         }
+        // Keep ownership until the final success/interruption checkpoint is
+        // durable. Otherwise waitUntilIdle can release a continuation while
+        // this run's outer error handler is still modifying the same task.
+        do {
         var containsHealthData = containsHealthData
         for id in fileIDs {
             let file = try await store.workspaceFile(id)
@@ -390,6 +392,10 @@ public actor AssistantEngine {
             }
         }
         throw AssistantError.workBudgetReached
+        } catch {
+            await recordInterruption(turnID, error: error)
+            throw error
+        }
     }
 
     private func appendUserResponse(_ result: ToolResult, turnID: UUID, destination: String?, conversation: inout Conversation) async throws {
