@@ -487,7 +487,7 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<12 { if first.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(first.isHittable)
         app.buttons["Actions for earlier request"].firstMatch.tap()
-        app.buttons["Edit message"].tap()
+        app.collectionViews.buttons["Edit message"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Editing message"].waitForExistence(timeout: 5))
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
         composer.tap(); composer.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "1+2")
@@ -954,13 +954,13 @@ final class AssistantUITests: XCTestCase {
     }
     func testProduct117DraftRestoresWithoutChangingSavedRevision() {
         let app = productApp("editor"); openProductLibrary(app)
-        app.staticTexts["journey-notes.md"].tap(); app.buttons["Edit"].tap()
+        app.collectionViews.staticTexts["journey-notes.md"].firstMatch.tap(); app.buttons["Edit"].tap()
         let editor = app.textViews["Edit artifact"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5)); editor.tap(); editor.typeText("\nDraft amendment")
         XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 5))
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 15)); openProductLibrary(app)
-        app.staticTexts["journey-notes.md"].tap()
+        app.collectionViews.staticTexts["journey-notes.md"].firstMatch.tap()
         XCTAssertTrue(editor.waitForExistence(timeout: 5)); XCTAssertTrue((editor.value as? String ?? "").contains("Draft amendment"))
         saveScreenshot(app, name: "Product117-restored-draft")
         app.buttons["Draft actions"].tap(); app.buttons["View saved revision"].tap()
@@ -982,6 +982,10 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Preview journey-table.csv"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "=1+1")).firstMatch.waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Product117-file-preview")
+        app.buttons["Done"].tap(); app.buttons["Preview journey-preview.pdf"].tap()
+        XCTAssertTrue(app.buttons["File info"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Preview unavailable"].exists)
+        saveScreenshot(app, name: "Product117-original-PDF-preview")
         app.buttons["Done"].tap(); app.buttons["Select journey-table.csv"].tap(); app.buttons["Cancel"].tap()
         XCTAssertFalse(app.buttons["Remove journey-table.csv from this message"].exists)
         XCTAssertEqual(composer.value as? String, "Keep my draft")
@@ -1035,7 +1039,11 @@ final class AssistantUITests: XCTestCase {
         let toggle = app.switches["Allow cellular downloads"]
         for _ in 0..<5 { if toggle.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(toggle.isHittable)
-        let old = toggle.value as? String; toggle.tap(); let changed = toggle.value as? String
+        let old = toggle.value as? String
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "value != %@", old ?? "0"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 5)
+        let changed = toggle.value as? String
         XCTAssertNotEqual(changed, old)
         app.buttons["Done"].tap(); XCTAssertFalse(app.alerts["Settings saved"].exists)
         app.buttons["History"].tap(); app.buttons["Settings & access"].tap()

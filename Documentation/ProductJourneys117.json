@@ -68,8 +68,8 @@
     {
       "id": "J07",
       "title": "Dictation permission, cutoff and interruption",
-      "coverage": "source-only",
-      "evidence": "Voice permission-owner checks and bounded finalization",
+      "coverage": "platform-and-source-partial",
+      "evidence": "Off-main speech authorization and recognition callback tests; permission-owner and bounded-finalization logic",
       "remaining": "Physical microphone permission, cutoff, interruptions and final words",
       "external_inference": false,
       "personal_records_used": false,

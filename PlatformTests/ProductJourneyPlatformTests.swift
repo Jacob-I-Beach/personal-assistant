@@ -1,9 +1,24 @@
 import AssistantCore
 import XCTest
+@preconcurrency import Speech
 @testable import PersonalAssistant
 
 @MainActor
 final class ProductJourneyPlatformTests: XCTestCase {
+    func testSpeechAuthorizationCompletionAcceptsAnOffMainCallback() async {
+        let result = await withCheckedContinuation { continuation in
+            let callback = SpeechCallbackBridge.authorization(continuation)
+            DispatchQueue.global(qos: .userInitiated).async { callback(.authorized) }
+        }
+        XCTAssertEqual(result, .authorized)
+    }
+    func testSpeechRecognitionCompletionCopiesValuesBeforeReturningToUI() async {
+        let update: SpeechCallbackBridge.Update = await withCheckedContinuation { continuation in
+            let callback = SpeechCallbackBridge.recognition { continuation.resume(returning: $0) }
+            DispatchQueue.global(qos: .userInitiated).async { callback(nil, NSError(domain: "SyntheticSpeech", code: 1)) }
+        }
+        XCTAssertEqual(update, .init(text: nil, isFinal: false, failed: true))
+    }
     func testPreferenceCommitAndFailedWriteKeepPublishedAndPersistedValuesConsistent() async throws {
         let model = AppModel(); try await model.waitUntilReady()
         let original = model.settings

@@ -240,7 +240,6 @@ struct ChatView: View {
                                 MessageRow(message: message, showsResponseActions: actionIDs.contains(message.id), compactActions: message.id != latestRequest && message.id != latestAnswer).environmentObject(voice)
                             }
                         }.background(chatNavigation.searchLanding?.anchorID == item.id ? Color.primary.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 12))
-                            .accessibilityIdentifier(chatNavigation.searchLanding?.anchorID == item.id ? "selected-history-match" : "timeline-" + item.id.uuidString)
                             .background(alignment: .topLeading) { ChatScrollAnchor(id: item.id).frame(width: 1, height: 1) }.id(item.id)
                     }
                     if upper < timeline.count { Button("Show later messages") { searchWindow = lower..<min(timeline.count, upper + 100) }.font(.footnote).frame(maxWidth: .infinity) }

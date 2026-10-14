@@ -37,12 +37,13 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
         defer { if recordingID == attempt { isPreparing = false } }
         stopSpeaking(); errorMessage = nil
         let status = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+            SFSpeechRecognizer.requestAuthorization(SpeechCallbackBridge.authorization(continuation))
         }
         guard recordingID == attempt, !Task.isCancelled else { return }
         guard status == .authorized else { errorMessage = "Allow speech recognition in iPhone Settings to use voice input."; return }
-        guard await AVAudioApplication.requestRecordPermission() else { errorMessage = "Allow microphone access in iPhone Settings to use voice input."; return }
+        let microphoneAllowed = await AVAudioApplication.requestRecordPermission()
         guard recordingID == attempt, !Task.isCancelled else { return }
+        guard microphoneAllowed else { errorMessage = "Allow microphone access in iPhone Settings to use voice input."; return }
         guard let recognizer = SFSpeechRecognizer(locale: Locale.current),
               recognizer.supportsOnDeviceRecognition else {
             errorMessage = "On-device speech recognition is unavailable for this language right now. You can keep typing."; return
@@ -62,19 +63,16 @@ final class VoiceController: NSObject, ObservableObject, AVSpeechSynthesizerDele
             guard format.sampleRate > 0, format.channelCount > 0 else {
                 throw NSError(domain: "AssistantVoice", code: 1, userInfo: [NSLocalizedDescriptionKey: "The microphone audio route is not ready."])
             }
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { @Sendable buffer, _ in request.append(buffer) }
             tapInstalled = true
-            recognition = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                let text = result?.bestTranscription.formattedString
-                let final = result?.isFinal == true
-                let failed = error != nil
+            recognition = recognizer.recognitionTask(with: request, resultHandler: SpeechCallbackBridge.recognition { [weak self] update in
                 Task { @MainActor in
                     guard let self, self.isRecording || self.isFinalizing, self.recordingID == attempt else { return }
-                    if let text { self.transcript = text }
-                    if failed && !final { self.errorMessage = "Dictation ended. Recognized text is kept in your draft; you can continue typing." }
-                    if final || failed { self.cancelRecording() }
+                    if let text = update.text { self.transcript = text }
+                    if update.failed && !update.isFinal { self.errorMessage = "Dictation ended. Recognized text is kept in your draft; you can continue typing." }
+                    if update.isFinal || update.failed { self.cancelRecording() }
                 }
-            }
+            })
             engine.prepare(); try engine.start(); isRecording = true
             timeout = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(50))
