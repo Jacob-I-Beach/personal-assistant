@@ -4,7 +4,7 @@ export const browserTool={name:'computer_browser',description:'Use a separate Ed
 
 // Playwright evaluates this function in the page. Bind review to the control's
 // type and destinations as well as its visible label.
-const targetState=node=>({connected:node.isConnected,name:(node.getAttribute('aria-label')||node.innerText||node.getAttribute('placeholder')||'').slice(0,180),tag:node.tagName?.toLowerCase(),type:(node.getAttribute('type')||'').toLowerCase(),role:node.getAttribute('role'),disabled:!!node.disabled,href:node.href??null,formAction:node.formAction??node.form?.action??null,formMethod:node.formMethod??node.form?.method??null});
+const targetState=node=>({connected:node.isConnected,name:(node.getAttribute('aria-label')||node.innerText||node.getAttribute('placeholder')||'').slice(0,180),tag:node.tagName?.toLowerCase(),type:(node.getAttribute('type')||'').toLowerCase(),role:node.getAttribute('role'),disabled:!!node.disabled,href:node.href??null,formAction:node.getAttribute('formaction')?node.formAction:(node.form?.action??null),formMethod:node.getAttribute('formmethod')?node.formMethod:(node.form?.method??null)});
 
 export class BrowserRuntime {
   constructor({store,review}){this.store=store;this.review=review;this.sessions=new Map();}
@@ -30,7 +30,7 @@ export class BrowserRuntime {
         const handle=state.handles[args.element_id],observed=await handle.evaluate(targetState);
         if(!observed.connected||observed.type==='password'||observed.disabled)throw new Error('This element is unavailable or requires user-operated password entry.');
         const reviewedURL=state.page.url();
-        await this.review(job,call,`${args.reason}\n\nWebsite: ${reviewedURL}\nAction: ${args.action}\nElement: ${observed.name}\n${args.text??''}`,signal);
+        await this.review(job,call,`${args.reason}\n\nWebsite: ${reviewedURL}\nAction: ${args.action}\nElement: ${observed.name}\nTarget: ${observed.tag} ${observed.type}\nDestination: ${observed.href??observed.formAction??reviewedURL}\n${args.text??''}`,signal);
         signal.throwIfAborted();
         const current=await handle.evaluate(targetState);
         if(Date.now()-state.at>120000||state.page.url()!==reviewedURL||JSON.stringify(current)!==JSON.stringify(observed)||current.type==='password')throw new Error('The page changed during review. Inspect it again before acting.');

@@ -125,6 +125,16 @@ test('browser cancellation during session creation prevents navigation and close
   await assert.rejects(executing,/Stop requested/);assert.equal(navigations,0);assert.equal(closed,1);
 });
 
+test('browser review binds the inherited form destination, not an unused control override',async()=>{
+  let clicked=0;const form={action:'https://example.test/approved',method:'post'};
+  const node={isConnected:true,tagName:'BUTTON',form,formAction:'https://example.test/',formMethod:'get',getAttribute:name=>name==='aria-label'?'Send':name==='type'?'submit':null};
+  const handle={evaluate:async fn=>fn(node),click:async()=>{clicked++;}};
+  const state={observation:'obs',at:Date.now(),handles:[handle],page:{url:()=> 'https://example.test',isClosed:()=>false},browser:{close:async()=>{}}};
+  const browser=new BrowserRuntime({store:{},review:async(_job,_call,detail)=>{assert.ok(detail.includes(form.action));form.action='https://example.test/changed';}});browser.session=async()=>state;
+  await assert.rejects(browser.execute({id:'click',arguments:{action:'click',observation_id:'obs',element_id:0,reason:'Synthetic review'}},{id:'job'},new AbortController().signal),/page changed/);
+  assert.equal(clicked,0);
+});
+
 test('file replacement detects competing edits and never exposes a partial target',async t=>{
   const root=await mkdtemp(join(tmpdir(),'assistant-audit-'));assert.ok(resolve(root).startsWith(resolve(tmpdir())+sep));
   t.after(()=>rm(root,{recursive:true,force:true}));const path=join(root,'document.txt'),original=Buffer.from('Original'),expectedHash=createHash('sha256').update(original).digest('hex');
