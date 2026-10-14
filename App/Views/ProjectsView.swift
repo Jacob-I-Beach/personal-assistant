@@ -11,6 +11,7 @@ struct ProjectsView: View {
                 NavigationLink { ProjectDetailView(project: project) } label: {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(project.title).font(.headline)
+                        if project.needsContextRebuild == true { Label("Review after chat edit", systemImage: "arrow.trianglehead.clockwise").font(.caption).foregroundStyle(.secondary) }
                         Text(project.goal).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                         Text("\(project.status.capitalized) · \(project.questions.count) open questions").font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 5)
@@ -28,6 +29,9 @@ private struct ProjectDetailView: View {
     @State private var error: String?
     var body: some View {
         List {
+            if project.needsContextRebuild == true {
+                Section { Text("A chat edit removed the context behind this record. The saved details are shown for your review; the assistant will rebuild its working summary before using them. Editing and saving here confirms your own updated record.").font(.subheadline).foregroundStyle(.secondary) }
+            }
             Section("Goal") {
                 if editing { TextField("Title", text: $project.title); TextField("Goal", text: $project.goal, axis: .vertical).lineLimit(2...6) }
                 else { Text(project.goal) }
@@ -49,7 +53,7 @@ private struct ProjectDetailView: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(editing ? "Save" : "Edit") {
                 if !editing { editing = true; return }
                 Task {
-                    do { let revision = project.revision; var saved = project; saved.revision += 1; saved.updatedAt = Date(); try await model.store?.saveProjectWorkspace(saved, expectedRevision: revision); project = saved; editing = false; AppFeedback.play(.saved) }
+                    do { let revision = project.revision; var saved = project; saved.revision += 1; saved.updatedAt = Date(); saved.lastMutationWasUserEdit = true; saved.lastMutationCallID = nil; saved.needsContextRebuild = nil; try await model.store?.saveProjectWorkspace(saved, expectedRevision: revision); project = saved; editing = false; AppFeedback.play(.saved) }
                     catch { self.error = error.localizedDescription }
                 }
             } } }

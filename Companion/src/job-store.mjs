@@ -45,11 +45,13 @@ export class JobStore {
       return {job: this.decode(existing), created: false};
     }
     const id = randomUUID(), now = Date.now();
+    const cancelled=!!this.db.prepare('SELECT 1 FROM cancelled_requests WHERE owner=? AND request_key=?').get(owner,requestKey);
+    this.transaction(()=>{
     this.db.prepare('INSERT INTO jobs(id,owner,request_key,request_hash,status,created,updated,data) VALUES(?,?,?,?,?,?,?,?)')
-      .run(id, owner, requestKey, hash, 'queued', now, now, this.vault.sealJSON(payload, 'job:' + id));
+      .run(id, owner, requestKey, hash, cancelled?'cancelled':'queued', now, now, this.vault.sealJSON(payload, 'job:' + id));
     this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON({title:payload.title??'Assistant task',body:{model:payload.body?.model??payload.model??''},execution_only:payload.execution_only===true},'summary:'+id),id);
-    if(this.db.prepare('SELECT 1 FROM cancelled_requests WHERE owner=? AND request_key=?').get(owner,requestKey))this.status(id,'cancelled','Stopped by the user before starting.');
-    else this.append(id, {type: 'status', status: 'queued', text: 'Waiting to start on your computer'});
+    this.appendWithin(id,{type:'status',status:cancelled?'cancelled':'queued',text:cancelled?'Stopped by the user before starting.':'Waiting to start on your computer'});
+    });
     return {job: this.get(id, owner), created: true};
   }
   decode(row) {

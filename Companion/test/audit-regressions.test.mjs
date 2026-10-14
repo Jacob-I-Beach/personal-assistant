@@ -20,6 +20,17 @@ const fixture=t=>{const store=new JobStore(':memory:',new Vault(randomBytes(32))
 const task=(store,key='task',extra={})=>store.create('phone',key,{body:{model:'synthetic',input:[],tools:[]},catalog:[],...extra}).job;
 const receipt=call=>({callID:call.id,name:call.name,succeeded:true,output:{status:'saved'}});
 
+test('new task and its first event commit together, including stop-before-send',t=>{
+  const store=fixture(t),seal=store.vault.sealJSON.bind(store.vault);
+  store.vault.sealJSON=(value,scope)=>{if(value.type==='status')throw new Error('First event could not be stored');return seal(value,scope);};
+  assert.throws(()=>task(store,'failed-create'));
+  assert.equal(store.find('phone','failed-create'),null);
+  store.vault.sealJSON=seal;
+  const retry=task(store,'failed-create');assert.equal(store.events(retry.id,'phone').length,1);
+  store.cancelRequest('phone','already-stopped');const cancelled=task(store,'already-stopped');
+  assert.equal(cancelled.status,'cancelled');assert.equal(store.events(cancelled.id,'phone')[0].status,'cancelled');
+});
+
 test('scheduled discovery and dispatch deny private host access including use_tool',async t=>{
   const store=fixture(t),executed=[];let calls=0;
   const runtime={definitions:['computer_desktop','run_computer_command','computer_browser','connect_computer_folder','run_python'].map(definition),supports:()=>true,title:()=>'',execute:async call=>{executed.push(call.name);return receipt(call);}};

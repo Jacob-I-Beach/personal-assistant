@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BrowserRuntime} from '../src/browser-runtime.mjs';
 
+test('one task cannot interleave browser actions while its first action is pending',async()=>{
+  let released;const waiting=new Promise(r=>{released=r;}),abort=new AbortController();
+  const runtime=new BrowserRuntime({store:{},review:async()=>{},launch:async()=>{await waiting;return {close:async()=>{},newContext:async()=>{throw new Error('No page should be created after stop');}};}});
+  const first=runtime.execute({arguments:{action:'snapshot'}},{id:'same-task'},abort.signal);
+  const second=runtime.execute({arguments:{action:'open',url:'https://example.test'}},{id:'same-task'},new AbortController().signal);
+  const rejected=assert.rejects(second,/already in progress/);
+  abort.abort(new Error('Stopped'));released();
+  await assert.rejects(first,/Stopped/);await rejected;
+  assert.equal(runtime.executing.size,0);await runtime.close();
+});
+
 test('partial browser acquisition closes resources and never admits navigation after cancellation',async()=>{
   for(const stage of ['before','launch','context','page','context-failure','page-failure']){
     let closed=0,navigated=0,launched=0;const abort=new AbortController();

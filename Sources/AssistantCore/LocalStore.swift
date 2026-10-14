@@ -59,10 +59,12 @@ public actor LocalStore {
                 revised.excludedSurfaceIDs.insert(surface.id)
             }
         }
-        if let project = try projectWorkspaces().first(where: { $0.id == (original.folderID ?? original.id) }),
+        var invalidatedProject: ProjectWorkspace?
+        if var project = try projectWorkspaces().first(where: { $0.id == (original.folderID ?? original.id) }), project.lastMutationWasUserEdit != true,
            (project.lastMutationConversationID ?? project.sourceConversationID) == original.id,
            project.updatedAt >= threshold || project.lastMutationCallID.map(calls.contains) == true {
             revised.invalidatedProjectRevisions[project.id.uuidString] = project.revision
+            project.needsContextRebuild = true; invalidatedProject = project
         }
         for file in try workspaceFiles() where file.conversationID == original.id && !retainedFiles.contains(file.id) {
             revised.excludedFileIDs.insert(file.id)
@@ -74,6 +76,9 @@ public actor LocalStore {
         revised.updatedAt = Date()
         try database.transaction {
             try Self.persist(revised, in: database)
+            if let project = invalidatedProject {
+                try database.execute("UPDATE project_workspaces SET payload=? WHERE id=?", [.blob(try Self.encode(project)), .text(project.id.uuidString)])
+            }
             try reconcileAutomaticMemoryAfterEdit(conversationID: original.id, removedMessageIDs: Set(removed.map(\.id)))
         }
         return revised

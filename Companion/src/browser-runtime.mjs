@@ -7,7 +7,7 @@ export const browserTool={name:'computer_browser',description:'Use a separate Ed
 const targetState=node=>({connected:node.isConnected,name:(node.getAttribute('aria-label')||node.innerText||node.getAttribute('placeholder')||'').slice(0,180),tag:node.tagName?.toLowerCase(),type:(node.getAttribute('type')||'').toLowerCase(),role:node.getAttribute('role'),disabled:!!node.disabled,href:node.href??null,formAction:node.getAttribute('formaction')?node.formAction:(node.form?.action??null),formMethod:node.getAttribute('formmethod')?node.formMethod:(node.form?.method??null)});
 
 export class BrowserRuntime {
-  constructor({store,review,launch}){this.store=store;this.review=review;this.sessions=new Map();this.pending=new Map();this.closing=new Set();this.closed=false;this.launch=launch??(async()=>{const {chromium}=await import('playwright-core');return chromium.launch({channel:'msedge',headless:true});});}
+  constructor({store,review,launch}){this.store=store;this.review=review;this.sessions=new Map();this.pending=new Map();this.closing=new Set();this.executing=new Set();this.closed=false;this.launch=launch??(async()=>{const {chromium}=await import('playwright-core');return chromium.launch({channel:'msedge',headless:true});});}
   async session(job,signal){
     signal?.throwIfAborted();
     if(this.closed||this.closing.has(job.id))throw new Error('This browser workspace is closing.');
@@ -26,6 +26,12 @@ export class BrowserRuntime {
     try{return await acquiring;}finally{this.pending.delete(job.id);}
   }
   async execute(call,job,signal){
+    signal.throwIfAborted();
+    if(this.executing.has(job.id))throw new Error('A browser action is already in progress for this task. Wait for its result and inspect the page before the next action.');
+    this.executing.add(job.id);
+    try{return await this.#executeAction(call,job,signal);}finally{this.executing.delete(job.id);}
+  }
+  async #executeAction(call,job,signal){
     signal.throwIfAborted();const state=await this.session(job,signal),args=call.arguments;
     const abort=()=>state.page.close().catch(()=>{});signal.addEventListener('abort',abort,{once:true});
     try{

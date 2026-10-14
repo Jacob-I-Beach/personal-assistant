@@ -16,6 +16,7 @@ public struct ProjectWorkspace: Codable, Sendable, Identifiable, Equatable {
     public var lastMutationConversationID: UUID?
     public var lastMutationCallID: String?
     public var needsContextRebuild: Bool?
+    public var lastMutationWasUserEdit: Bool?
     public var summary: JSONValue {
         .object(["project_id": .string(id.uuidString), "title": .string(title), "goal": .string(goal), "status": .string(status), "decisions": .array(decisions.map(JSONValue.string)), "open_questions": .array(questions.map(JSONValue.string)), "authoritative_output_ids": .array(outputIDs.map { .string($0.uuidString) }), "revision": .number(Double(revision)), "updated_at": .string(ISO8601DateFormatter().string(from: updatedAt)), "notice": .string("This is the maintained project record. Status and decisions are recorded context; individual action receipts establish external outcomes.")])
     }
@@ -29,7 +30,11 @@ extension LocalStore {
         let chat = try loadConversation(conversationID), scope = chat.folderID ?? chat.id
         guard var project = try projectWorkspaces().first(where: { $0.id == scope }) else { return nil }
         guard !remote || (!project.containsLocalOnlyContext && (!project.containsHealthData || (project.sourceConversationID == conversationID && chat.containsHealthData))) else { return nil }
-        if (chat.invalidatedProjectRevisions[project.id.uuidString] ?? 0) >= project.revision {
+        // Older versions recorded invalidation only on the edited chat. Check
+        // its origin as well so a sibling chat cannot revive that same record.
+        let origin = try? loadConversation(project.lastMutationConversationID ?? project.sourceConversationID)
+        let originInvalidated = project.lastMutationWasUserEdit != true && (origin?.invalidatedProjectRevisions[project.id.uuidString] ?? 0) >= project.revision
+        if project.needsContextRebuild == true || originInvalidated || (chat.invalidatedProjectRevisions[project.id.uuidString] ?? 0) >= project.revision {
             project.title = "Project context needs rebuilding"; project.goal = "An edited request removed the context used for this revision. Rebuild the summary from the current chat before using it. Saved outputs and external actions remain unchanged."
             project.decisions = []; project.questions = []; project.outputIDs = []; project.status = "waiting"; project.needsContextRebuild = true
         }
@@ -41,7 +46,10 @@ extension LocalStore {
         guard project.title.count <= 120, project.goal.count <= 1600, project.decisions.count <= 20, project.questions.count <= 20,
               (project.decisions + project.questions).allSatisfy({ $0.count <= 500 }), project.outputIDs.count <= 20,
               ["active", "waiting", "completed", "paused"].contains(project.status) else { throw AssistantError.invalidTool("Keep the project record concise and use a supported status.") }
-        try database.execute("INSERT INTO project_workspaces(id,payload) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", [.text(project.id.uuidString), .blob(try Self.encode(project))])
+        var protected = project
+        protected.containsLocalOnlyContext = protected.containsLocalOnlyContext || existing?.containsLocalOnlyContext == true
+        protected.containsHealthData = protected.containsHealthData || existing?.containsHealthData == true
+        try database.execute("INSERT INTO project_workspaces(id,payload) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload", [.text(project.id.uuidString), .blob(try Self.encode(protected))])
     }
 }
 public enum ProjectTools {
@@ -59,6 +67,9 @@ public enum ProjectTools {
         var result: ToolResult
         if call.name == "read_project" { result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: current?.summary ?? .object(["status": .string("no_project_record"), "revision": .number(0)])) }
         else {
+            if current == nil, try await store.projectWorkspaces().contains(where: { $0.id == (chat.folderID ?? chat.id) }) {
+                throw AssistantError.invalidTool("The existing project is outside this model's data permissions. Its saved record was not changed.")
+            }
             let rawIDs = call.arguments["output_ids"]?.arrayValue?.compactMap(\.stringValue) ?? [], ids = rawIDs.compactMap(UUID.init(uuidString:))
             let artifacts = try await store.readableArtifacts(conversationID: conversationID, workspace: workspace, remote: remote)
             let files = try await store.readableFiles(attached: chat.attachedFileIDs, workspace: workspace, remote: remote, conversationID: conversationID)
@@ -66,8 +77,9 @@ public enum ProjectTools {
             guard ids.count == rawIDs.count, Set(ids).isSubset(of: allowed) else { throw AssistantError.invalidTool("Use output IDs already available in this project.") }
             let revision = try ToolArguments.integer(call.arguments["expected_revision"], field: "expected_revision")
             var project = ProjectWorkspace(id: chat.folderID ?? chat.id, sourceConversationID: current?.sourceConversationID ?? chat.id, title: call.arguments["title"]?.stringValue ?? "Project", goal: call.arguments["goal"]?.stringValue ?? "", status: call.arguments["status"]?.stringValue ?? "active", decisions: call.arguments["decisions"]?.arrayValue?.compactMap(\.stringValue) ?? [], questions: call.arguments["open_questions"]?.arrayValue?.compactMap(\.stringValue) ?? [], outputIDs: ids, revision: revision + 1, updatedAt: Date(), containsLocalOnlyContext: localOnly || current?.containsLocalOnlyContext == true, containsHealthData: health || current?.containsHealthData == true)
-            project.containsLocalOnlyContext = project.containsLocalOnlyContext || artifacts.contains { ids.contains($0.id) && $0.containsLocalOnlyContext }
+            project.containsLocalOnlyContext = project.containsLocalOnlyContext || artifacts.contains { ids.contains($0.id) && $0.containsLocalOnlyContext } || files.contains { ids.contains($0.id) && !$0.allowsConnectedModels }
             project.lastMutationConversationID = chat.id; project.lastMutationCallID = call.id
+            project.lastMutationWasUserEdit = false
             project.containsHealthData = project.containsHealthData || artifacts.contains { ids.contains($0.id) && $0.containsHealthData } || files.contains { ids.contains($0.id) && $0.containsHealthData }
             try await store.saveProjectWorkspace(project, expectedRevision: revision)
             result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: project.summary)

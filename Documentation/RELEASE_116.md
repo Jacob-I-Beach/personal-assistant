@@ -13,6 +13,8 @@ Candidate version 1.1.6, build 21. Physical installation and the Apple-granted m
 - Engine ownership now includes interruption persistence. A controlled test observed the old idle notification before the saved interruption in all 30 trials; the revised implementation completes that checkpoint before releasing idle waiters.
 - Project tool receipts retain classification inherited from linked protected outputs. The previous record itself was protected, but its receipt could omit those flags.
 - Browser acquisition is shared for concurrent first requests. Partial acquisition failures close the browser, cancellation is checked between acquisition stages, and shutdown waits for acquired resources.
+- Shared project invalidation follows the originating edit into sibling chats and survives reopen. The Projects screen labels the saved record for review; independent user edits remain authoritative. Protected projects cannot be overwritten by a model without read access, even if it guesses the revision. Stored classification cannot silently downgrade.
+- New companion tasks, their summaries and first progress event commit atomically. A failed initial event cannot leave a half-created task. One task's browser actions cannot interleave while a prior action or review is pending.
 
 ## Removed
 

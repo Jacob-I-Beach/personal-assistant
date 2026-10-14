@@ -47,6 +47,15 @@ final class AuditRegressionTests: XCTestCase, @unchecked Sendable {
         let receipt = try await ProjectTools.execute(call, store: store, conversationID: chat.id, workspace: true, remote: false, localOnly: false, health: false)
         XCTAssertTrue(receipt.containsLocalOnlyContext == true); XCTAssertTrue(receipt.containsHealthData == true)
         let remote = try await store.projectWorkspace(conversationID: chat.id, remote: true); XCTAssertNil(remote)
+        var guessed = call; guessed.id = "guess"; guessed.arguments = .object([
+            "title": .string("Public overwrite"), "goal": .string("Must not replace a private project"), "status": .string("active"),
+            "decisions": .array([]), "open_questions": .array([]), "output_ids": .array([]), "expected_revision": .number(1)])
+        do { _ = try await ProjectTools.execute(guessed, store: store, conversationID: chat.id, workspace: true, remote: true, localOnly: false, health: false); XCTFail("A model without read access must not overwrite a protected project by guessing its revision") } catch { }
+        let retained = try await store.projectWorkspace(conversationID: chat.id, remote: false)
+        XCTAssertEqual(retained?.title, "Protected project"); XCTAssertEqual(retained?.revision, 1)
+        var staleFlags = retained!; staleFlags.revision = 2; staleFlags.containsLocalOnlyContext = false; staleFlags.containsHealthData = false
+        try await store.saveProjectWorkspace(staleFlags, expectedRevision: 1)
+        let stillPrivate = try await store.projectWorkspace(conversationID: chat.id, remote: true); XCTAssertNil(stillPrivate)
     }
 
     func testConcurrentAdmissionsStopBeforeEffectsAndRejectRepeatedIdentities() async throws {
@@ -231,6 +240,37 @@ final class AuditRegressionTests: XCTestCase, @unchecked Sendable {
         XCTAssertFalse(try contextualProject!.summary.jsonString().contains("removed-canary"))
         let actual = try await store.artifacts(conversationID: chat.id)
         XCTAssertEqual(actual.first?.content, "removed-canary", "Editing chat must not roll back the saved document.")
+    }
+    func testEditedProjectContextCannotReenterThroughASiblingChatAfterReopen() async throws {
+        let store = try makeTestStore(), folder = ChatFolder(name: "Synthetic project")
+        try await store.saveFolder(folder)
+        var source = Conversation(), sibling = Conversation()
+        source.folderID = folder.id; sibling.folderID = folder.id
+        var a = Message(role: .user, text: "Create A"), b = Message(role: .user, text: "Discard B")
+        a.createdAt = Date(timeIntervalSinceNow: -200); b.createdAt = Date(timeIntervalSinceNow: -100)
+        var mutation = Message(role: .assistant, text: "Updated")
+        mutation.toolCalls = [.init(id: "project-b", name: "update_project", arguments: .object([:]))]
+        source.messages = [a, b, mutation]
+        try await store.save(source); try await store.save(sibling)
+        var project = ProjectWorkspace(id: folder.id, sourceConversationID: source.id, title: "Shared", goal: "discarded-project-canary", status: "active", decisions: ["discarded-project-canary"], questions: [], outputIDs: [], revision: 1, updatedAt: Date(), containsLocalOnlyContext: false, containsHealthData: false)
+        project.lastMutationConversationID = source.id; project.lastMutationCallID = "project-b"
+        try await store.saveProjectWorkspace(project, expectedRevision: 0)
+        _ = try await store.prepareMessageEdit(in: source, messageID: b.id)
+        let reopened = try LocalStore(root: store.root)
+        for chat in [source, sibling] {
+            let visible = try await reopened.projectWorkspace(conversationID: chat.id, remote: true)
+            XCTAssertEqual(visible?.needsContextRebuild, true)
+            XCTAssertFalse(try visible!.summary.jsonString().contains("discarded-project-canary"))
+        }
+        let saved = try await reopened.projectWorkspaces(); XCTAssertEqual(saved.first?.goal, "discarded-project-canary", "The original saved record remains available for user review.")
+        XCTAssertTrue(saved.first?.needsContextRebuild == true)
+        var manual = saved[0]; manual.goal = "User-maintained current decision"; manual.decisions = []
+        manual.revision += 1; manual.lastMutationCallID = nil; manual.lastMutationWasUserEdit = true; manual.needsContextRebuild = nil
+        try await reopened.saveProjectWorkspace(manual, expectedRevision: 1)
+        let editedSource = try await reopened.loadConversation(source.id)
+        _ = try await reopened.prepareMessageEdit(in: editedSource, messageID: a.id)
+        let independent = try await reopened.projectWorkspace(conversationID: sibling.id, remote: true)
+        XCTAssertEqual(independent?.goal, "User-maintained current decision"); XCTAssertNotEqual(independent?.needsContextRebuild, true)
     }
     private func surfaceSpec(_ title: String) -> JSONValue { .object(["kind": .string("checklist"), "title": .string(title), "data": .array([.object(["id": .string("one"), "label": .string("Example"), "checked": .bool(false)])])]) }
 }
