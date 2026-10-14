@@ -12,9 +12,10 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
   const root=await mkdtemp(join(tmpdir(),'assistant-host-test-'));
   let release, catalogFailure=false;
   const waiting=new Promise(resolve=>{release=resolve;});
+  let releaseCompute;const computeReady=new Promise(resolve=>{releaseCompute=resolve;});
   const host=await startCompanion({root,apiHost:'127.0.0.1',apiPort:0,setupPort:0,keepAwake:false,vault:new Vault(randomBytes(32)),
     provider:{getSession:async()=>({status:'connected',sharing:true,profileId:'synthetic'}),listModels:async()=>{if(catalogFailure)throw Object.assign(new Error('Upstream'),{status:520});return[{slug:'synthetic',displayName:'Synthetic',maximumContextWindow:1000000,reasoningEfforts:['low','high']}];},streamTurn:async()=>{await waiting;return {output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'Completed without the phone.'}]}]};}},
-    runtime:{definitions:[],available:async()=>true,supports:()=>false,summary:()=>''}});
+    runtime:{definitions:[],available:()=>computeReady,supports:()=>false,summary:()=>''}});
   const request=(path,body,token)=>new Promise((resolve,reject)=>{
     const data=body===undefined?null:Buffer.from(JSON.stringify(body));
     const req=https.request({hostname:'127.0.0.1',port:host.apiPort,path,method:data?'POST':'GET',rejectUnauthorized:false,headers:{...(data?{'content-type':'application/json','content-length':data.length}:{}),...(token?{authorization:'Bearer '+token}:{})}},res=>{
@@ -26,6 +27,9 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
     const code=host.pairing.issue({baseURL:`https://127.0.0.1:${host.apiPort}`,fingerprint:host.tls.fingerprint,serverId:'synthetic'});
     const paired=await request('/v1/pair',{pairing_code:code.pairing_code,device_name:'Test phone'});assert.equal(paired.status,200);
     const token=paired.body.credential;
+    let timer;
+    const caps=await Promise.race([request('/v1/capabilities',undefined,token),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Optional computation blocked account access')),2000);})]).finally(()=>clearTimeout(timer));
+    assert.equal(caps.body.profile.status,'connected');assert.equal(caps.body.computation.state,'checking');releaseCompute(true);
     const catalog=await request('/v1/models',undefined,token);
     assert.equal(catalog.body.catalog.state,'ready');assert.equal(catalog.body.models[0].display_name,'Synthetic');assert.equal(catalog.body.models[0].max_context_window,1000000);
     catalogFailure=true;
@@ -42,5 +46,5 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
     assert.equal(result.body.job.status,'completed');assert.ok(result.body.events.some(e=>e.type==='continuation'));
     host.pairing.revoke(paired.body.device_id);
     assert.equal((await request(`/v1/jobs/${id}`,undefined,token)).status,401);
-  }finally{release();await host.close();await rm(root,{recursive:true,force:true});}
+  }finally{release();releaseCompute(false);await host.close();await rm(root,{recursive:true,force:true});}
 });

@@ -56,7 +56,7 @@ export class HostRuntime {
   async close(jobID){await this.browser.close(jobID);}
   title(name){return ({read_memory:'Checking saved context',search_history:'Searching this conversation',read_history:'Reading the earlier message',update_plan:'Updating the task plan',read_task:'Reviewing saved progress',computer_browser:'Working with the website',computer_status:'Checking computer capabilities',connect_computer_folder:'Reviewing folder access',list_computer_files:'Looking through your computer files',read_computer_file:'Reading the selected file',write_computer_file:'Updating your file',run_computer_command:'Running a computer command',computer_desktop:'Working with the computer screen'})[name]??this.compute.title(name);}
   summary(){return this.compute.summary()+' Also supplies scoped computer files, reviewed host commands and desktop interaction. GPU availability is reported by computer_status; no local model server is installed or used.';}
-  available(){return this.compute.available();}
+  available(signal){return this.compute.available(signal);}
   async workspace(job){const path=join(this.root,job.id);await mkdir(path,{recursive:true});return realpath(path);}
   grants(job){return this.store.db.prepare('SELECT id,data FROM host_grants WHERE job_id=?').all(job.id).map(row=>this.store.vault.openJSON(row.data,`grant:${job.id}:${row.id}`));}
   async path(job,input,write=false){

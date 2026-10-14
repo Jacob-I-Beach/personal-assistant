@@ -13,6 +13,7 @@ Version 1.1.4, build 19. Implementation is under validation; this file does not 
 - All prompt components count toward the working budget; the native Apple adapter additionally checks its tokenizer before inference. Large native results are paged, and completed receipts survive a new SDK session.
 - Model pickers preserve the selected model, show failures where the choices live, and distinguish saved choices from current availability.
 - Saved GPT cards under a local selection explain which model owns the earlier task and expose a useful next action.
+- Docker readiness is checked separately, so a slow Python service does not stall account, model-list or saved-task status.
 
 ## Removed
 

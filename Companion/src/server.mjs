@@ -22,6 +22,7 @@ import {PushDelivery} from './push-delivery.mjs';
 import {PushWardBridge} from './pushward.mjs';
 import {computerDataRoot,resolveComputerDataRoot} from './data-location.mjs';
 import {ModelCatalog} from './model-catalog.mjs';
+import {ServiceReadiness} from './service-readiness.mjs';
 
 const assets=fileURLToPath(new URL('../ui/',import.meta.url));
 const terminal=new Set(['completed','failed','cancelled','interrupted']);
@@ -46,6 +47,7 @@ export async function startCompanion(options={}) {
   const provider=options.provider??createChatGPT({appName:'Personal Assistant Computer',appId:'personal-assistant-companion',redirectPort:0,storageDir:join(root,'chatgpt'),credentialEncryption,sendHostId:true,openBrowser});
   const toolSessions=new ToolSessions(store,runtime);
   const modelCatalog=new ModelCatalog(store,provider);
+  const computation=new ServiceReadiness(signal=>runtime.available(signal));
   const runner=new JobRunner(store,provider,runtime,job=>toolSessions.prepareHandoff(job));
   if(runtime instanceof HostRuntime)runtime.approve=(job,call,review,signal)=>runner.reviewComputer(job,call,review,signal);
   const push=new PushDelivery(store,options.pushOptions);
@@ -104,7 +106,10 @@ export async function startCompanion(options={}) {
         if(job)runner.cancel(job.id,owner);
         return jsonReply(response,200,{status:job?.status==='completed'?'completed':'cancelled',notice:'Stop recorded for this request. Any already-started action retains its actual receipt.'});
       }
-      if(url.pathname==='/v1/capabilities'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.4',profile:session,computer_tools:runtime.definitions,computation_ready:await runtime.available(),push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
+      if(url.pathname==='/v1/capabilities'&&request.method==='GET'){
+        const readiness=computation.snapshot();
+        return jsonReply(response,200,{version:'1.1.4',profile:session,computer_tools:runtime.definitions,computation_ready:readiness.available,computation:readiness,push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
+      }
       if(url.pathname==='/v1/models'&&request.method==='GET'){
         const catalog=await modelCatalog.load({force:url.searchParams.get('refresh')==='1'});
         return jsonReply(response,200,{...catalog,models:catalog.models.map(model=>({...model,display_name:model.displayName,visibility:'list',context_window:model.contextWindow,max_context_window:model.maximumContextWindow,supported_reasoning_levels:model.reasoningEfforts}))});
@@ -217,7 +222,10 @@ export async function startCompanion(options={}) {
       }
       if(request.method!=='POST')return jsonReply(response,405,{error:'Use the setup controls.'});
       requireSetup(request);const body=await jsonBody(request,16384);
-      if(url.pathname==='/api/status')return jsonReply(response,200,{version:'1.1.4',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,model_catalog:modelCatalog.snapshot(session.profileId).catalog,computation_ready:await runtime.available(),push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      if(url.pathname==='/api/status'){
+        const readiness=computation.snapshot();
+        return jsonReply(response,200,{version:'1.1.4',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,model_catalog:modelCatalog.snapshot(session.profileId).catalog,computation_ready:readiness.available,computation:readiness,push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+      }
       if(url.pathname==='/api/check-connection'){
         const connection=await provider.getSession();
         if(connection.status!=='connected'||!connection.sharing)return jsonReply(response,200,{connected:false,sharing:connection.sharing===true});
@@ -286,7 +294,7 @@ export async function startCompanion(options={}) {
   }
   let closePromise;
   closeService=()=>closePromise??=(async()=>{
-      closing=true;clearInterval(scheduleTimer);push.close();await bridge.close();scheduler.stopped=true;powerLease?.stdin.end();
+      closing=true;computation.close();clearInterval(scheduleTimer);push.close();await bridge.close();scheduler.stopped=true;powerLease?.stdin.end();
     while(scheduler.busy)await new Promise(resolveWait=>setTimeout(resolveWait,20));
     for(const job of store.incomplete())if(runner.active.has(job.id))runner.interrupt(job.id);
     await Promise.all([...runner.active.values()].map(value=>value.promise));

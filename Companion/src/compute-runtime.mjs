@@ -35,11 +35,11 @@ export class ComputeRuntime {
   supports(name) { return ['run_python','inspect_document','list_task_files','read_task_output','publish_task_files'].includes(name); }
   title(name) { return name === 'inspect_document' ? 'Inspecting the actual document' : 'Working with your data'; }
   summary() { return 'Python on your computer with selected file inputs, scientific and document libraries, bounded execution and task-scoped state. Native phone actions still require the iPhone.'; }
-  async available() {
+  async available(signal) {
     try {
-      const context = (await processResult(this.docker, ['context','inspect','desktop-linux','--format','{{.Endpoints.docker.Host}}'])).toString().trim();
+      const context = (await processResult(this.docker, ['context','inspect','desktop-linux','--format','{{.Endpoints.docker.Host}}'],{signal})).toString().trim();
       if (context !== 'npipe:////./pipe/dockerDesktopLinuxEngine') return false;
-      await processResult(this.docker, ['--context','desktop-linux','image','inspect', IMAGE, '--format','{{.Id}}']);
+      await processResult(this.docker, ['--context','desktop-linux','image','inspect', IMAGE, '--format','{{.Id}}'],{signal});
       return true;
     } catch { return false; }
   }
