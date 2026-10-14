@@ -1049,9 +1049,12 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication(); app.launchArguments = ["--ui-streaming", "--ui-dark"]
         app.launch(); XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
         XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 10))
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        composer.tap(); composer.typeText("My next draft")
         app.buttons["Dictate message"].tap()
         XCTAssertTrue(app.staticTexts["Finish or stop the response before dictating. Your draft and current work are kept."].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Stop response"].exists)
+        XCTAssertEqual(composer.value as? String, "My next draft")
         saveScreenshot(app, name: "Product117-dictation-does-not-stop-work")
         app.buttons["Stop response"].tap()
     }

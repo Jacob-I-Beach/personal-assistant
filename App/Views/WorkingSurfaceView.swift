@@ -207,7 +207,7 @@ struct WorkingSurfaceView: View {
         }
     }
     private func reload() async {
-        guard let store else { return }
+        guard let store = model.store else { return }
         do {
             guard let saved = try await store.surfaces(conversationID: model.conversation.id).first(where: { $0.id == id }) else { throw AssistantError.provider("This surface is no longer in the active conversation.") }
             surface = saved; committed = saved; failure = nil; undoValues = nil; revisionChanged?(saved.revision)

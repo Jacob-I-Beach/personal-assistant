@@ -1,0 +1,289 @@
+{
+  "version": "1.1.7",
+  "build": 22,
+  "simulator": "Xcode27 workflow selected compatible iPhone simulator; actual environment in xcresult",
+  "model_route": "Deterministic fixtures through production UI/store/engine policies",
+  "scope": "Coverage map, not a claim all28 proposed journeys were fully executed",
+  "scenarios": [
+    {
+      "id": "J01",
+      "title": "First use without any connected account",
+      "coverage": "native-partial",
+      "evidence": "Welcome/catalog/settings and large-text UI flows",
+      "remaining": "Completing first setup and actual provider use on phone",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J02",
+      "title": "No supported model is currently available",
+      "coverage": "core-and-native-partial",
+      "evidence": "Catalog ownership/unavailable fixtures; prior local budget and no-fallback tests",
+      "remaining": "Combined all-runtimes-unavailable phone journey",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J03",
+      "title": "Account connected while model service is unavailable",
+      "coverage": "core-companion-native",
+      "evidence": "Catalog parser tests, native stale-account flow, Edge catalog-failure flow",
+      "remaining": "Fresh real GPT availability; HTTP520 still not resolved",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J04",
+      "title": "Attach, inspect, remove and replace a document",
+      "coverage": "core-and-native-partial",
+      "evidence": "Atomic attachment batch + staged Add/Cancel and CSV preview native journey",
+      "remaining": "Two similarly named real files, replacement and Files-provider interruption",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J05",
+      "title": "Protected attachment cannot cross scope",
+      "coverage": "core",
+      "evidence": "ContextReference protected file/surface/planning tests; atomic owner checks",
+      "remaining": "Every corresponding picker path with physical permissions",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J06",
+      "title": "Dictation during an active response",
+      "coverage": "native",
+      "evidence": "Active synthetic stream plus microphone noncancellation journey",
+      "remaining": "Actual dictation after intentionally stopping",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J07",
+      "title": "Dictation permission, cutoff and interruption",
+      "coverage": "source-only",
+      "evidence": "Voice permission-owner checks and bounded finalization",
+      "remaining": "Physical microphone permission, cutoff, interruptions and final words",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J08",
+      "title": "Contextual follow-up with empty and nonempty draft",
+      "coverage": "core-and-native",
+      "evidence": "ContextReference identities, merge ownership tests and scenario Ask draft journey",
+      "remaining": "Full contextual source matrix on phone",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J09",
+      "title": "Search into a long conversation",
+      "coverage": "core-and-native",
+      "evidence": "300-message core landing/fingerprint test;240-message exact UI landing and retained query",
+      "remaining": "Very large real chat performance",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J10",
+      "title": "Search result becomes stale",
+      "coverage": "core",
+      "evidence": "Changed/removed/foreign exact-message search tests",
+      "remaining": "Native stale-row notification interaction",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J11",
+      "title": "Large Library and rapid search changes",
+      "coverage": "core-and-source",
+      "evidence": "Store-actor Library search, explicit empty result and task cancellation",
+      "remaining": "Large Library latency benchmark and repeated rapid-query UI test",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J12",
+      "title": "Open the same output from three places",
+      "coverage": "core-and-source",
+      "evidence": "Stable file/artifact identity, current saved-version lookup, canonical chat index",
+      "remaining": "Same output via all three entry points in one native test",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J13",
+      "title": "Artifact draft, close, restore and discard",
+      "coverage": "core-and-native",
+      "evidence": "Artifact draft lifecycle tests; terminate/reopen/discard/save UI journey",
+      "remaining": "Physical interruption/storage timing",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J14",
+      "title": "Artifact save conflict",
+      "coverage": "core-and-platform",
+      "evidence": "Injected transaction failure and concurrent revision tests; ArtifactEditor conflict restoration",
+      "remaining": "Physical disk-full behavior",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J15",
+      "title": "Settings commit and failure semantics",
+      "coverage": "platform-and-native",
+      "evidence": "Immediate preference persisted/reopened and injected failed write; native Done/reopen",
+      "remaining": "Signed-device credential/backup rollback",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J16",
+      "title": "Scenario exact input, undo and save failure",
+      "coverage": "core-and-native-partial",
+      "evidence": "Store revision validation; exact entry and Undo UI journey; source dirty/save failure handling",
+      "remaining": "Native forced-write-failure Retry/Revert journey",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J17",
+      "title": "Multi-series chart selection",
+      "coverage": "source-only",
+      "evidence": "Chart selection enumerates all matching series and provides a full data table",
+      "remaining": "Multi-series selection and VoiceOver native inspection",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J18",
+      "title": "Interrupted phone-owned work and uncertain effects",
+      "coverage": "retained-automated",
+      "evidence": "Existing receipt/recovery/idempotency core and companion suites",
+      "remaining": "Physical background time and unknown-effect review matrix",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J19",
+      "title": "Remote work continues while observation disconnects",
+      "coverage": "companion-and-native-partial",
+      "evidence": "Lost-client paired HTTPS task test; native research-return flow",
+      "remaining": "One-hour lock/cellular reconnection on phone",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J20",
+      "title": "Create and resume an optional project",
+      "coverage": "deferred",
+      "evidence": "Existing project scope/invalidation/read-write regression tests retained",
+      "remaining": "Direct creation and Continue design/implementation",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J21",
+      "title": "Memory correction, provenance and forgetting",
+      "coverage": "core-and-source",
+      "evidence": "Existing memory history/undo tests; search and detail disclosure",
+      "remaining": "Provenance source-jump and complete native correction flow",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J22",
+      "title": "Fast Inbox capture without execution",
+      "coverage": "source-and-retained-tests",
+      "evidence": "Save-only default and optional handling disclosure; existing Inbox persistence tests",
+      "remaining": "Native fast-capture usability round",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J23",
+      "title": "Downloaded model lifecycle and storage reclamation",
+      "coverage": "partial",
+      "evidence": "Existing download digest/resume/preparation and local-budget tests retained",
+      "remaining": "Remove/reclaim lifecycle and real large download/inference",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J24",
+      "title": "Calendar and image contextual handoff",
+      "coverage": "core-and-source",
+      "evidence": "Typed calendar/item snapshots and capture ownership; selected-context privacy checks",
+      "remaining": "Calendar/image native dismissal and physical permissions",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J25",
+      "title": "Accessibility and interrupted navigation matrix",
+      "coverage": "native-partial",
+      "evidence": "Large Dynamic Type, explicit labels,44-point controls and reduced-motion handling",
+      "remaining": "Physical VoiceOver, rotation, audio and full interruption matrix",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J26",
+      "title": "Restore rehearsal and user-data boundaries",
+      "coverage": "deferred",
+      "evidence": "Existing export and protected-backup rules retained",
+      "remaining": "Portable archive format and isolated restore rehearsal",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J27",
+      "title": "Companion returning-user experience",
+      "coverage": "companion-ui",
+      "evidence": "Real Edge rendering with synthetic account/catalog/compute, work-first ordering,light/dark,narrow width",
+      "remaining": "User assessment with real task workload",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    },
+    {
+      "id": "J28",
+      "title": "Ordinary conversation is still ordinary",
+      "coverage": "native-partial",
+      "evidence": "Local-message isolation, explicit selection, ordinary composer and retained synthetic conversation tests",
+      "remaining": "Authorized live answer quality and formative user session",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "pending collection where applicable"
+    }
+  ]
+}
