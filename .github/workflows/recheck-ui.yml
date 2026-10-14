@@ -12,6 +12,7 @@ on:
         type: choice
         default: testToolExpansionAndLatestButtonPreserveIntentionalPosition
         options:
+          - models-memory-116
           - testToolExpansionAndLatestButtonPreserveIntentionalPosition
           - testPublishedComputerImageRendersInlineAndOpensOriginal
           - testLocalMessageStaysLocalWithSavedComputerWork
@@ -76,9 +77,13 @@ jobs:
           trap 'xcrun simctl shutdown "$simulator_id" || true' EXIT
           xcrun simctl bootstatus "$simulator_id" -b
           bundle=$(find DerivedData/Build/Products -maxdepth 1 -name '*.xctestrun' -print -quit)
+          tests=("-only-testing:PersonalAssistantUITests/AssistantUITests/$TEST_CASE")
+          if [ "$TEST_CASE" = "models-memory-116" ]; then
+            tests=("-only-testing:PersonalAssistantUITests/AssistantUITests/testLocalQwenContextAndMemoryControlsAreReachable" "-only-testing:PersonalAssistantUITests/AssistantUITests/testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads")
+          fi
           xcodebuild test-without-building -xctestrun "$bundle" -destination "platform=iOS Simulator,id=$simulator_id" \
             -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never \
-            "-only-testing:PersonalAssistantUITests/AssistantUITests/$TEST_CASE" \
+            "${tests[@]}" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots
         if: always()

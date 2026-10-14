@@ -90,7 +90,7 @@ final class AssistantUITests: XCTestCase {
     func testLocalQwenContextAndMemoryControlsAreReachable() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory-granted", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory", "--ui-qwen-memory-granted", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
         app.buttons["Response settings"].tap()
@@ -100,9 +100,11 @@ final class AssistantUITests: XCTestCase {
         XCTAssertEqual(context.value as? String, "65,536 tokens")
         XCTAssertFalse(app.staticTexts["0 tokens"].exists)
         let memory = app.buttons["Memory settings"]
-        for _ in 0..<4 { if memory.isHittable { break }; app.swipeUp() }
+        for _ in 0..<5 { if memory.isHittable && memory.frame.midY < app.frame.height - 150 { break }; app.swipeUp() }
         memory.tap()
-        XCTAssertTrue(app.staticTexts["iOS headroom"].waitForExistence(timeout: 5))
+        let headroom = app.staticTexts["iOS headroom"]
+        for _ in 0..<4 { if headroom.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(headroom.waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Qwen-local-context-and-memory-budget")
         app.navigationBars["Response settings"].buttons["Done"].tap()
         XCTAssertTrue(app.buttons["Choose model"].exists)
@@ -129,7 +131,7 @@ final class AssistantUITests: XCTestCase {
     func testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory-granted", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory", "--ui-qwen-memory-granted", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         app.buttons["Choose model"].tap()
