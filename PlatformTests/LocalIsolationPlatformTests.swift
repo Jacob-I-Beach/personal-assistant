@@ -13,6 +13,8 @@ import XCTest
         XCTAssertEqual(backend.id, "apple:on-device")
         XCTAssertNil(backend.networkDestination)
         XCTAssertFalse(backend is any RemoteTaskBackend)
+        XCTAssertEqual(backend.contextLimits.maximumTextBytes, ContextLimits.appleOnDevice.maximumTextBytes)
+        XCTAssertEqual(UILocalIsolationBackend().contextLimits.maximumTextBytes, backend.contextLimits.maximumTextBytes)
     }
     func testLocalSelectionsCannotRecoverAnOlderComputerModel() throws {
         let connection = CompanionConnection(baseURL: URL(string: "https://127.0.0.1:1")!, certificateSHA256: String(repeating: "a", count: 64),

@@ -33,7 +33,7 @@ struct ModelLibraryView: View {
                                 HStack { Text(entry.displayName).foregroundStyle(.primary); Spacer(); if model.settings.choice == .chatGPT && model.settings.chatGPTModel == entry.id { Image(systemName: "checkmark") } }
                             }.disabled(model.isRunning)
                         }
-                        Button("Refresh models") { Task { await model.refreshAccounts() } }
+                        catalogStatus
                         NavigationLink("Account & connection") { ComputerConnectionView() }
                     } else if model.accounts.contains(where: \.isConnected) {
                         Menu {
@@ -51,9 +51,7 @@ struct ModelLibraryView: View {
                                 HStack { Text(entry.displayName).foregroundStyle(.primary); Spacer(); if model.settings.choice == .chatGPT && model.settings.chatGPTModel == entry.id { Image(systemName: "checkmark").fontWeight(.semibold) } }
                             }.disabled(model.isRunning)
                         }
-                        if model.chatGPTModels.isEmpty {
-                            Button("Reload account models") { Task { await model.refreshAccounts() } }
-                        }
+                        catalogStatus
                         Text("Uses your ChatGPT plan and its app usage limits.").font(.caption).foregroundStyle(.secondary)
                     } else {
                         Button { model.connectChatGPT() } label: {
@@ -126,6 +124,25 @@ struct ModelLibraryView: View {
                 }
             }
         }.presentationDragIndicator(.visible)
+    }
+    private var catalogStatus: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 8) {
+                if model.modelCatalog.phase == .refreshing { ProgressView().controlSize(.small) }
+                Text(model.modelCatalog.detail).font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("model-catalog-status")
+            }
+            if !model.settings.chatGPTModel.isEmpty, !model.chatGPTModels.contains(where: { $0.id == model.settings.chatGPTModel }) {
+                Button { model.chooseSavedChatGPTModel() } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.settings.chatGPTModel).font(.subheadline)
+                        Text("Last chosen model · availability unconfirmed").font(.caption).foregroundStyle(.secondary)
+                    }
+                }.disabled(model.isRunning || model.settings.localOnly)
+            }
+            Button("Refresh models") { Task { await model.refreshAccounts(force: true) } }
+                .disabled(model.modelCatalog.phase == .refreshing || model.settings.localOnly)
+        }
     }
     private func appleRow(_ readiness: AppleModelReadiness, location: AppleModelBackend.Location) -> some View {
         Button { model.chooseApple(location) } label: {

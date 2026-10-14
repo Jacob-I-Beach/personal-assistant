@@ -12,7 +12,10 @@ struct SavedWorkCard: View {
             Label(needsComputerSync ? "Saved task · waiting to sync" : "Saved progress", systemImage: "arrow.clockwise.circle").font(.caption.weight(.medium)).foregroundStyle(.secondary)
             Text(work.goal.isEmpty ? "Continue with your attachment" : work.goal).font(.subheadline).lineLimit(2)
             Text(model.conversation.messages.last?.failureReason == work.reason ? "The request and completed action results are kept here." : work.reason ?? "The request and completed action results are kept here.").font(.caption).foregroundStyle(.secondary)
-            if work.needsChangedRequest == true && !canRetryContext {
+            if work.backendID.hasPrefix("companion:"), model.settings.choice != .chatGPT {
+                Button("Choose ChatGPT to open this saved task", systemImage: "sparkles") { model.showModels = true }.font(.subheadline)
+                Text("New messages use \(model.modelTitle). This earlier task keeps its original model.").font(.caption).foregroundStyle(.secondary)
+            } else if work.needsChangedRequest == true && !canRetryContext {
                 if model.contextBudget(for: model.settings) != nil || model.settings.choice == .localMLX {
                     Button("Adjust working context", systemImage: "text.alignleft") { showContext = true }.font(.subheadline)
                     Text("Use a larger supported context, then continue here, or send a shorter request.").font(.caption).foregroundStyle(.secondary)

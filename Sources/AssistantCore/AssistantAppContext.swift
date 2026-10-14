@@ -16,6 +16,9 @@ public struct AssistantAppContext: Sendable {
         self.locationEnabled = locationEnabled; self.healthAvailable = healthAvailable; self.backgroundEnabled = backgroundEnabled
         self.computerEnabled = computerEnabled; self.contactsEnabled = contactsEnabled
     }
+    public var compactInstructions: String {
+        "App: model picker above chat; brain sets thinking/context; plus attaches files/photos. Sidebar opens chats, Library, Inbox, Connections and Settings. read_memory/search_context retrieve permitted context. get_app_context/get_capabilities give details when needed. Phone actions retain native permission/review. Planning: \(planningConnected ? "connected" : "not connected"); contacts: \(contactsEnabled ? "connected" : "not connected"); Health: \(healthAvailable ? "permission required" : "disabled in this build"). Computer configured: \(computerEnabled). The supplied tool catalog determines available actions; local inference stays on this iPhone."
+    }
     public var instructions: String {
         """
         App orientation (current app state): This is one assistant and workspace across text, camera, files and native controls. Home shows Today, questions and saved work. The sidebar opens chats, Library, Inbox, Connections and Settings. The model picker is above the chat; the brain beside the composer opens model-specific thinking and context controls. The plus button attaches photos/files or opens Library. Library holds files, outputs, captures and inspectable memory. Connections manages the computer, planning, contacts, location, Health and folders.

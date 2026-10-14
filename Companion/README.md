@@ -25,7 +25,7 @@ Ask the assistant to schedule research or a draft while using the Computer conne
 
 Python executions default to 2 GiB, two CPU cores and 60 seconds, and may request up to 8 GiB, eight cores and 1800 seconds. Inputs remain scoped and read-only; outputs remain bounded. The environment includes numerical, statistical, spreadsheet, Word, presentation, plotting and PDF libraries. Document inspection distinguishes spreadsheet formulas from cached values and renders actual PDF/Office pages. Office pagination uses LibreOffice and can differ from Microsoft Office. Generated code cannot access the host filesystem, network, credentials or Docker socket.
 
-See the repository's release ledger for native and device validation. Direct APNs updates are not provisioned by this free-signing package. The optional PushWard bridge below can deliver status and alerts using its App Store app. The PC job continues independently of notification delivery.
+See the repository's release ledger for native and device validation. Direct APNs updates are not provisioned by this free-signing package. PushWard and external task presentation are deferred; historical bridge details below are not active setup instructions. The PC job continues independently of notification delivery.
 
 The vendored Sign in with ChatGPT SDK retains its upstream noncommercial license and a modification notice. This package is for the current personal, noncommercial app.
 

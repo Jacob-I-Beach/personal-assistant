@@ -11,6 +11,10 @@ extension AppModel {
         settings.continueInBackground = false; settings.taskNotifications = false
         accounts = [.init(id: "synthetic-account", label: "Synthetic test account", isConnected: true)]
         chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":272000,"max_context_window":1050000},{"slug":"limited-context-fixture","display_name":"Limited context model","visibility":"list","context_window":128000,"max_context_window":268384}]}"#.utf8))) ?? []
+        modelCatalog.phase = .ready
+        if ProcessInfo.processInfo.arguments.contains("--ui-catalog-stale") {
+            modelCatalog.phase = .stale; modelCatalog.issue = "ChatGPT model discovery returned HTTP 520. Your sign-in is saved."
+        }
         conversation = Conversation(title: "Coherent interaction fixture")
         conversation.messages = [Message(role: .user, text: "An earlier synthetic question"), Message(role: .assistant, text: "An earlier synthetic answer.")]
         if ProcessInfo.processInfo.arguments.contains("--ui-computer-account") {
@@ -69,6 +73,7 @@ struct UICoherenceBackend: ModelBackend {
 }
 struct UILocalIsolationBackend: ModelBackend {
     let id = "apple:on-device"
+    let contextLimits = ContextLimits.appleOnDevice
     var networkDestination: String? { nil }
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
         AsyncThrowingStream { output in

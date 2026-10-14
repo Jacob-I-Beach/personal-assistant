@@ -8,7 +8,7 @@ final class AssistantUITests: XCTestCase {
         app.launchArguments = ["--ui-coherence", "--ui-local-isolation", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.staticTexts["On this iPhone"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["Sync latest reply"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Choose ChatGPT to open this saved task"].waitForExistence(timeout: 5))
         let composer = app.textFields["message-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         composer.tap(); composer.typeText("Answer this new local request")
@@ -23,6 +23,22 @@ final class AssistantUITests: XCTestCase {
         for _ in 0..<6 { if paused.exists { break }; app.swipeUp() }
         XCTAssertTrue(paused.waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Paused-native-task-notifications")
+    }
+    func testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-computer-account", "--ui-catalog-stale", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        app.buttons["Choose model"].tap()
+        XCTAssertTrue(app.staticTexts["connected-chatgpt-account"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["model-catalog-status"].label.contains("HTTP 520"))
+        XCTAssertTrue(app.buttons["Limited context model"].exists)
+        XCTAssertTrue(app.buttons["Refresh models"].exists)
+        saveScreenshot(app, name: "Model-catalog-stale-choices-and-explanation")
+        app.buttons["Limited context model"].tap()
+        XCTAssertTrue(app.staticTexts["Limited context model"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Model availability needs a refresh"].exists)
     }
     func testPublishedComputerImageRendersInlineAndOpensOriginal() {
         continueAfterFailure = false

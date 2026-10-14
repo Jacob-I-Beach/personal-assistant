@@ -13,7 +13,7 @@ struct AppleModelBackend: ModelBackend {
     let location: Location
     var id: String { location == .device ? "apple:on-device" : "apple:private-cloud-compute" }
     var networkDestination: String? { location == .privateCloud ? "apple-private-cloud-compute" : nil }
-    var contextLimits: ContextLimits { ContextLimits(maximumTextBytes: location == .device ? 10_000 : 48_000, maximumImages: 0) }
+    var contextLimits: ContextLimits { location == .device ? .appleOnDevice : ContextLimits(maximumTextBytes: 48_000, maximumImages: 0) }
 
     static func readiness(_ location: Location) -> AppleModelReadiness {
         #if targetEnvironment(simulator)
@@ -50,7 +50,7 @@ struct AppleModelBackend: ModelBackend {
                     guard request.messages.allSatisfy({ $0.images.isEmpty }) else {
                         throw AssistantError.provider("Use a vision-capable downloaded or connected model for images. Apple's selected text model can still read saved OCR through tools.")
                     }
-                    let gate = AppleToolGate(executor: request.toolExecutor, output: output)
+                    let gate = AppleToolGate(executor: request.toolExecutor, resultText: request.toolResultText, output: output)
                     let tools = try request.tools.map { try AppleToolProxy(definition: $0, gate: gate) }
                     let session: LanguageModelSession
                     if location == .device {
@@ -58,15 +58,28 @@ struct AppleModelBackend: ModelBackend {
                     } else {
                         session = try Self.session(model: PrivateCloudComputeLanguageModel(), request: request, tools: tools)
                     }
-                    let latest = request.messages.last?.message.text ?? ""
+                    // A saved tool output is never a new user prompt. Include it
+                    // in the transcript and ask the fresh session to continue.
+                    let latest = request.messages.last?.message.role == .user ? request.messages.last!.message.text : "Continue the user's request using the saved results. Do not repeat completed actions."
+                    if location == .device {
+                        let model = SystemLanguageModel.default
+                        let transcriptTokens = try await model.tokenCount(for: session.transcript)
+                        let promptTokens = try await model.tokenCount(for: latest)
+                        guard transcriptTokens + promptTokens + 512 <= model.contextSize else { throw AssistantError.contextCapacity }
+                    }
                     var previous = ""
-                    for try await snapshot in session.streamResponse(to: latest) {
-                        try Task.checkCancellation()
-                        let current = snapshot.content
-                        guard current.hasPrefix(previous) else { throw AssistantError.malformedStream("Apple's response changed an already displayed prefix.") }
-                        let delta = String(current.dropFirst(previous.count))
-                        if !delta.isEmpty { output.yield(.textDelta(delta)) }
-                        previous = current
+                    do {
+                        for try await snapshot in session.streamResponse(to: latest) {
+                            try Task.checkCancellation()
+                            let current = snapshot.content
+                            guard current.hasPrefix(previous) else { throw AssistantError.malformedStream("Apple's response changed an already displayed prefix.") }
+                            let delta = String(current.dropFirst(previous.count))
+                            if !delta.isEmpty { output.yield(.textDelta(delta)) }
+                            previous = current
+                        }
+                    } catch LanguageModelError.contextSizeExceeded {
+                        guard await gate.completedCount > 0 else { throw AssistantError.contextCapacity }
+                        output.yield(.contextWindowRollover); output.finish(); return
                     }
                     try Task.checkCancellation()
                     output.yield(.completed); output.finish()
@@ -78,7 +91,7 @@ struct AppleModelBackend: ModelBackend {
     private static func session<M: LanguageModel>(model: M, request: ModelRequest, tools: [AppleToolProxy]) throws -> LanguageModelSession {
         let initial = LanguageModelSession(model: model, tools: tools, instructions: request.instructions)
         var entries = Array(initial.transcript)
-        let messages = request.messages.dropLast().map(\.message)
+        let messages = (request.messages.last?.message.role == .user ? Array(request.messages.dropLast()) : request.messages).map(\.message)
         let names = Dictionary(messages.flatMap(\.toolCalls).map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         for message in messages {
             let segments: [Transcript.Segment] = [.text(.init(content: message.text))]
@@ -118,17 +131,20 @@ private struct AppleToolProxy: Tool {
 }
 private actor AppleToolGate {
     let executor: (@Sendable (AssistantCore.ToolCall) async throws -> ToolResult)?
+    let resultText: (@Sendable (ToolResult) throws -> String)?
     let output: AsyncThrowingStream<ModelEvent, any Error>.Continuation
     var count = 0
-    init(executor: (@Sendable (AssistantCore.ToolCall) async throws -> ToolResult)?, output: AsyncThrowingStream<ModelEvent, any Error>.Continuation) {
-        self.executor = executor; self.output = output
+    var completedCount = 0
+    init(executor: (@Sendable (AssistantCore.ToolCall) async throws -> ToolResult)?, resultText: (@Sendable (ToolResult) throws -> String)?, output: AsyncThrowingStream<ModelEvent, any Error>.Continuation) {
+        self.executor = executor; self.resultText = resultText; self.output = output
     }
     func execute(_ call: AssistantCore.ToolCall) async throws -> String {
         try Task.checkCancellation()
         guard count < 12, let executor else { throw AssistantError.invalidTool("This Apple model session reached its tool limit.") }
         count += 1
         let result = try await executor(call)
+        completedCount += 1
         output.yield(.executedTool(call, result))
-        return try result.modelText()
+        return try resultText?(result) ?? result.modelText()
     }
 }

@@ -10,10 +10,10 @@ import {startCompanion} from '../src/server.mjs';
 
 test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect to the completed result',async()=>{
   const root=await mkdtemp(join(tmpdir(),'assistant-host-test-'));
-  let release;
+  let release, catalogFailure=false;
   const waiting=new Promise(resolve=>{release=resolve;});
   const host=await startCompanion({root,apiHost:'127.0.0.1',apiPort:0,setupPort:0,keepAwake:false,vault:new Vault(randomBytes(32)),
-    provider:{getSession:async()=>({status:'connected',sharing:true,profileId:'synthetic'}),streamTurn:async()=>{await waiting;return {output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'Completed without the phone.'}]}]};}},
+    provider:{getSession:async()=>({status:'connected',sharing:true,profileId:'synthetic'}),listModels:async()=>{if(catalogFailure)throw Object.assign(new Error('Upstream'),{status:520});return[{slug:'synthetic',displayName:'Synthetic',maximumContextWindow:1000000,reasoningEfforts:['low','high']}];},streamTurn:async()=>{await waiting;return {output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'Completed without the phone.'}]}]};}},
     runtime:{definitions:[],available:async()=>true,supports:()=>false,summary:()=>''}});
   const request=(path,body,token)=>new Promise((resolve,reject)=>{
     const data=body===undefined?null:Buffer.from(JSON.stringify(body));
@@ -26,6 +26,11 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
     const code=host.pairing.issue({baseURL:`https://127.0.0.1:${host.apiPort}`,fingerprint:host.tls.fingerprint,serverId:'synthetic'});
     const paired=await request('/v1/pair',{pairing_code:code.pairing_code,device_name:'Test phone'});assert.equal(paired.status,200);
     const token=paired.body.credential;
+    const catalog=await request('/v1/models',undefined,token);
+    assert.equal(catalog.body.catalog.state,'ready');assert.equal(catalog.body.models[0].display_name,'Synthetic');assert.equal(catalog.body.models[0].max_context_window,1000000);
+    catalogFailure=true;
+    const stale=await request('/v1/models?refresh=1',undefined,token);
+    assert.equal(stale.status,200);assert.equal(stale.body.catalog.state,'stale');assert.equal(stale.body.catalog.http_status,520);assert.equal(stale.body.models[0].slug,'synthetic');
     assert.equal((await request('/v1/jobs')).status,401);
     const body={request_key:'one-turn',conversation_id:'chat',turn_id:'turn',profile_id:'synthetic',start_when_ready:true,expected_file_ids:[],body:{model:'synthetic',input:[]},catalog:[]};
     const created=await request('/v1/jobs',body,token);assert.equal(created.status,201);

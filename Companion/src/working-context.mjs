@@ -1,7 +1,7 @@
-function weight(value){
-  if(typeof value==='string')return value.startsWith('data:image/')?16000:value.length;
-  if(Array.isArray(value))return value.reduce((sum,item)=>sum+weight(item),0);
-  if(value&&typeof value==='object')return Object.entries(value).reduce((sum,[key,item])=>sum+key.length+weight(item),0);
+export function contextWeight(value){
+  if(typeof value==='string')return value.startsWith('data:image/')?16000:Buffer.byteLength(value,'utf8');
+  if(Array.isArray(value))return value.reduce((sum,item)=>sum+contextWeight(item),0);
+  if(value&&typeof value==='object')return Object.entries(value).reduce((sum,[key,item])=>sum+Buffer.byteLength(key,'utf8')+contextWeight(item),0);
   return 8;
 }
 function receiptExcerpt(text,callId,maximum){
@@ -11,9 +11,11 @@ function receiptExcerpt(text,callId,maximum){
   for(const key of ['status','tool_succeeded','operation_id','completed_at','execution_location','files','state_file','question','answer'])if(original?.[key]!=null)kept[key]=original[key];
   return JSON.stringify({...kept,working_excerpt:text.slice(0,maximum),full_result_operation_id:callId,notice:'This is an excerpt for working context. The complete saved receipt can be read with read_task_output; use computer file handles for datasets. Do not repeat a completed action.'});
 }
-export function compactWorkingContext(input,{budget=750000,protectedStart=0}={}){
-  const ceiling=Math.max(16000,Math.min(4000000,budget));
-  if(weight(input)<=ceiling)return {input,compacted:false};
+export function compactWorkingContext(input,{budget=750000,protectedStart=0,instructions='',tools=[]}={}){
+  const ceiling=Math.min(4000000,budget)-contextWeight(instructions)-contextWeight(tools);
+  const capacityError=()=>Object.assign(new Error('The complete request exceeds the selected context limit.'),{code:'context_limit'});
+  if(ceiling<=0)throw capacityError();
+  if(contextWeight(input)<=ceiling)return {input,compacted:false};
   const recent=Math.max(0,protectedStart);
   const result=input.map((item,index)=>{
     if(item.type==='reasoning'&&index<recent)return null;
@@ -30,5 +32,6 @@ export function compactWorkingContext(input,{budget=750000,protectedStart=0}={})
     if(index<recent&&item.role==='assistant'&&Array.isArray(item.content))return {...item,content:item.content.map(part=>part.type==='output_text'&&part.text?.length>6000?{...part,text:part.text.slice(0,6000)+'\n[Earlier reply excerpt; the complete text is saved.]'}:part)};
     return item;
   }).filter(Boolean);
+  if(contextWeight(result)>ceiling)throw capacityError();
   return {input:result,compacted:true,protectedStart:input.slice(0,recent).filter(item=>item.type!=='reasoning').length};
 }

@@ -68,7 +68,9 @@ struct ReasoningEffortView: View {
                             Text("This is a ceiling, not a reservation. iOS decides the available memory; the app keeps headroom for the interface, images and generation. Development entitlements may increase the allowance on supported installations.").font(.caption).foregroundStyle(.secondary)
                         }
                     } else {
-                        Section("Working context") { Text("This model manages context through its on-device runtime and available memory.").foregroundStyle(.secondary) }
+                        Section("Working context") {
+                            Text(model.settings.choice == .appleOnDevice ? "Apple sets this model's context window. The app keeps a compact working conversation, loads tool details as needed, and preserves the full chat." : "Apple manages this cloud model's context window. The full chat and completed tool results stay saved.").foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .onAppear {

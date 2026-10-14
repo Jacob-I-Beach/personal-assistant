@@ -32,6 +32,29 @@ public struct ToolResult: Codable, Equatable, Sendable {
         value["execution_location"] = value["execution_location"] ?? .string("on-device")
         return try JSONValue.object(value).jsonString()
     }
+    /// Full receipts remain in the chat. Native sessions receive a bounded page
+    /// with an exact retrieval path, including for large read-only results.
+    public func modelText(maximumBytes: Int?) throws -> String {
+        let full = try modelText()
+        guard let maximumBytes, full.utf8.count > maximumBytes else { return full }
+        var page = "", size = 0
+        for character in full {
+            let bytes = String(character).utf8.count
+            if size + bytes > max(100, (maximumBytes - 600) / 2) { break }
+            page.append(character); size += bytes
+        }
+        func envelope(_ page: String) throws -> String { try JSONValue.object([
+            "tool_succeeded": .bool(succeeded), "status": .string(String((output["status"]?.stringValue ?? (succeeded ? "completed" : "failed")).prefix(96))),
+            "operation_id": .string(callID), "excerpt": .string(page), "truncated": .bool(true),
+            "next_offset": .number(Double(page.count)),
+            "read_more": .string("read_tool_result with this operation_id and next_offset. Full receipt saved; do not repeat the action.")
+        ]).jsonString() }
+        var encoded = try envelope(page)
+        while encoded.utf8.count > maximumBytes, !page.isEmpty {
+            page = String(page.prefix(page.count / 2)); encoded = try envelope(page)
+        }
+        return encoded
+    }
 }
 
 public struct CaptureToolBroker: Sendable {

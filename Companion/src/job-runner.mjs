@@ -122,7 +122,7 @@ export class JobRunner extends EventEmitter {
     while (checkpoint.round - firstRound < 30) {
       signal.throwIfAborted();
       if (checkpoint.pending.length === 0) {
-        const context=compactWorkingContext(checkpoint.input,{budget:payload.limits?.context_text_bytes??750000,protectedStart:checkpoint.lastOutputStart??0});
+        const context=compactWorkingContext(checkpoint.input,{budget:payload.limits?.context_text_bytes??750000,protectedStart:checkpoint.lastOutputStart??0,instructions:payload.body.instructions,tools:payload.body.tools});
         if(context.compacted){checkpoint.input=context.input;checkpoint.lastOutputStart=context.protectedStart;this.store.checkpoint(job.id,checkpoint);this.publish(job.id,{type:'activity',title:'Continuing with saved results'});}
         const phases = new Map(), webItems = new Map();
         this.publish(job.id,{type:'response_begin',round:checkpoint.round});
@@ -229,7 +229,7 @@ export class JobRunner extends EventEmitter {
     if (call.name === 'find_tools') {
       const query = String(call.arguments.query ?? '').toLowerCase(), words = query.match(/[a-z0-9]+/g) ?? [];
       const score = tool => (tool.name === query ? 100 : 0) + words.filter(word => (tool.name + ' ' + tool.description).toLowerCase().includes(word)).length;
-      output = [...catalog.values()].sort((a,b) => score(b)-score(a)).slice(0,3);
+      output = [...catalog.values()].filter(tool=>score(tool)>0).sort((a,b) => score(b)-score(a)||a.name.localeCompare(b.name)).slice(0,3);
     } else output = {model_processing: 'ChatGPT plan model; task coordinated by your computer', callable_entry_points: (payload.body.tools ?? []).flatMap(tool => tool.tools ?? [tool]).map(tool => tool.name).filter(Boolean), tools: [...catalog.values()].map(tool=>({name:tool.name,description:tool.description.slice(0,300)})), runtime: this.runtime.summary(), continuity: 'This computer owns the job. Phone-only tools wait for your phone and any required review.'};
     return {callID: call.id, name: call.name, succeeded: true, output, completedAt: new Date().toISOString()};
   }

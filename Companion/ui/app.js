@@ -3,10 +3,13 @@ async function api(path,body={}){const response=await fetch(path,{method:'POST',
 function notice(error){byId('notice').textContent=error?.message??'';}
 const labels={queued:'Waiting to start',running:'Working',waiting_for_phone:'Needs your iPhone',waiting_for_input:'Needs your answer',completed:'Ready',failed:'Needs attention',cancelled:'Stopped',interrupted:'Ready to continue'};
 function action(text,handler){const button=document.createElement('button');button.textContent=text;button.addEventListener('click',()=>handler().catch(notice));return button;}
-let addressesKey='',jobsKey='',bridgeDevicesKey='';
+let addressesKey='',jobsKey='',bridgeDevicesKey='',checkingModels=false;
 async function refresh(){
   try{const state=await api('/api/status');const session=state.session;
-    byId('account').textContent=session.status==='connected'?(session.sharing?'Connected · '+(session.identity?.name??session.profileLabel??'ChatGPT plan'):'Connected; plan sharing needs authorization'):'Connect the ChatGPT account you want this computer to use.';
+    byId('account').textContent=session.status==='connected'?(session.sharing?'Signed in · '+(session.identity?.name??session.profileLabel??'ChatGPT plan'):'Signed in; plan sharing needs authorization'):'Connect the ChatGPT account you want this computer to use.';
+    const catalog=state.model_catalog;
+    if(!checkingModels)byId('catalog-status').textContent=catalog?.state==='ready'?'Model list available.':catalog?.state==='stale'?'Saved model list · '+(catalog.error??'Refresh to check current availability.'):(catalog?.error??'Model availability has not been checked.');
+    byId('check-models').disabled=checkingModels||session.status!=='connected'||!session.sharing;
     byId('connect').textContent=session.status==='connecting'?'Waiting for browser authorization…':session.status==='connected'?'Reconnect ChatGPT':'Continue with ChatGPT';byId('connect').disabled=session.status==='connecting';
     byId('compute').textContent=state.computation_ready?'Ready for Python, spreadsheets, documents and page inspection.':'The computation service is not ready yet. Start Docker Desktop and finish the companion setup.';
     byId('push-status').textContent=state.push?.configured?(state.push.last_error??'Configured · Updates travel through Apple’s push service.'):'Not provisioned yet · Tasks can keep working; remote phone updates need Apple Developer setup.';
@@ -27,6 +30,7 @@ async function refresh(){
   }catch(error){notice(error);}
 }
 byId('connect').addEventListener('click',()=>api('/api/sign-in').then(refresh).catch(notice));
+byId('check-models').addEventListener('click',async()=>{checkingModels=true;byId('check-models').disabled=true;byId('catalog-status').textContent='Checking model availability…';try{await api('/api/check-connection');}catch(error){notice(error);}finally{checkingModels=false;await refresh();}});
 byId('pair').addEventListener('click',()=>api('/api/pairing',{base_url:byId('address').value}).then(result=>{byId('qr').src=result.qr;byId('pairing').hidden=false;notice(null);}).catch(notice));
 const refreshTimer=setInterval(refresh,8000);refresh();
 byId('quit').addEventListener('click',()=>api('/api/quit').then(()=>{clearInterval(refreshTimer);byId('notice').textContent='The companion is stopping. Work is saved; reopen the application to reconnect.';document.querySelectorAll('button,select').forEach(element=>{element.disabled=true;});}).catch(notice));

@@ -42,7 +42,10 @@ final class AppModel: ObservableObject {
     @Published var accounts: [ChatGPTAccountSummary] = []
     @Published private(set) var computerAccount: ComputerAccountRecord?
     @Published private(set) var computerAccountReachability = ComputerAccountReachability.unchecked
-    @Published var chatGPTModels: [ChatGPTModel] = []
+    @Published var modelCatalog = ModelCatalogState()
+    var chatGPTModels: [ChatGPTModel] { get { modelCatalog.models } set { modelCatalog.models = newValue } }
+    private var savedModelCatalogs: [String: AccountModelCatalog] = [:]
+    private var modelCatalogURL: URL?
     @Published var appleDevice = AppleModelBackend.readiness(.device)
     @Published var appleCloud = AppleModelBackend.readiness(.privateCloud)
     @Published var showModels = false
@@ -110,6 +113,10 @@ final class AppModel: ObservableObject {
     private let healthService = HealthOverviewService()
 
     var usesComputerChatGPT: Bool { settings.useComputer && settings.companion != nil }
+    private var modelCatalogOwner: String? {
+        if usesComputerChatGPT, let connection = settings.companion { return "computer:\(connection.serverID):\(connection.profileID)" }
+        return settings.chatGPTAccountID.map { "account:" + $0 }
+    }
     var activeComputerAccount: ComputerAccountRecord? {
         guard let connection = settings.companion, let computerAccount, computerAccount.matches(connection) else { return nil }
         return computerAccount
@@ -137,7 +144,7 @@ final class AppModel: ObservableObject {
     var modelTitle: String {
         switch settings.choice {
         case .localMLX: catalog.first { $0.id == settings.localRepository }?.name ?? "Downloaded model"
-        case .chatGPT: chatGPTModels.first { $0.id == settings.chatGPTModel }?.displayName ?? "ChatGPT"
+        case .chatGPT: chatGPTModels.first { $0.id == settings.chatGPTModel }?.displayName ?? (settings.chatGPTModel.isEmpty ? "ChatGPT" : settings.chatGPTModel)
         case .appleOnDevice: appleDevice.title
         case .appleCloud: appleCloud.title
         case .openAI: settings.openAIModel.isEmpty ? "OpenAI API" : settings.openAIModel
@@ -147,7 +154,9 @@ final class AppModel: ObservableObject {
     var modelLocation: String {
         switch settings.choice {
         case .localMLX, .appleOnDevice: "On this iPhone"
-        case .chatGPT: usesComputerChatGPT ? (computerAccountNeedsAttention ? "Check your computer connection" : "Using your ChatGPT plan") : (accounts.contains(where: \.isConnected) ? "Using your ChatGPT plan" : "Connect your account")
+        case .chatGPT:
+            if modelCatalog.phase == .unavailable || modelCatalog.phase == .stale { return "Model availability needs a refresh" }
+            return usesComputerChatGPT ? (computerAccountNeedsAttention ? "Check your computer connection" : "Using your ChatGPT plan") : (accounts.contains(where: \.isConnected) ? "Using your ChatGPT plan" : "Connect your account")
         case .appleCloud: "Apple Private Cloud Compute"
         case .openAI: "OpenAI API"
         case .compatibleServer: "Connected computer"
@@ -170,6 +179,13 @@ final class AppModel: ObservableObject {
             }
             if let computerAccountURL, let data = try? Data(contentsOf: computerAccountURL) {
                 computerAccount = try? JSONDecoder().decode(ComputerAccountRecord.self, from: data)
+            }
+            modelCatalogURL = root.appendingPathComponent("model-catalogs.json")
+            if let modelCatalogURL, let data = try? Data(contentsOf: modelCatalogURL), data.count <= 2 * 1024 * 1024 {
+                savedModelCatalogs = (try? JSONDecoder().decode([String: AccountModelCatalog].self, from: data)) ?? [:]
+            }
+            if let owner = modelCatalogOwner {
+                modelCatalog.begin(owner: owner, saved: savedModelCatalogs[owner])
             }
             if let draftURL, let data = try? Data(contentsOf: draftURL) { drafts = (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:] }
             libraryContainsHealthData = store.initiallyContainsHealthData || drafts.contains(where: { $0.key.hasPrefix("health:") && $0.value == "true" })
@@ -520,7 +536,7 @@ final class AppModel: ObservableObject {
     func resumeReply(_ work: WorkTurn, automatic: Bool = false, reconnectOnly: Bool = false) async {
         guard !isRunning, let store, UIApplication.shared.applicationState == .active else { return }
         if work.backendID.hasPrefix("companion:"), settings.choice != .chatGPT {
-            if !automatic && !reconnectOnly { noticeMessage = "This saved reply uses ChatGPT. Send a new message with \(modelTitle), or select ChatGPT to continue the original task." }
+            if !automatic { noticeMessage = "This saved reply uses ChatGPT. Send a new message with \(modelTitle), or select ChatGPT to continue the original task." }
             return
         }
         do {
@@ -828,6 +844,7 @@ final class AppModel: ObservableObject {
         }
         if changedAccountRoute {
             computerAccountReachability = .unchecked
+            modelCatalog = .init()
             Task { await refreshAccounts() }
         }
         if value.localOnly { cancelConnection(); stopDownload() }
@@ -850,6 +867,11 @@ final class AppModel: ObservableObject {
     }
     func chooseChatGPTModel(_ entry: ChatGPTModel) {
         var next = settings; next.choice = .chatGPT; next.chatGPTModel = entry.id
+        do { try saveSettings(next); showModels = false } catch { errorMessage = error.localizedDescription }
+    }
+    func chooseSavedChatGPTModel() {
+        guard !settings.chatGPTModel.isEmpty else { return }
+        var next = settings; next.choice = .chatGPT
         do { try saveSettings(next); showModels = false } catch { errorMessage = error.localizedDescription }
     }
     func clearCredential() throws { if let account = settings.credentialAccount { try CredentialStore.remove(account: account) } }
@@ -1247,12 +1269,15 @@ final class AppModel: ObservableObject {
             }
         }
     }
-    func refreshAccounts() async {
+    func refreshAccounts(force: Bool = false) async {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return }
         #endif
         let refreshID = UUID(); accountRefreshID = refreshID
+        guard !settings.localOnly else { modelCatalog = .init(); return }
         if settings.useComputer, !settings.localOnly, let connection = settings.companion {
+            guard let owner = modelCatalogOwner else { return }
+            modelCatalog.begin(owner: owner, saved: savedModelCatalogs[owner])
             computerAccountReachability = .checking
             var verifiedAccount = false
             do {
@@ -1262,33 +1287,58 @@ final class AppModel: ObservableObject {
                 guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }
                 try applyComputerAccount(capabilities["profile"] ?? .null, connection: connection, activityProvider: capabilities["presentation"]?["provider"]?.stringValue)
                 verifiedAccount = true
-                guard activeComputerAccount?.isConnected == true else { return }
-                let catalog = try await client.json("/v1/models")
-                guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly,
-                      catalog["profile_id"] == .string(connection.profileID) else { return }
-                chatGPTModels = try ChatGPTModel.catalog(from: JSONEncoder().encode(catalog))
+                guard activeComputerAccount?.isConnected == true else {
+                    modelCatalog = .init(); modelCatalog.begin(owner: owner, saved: nil)
+                    modelCatalog.failed(owner: owner, message: computerAccountDetail); return
+                }
+                let catalog = try await client.json(force ? "/v1/models?refresh=1" : "/v1/models")
+                guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }
+                guard catalog["profile_id"] == .string(connection.profileID) else { throw AssistantError.provider("The account on the computer changed. Check Account & connection before loading its models.") }
+                let models = try ChatGPTModel.catalog(from: JSONEncoder().encode(catalog))
+                if catalog["catalog"]?["state"] == .string("unavailable") {
+                    modelCatalog.failed(owner: owner, message: catalog["catalog"]?["error"]?.stringValue ?? "The model list could not refresh. Your sign-in is saved.")
+                } else {
+                    let dateText = catalog["catalog"]?["updated_at"]?.stringValue
+                    let date = dateText.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+                    let stale = catalog["catalog"]?["state"] == .string("stale") ? (catalog["catalog"]?["error"]?.stringValue ?? "Current model availability could not be checked.") : nil
+                    keepModelCatalog(AccountModelCatalog(owner: owner, models: models, updatedAt: date), staleReason: stale)
+                }
             } catch {
                 guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }
-                if verifiedAccount {
-                    if settings.choice == .chatGPT { noticeMessage = "Your ChatGPT sign-in is saved, but the model service could not be reached." }
-                }
-                else { computerAccountReachability = .unavailable }
+                modelCatalog.failed(owner: owner, message: verifiedAccount ? "Your sign-in is saved, but the model list could not refresh. \(error.localizedDescription)" : "The computer could not be reached. Saved model choices remain available.")
+                if !verifiedAccount { computerAccountReachability = .unavailable }
             }
             return
         }
-        guard let accountService else { return }
+        guard let accountService else {
+            if let owner = modelCatalogOwner { modelCatalog.failed(owner: owner, message: "The saved account could not be opened. Check your account connection in Settings.") }
+            return
+        }
         accounts = await accountService.summaries()
-        guard !settings.localOnly else { chatGPTModels = []; return }
         let savedID = await accountService.selectedID()
-        guard let id = settings.chatGPTAccountID ?? savedID else { chatGPTModels = []; return }
+        guard let id = settings.chatGPTAccountID ?? savedID else { modelCatalog = .init(); return }
         settings.chatGPTAccountID = id
+        let owner = "account:" + id
+        modelCatalog.begin(owner: owner, saved: savedModelCatalogs[owner])
         do {
             let models = try await accountService.models(for: id)
-            guard settings.chatGPTAccountID == id else { return }
-            chatGPTModels = models
-            if !isRunning && !chatGPTModels.contains(where: { $0.id == settings.chatGPTModel }) { settings.chatGPTModel = chatGPTModels.first?.id ?? "" }
+            guard accountRefreshID == refreshID, modelCatalogOwner == owner else { return }
+            keepModelCatalog(AccountModelCatalog(owner: owner, models: models))
+            // Initial selection is allowed; never replace an existing choice
+            // merely because the service omitted it from a new catalog.
+            if !isRunning && settings.chatGPTModel.isEmpty { settings.chatGPTModel = chatGPTModels.first?.id ?? "" }
             if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
-        } catch { chatGPTModels = []; if settings.choice == .chatGPT { noticeMessage = error.localizedDescription } }
+        } catch {
+            guard accountRefreshID == refreshID, modelCatalogOwner == owner else { return }
+            modelCatalog.failed(owner: owner, message: error.localizedDescription)
+        }
+    }
+    private func keepModelCatalog(_ snapshot: AccountModelCatalog, staleReason: String? = nil) {
+        guard modelCatalogOwner == snapshot.owner else { return }
+        modelCatalog.receive(snapshot, staleReason: staleReason)
+        savedModelCatalogs[snapshot.owner] = snapshot
+        if savedModelCatalogs.count > 8, let oldest = savedModelCatalogs.values.min(by: { $0.updatedAt < $1.updatedAt }) { savedModelCatalogs.removeValue(forKey: oldest.owner) }
+        if let modelCatalogURL { try? JSONEncoder().encode(savedModelCatalogs).write(to: modelCatalogURL, options: .atomic) }
     }
     func applyComputerAccount(_ profile: JSONValue, connection: CompanionConnection, activityProvider: String? = nil) throws {
         guard settings.companion == connection else { return }
