@@ -12,6 +12,7 @@ Version 1.1.4, build 19. Implementation is under validation; this file does not 
 - AFM receives concise app/task guidance and loads capability details when relevant. It keeps the full saved chat while working within its real context.
 - All prompt components count toward the working budget; the native Apple adapter additionally checks its tokenizer before inference. Large native results are paged, and completed receipts survive a new SDK session.
 - Model pickers preserve the selected model, show failures where the choices live, and distinguish saved choices from current availability.
+- Model choices come first in the picker. Cellular-download controls live with downloaded models, and the introductory filler is removed.
 - Saved GPT cards under a local selection explain which model owns the earlier task and expose a useful next action.
 - Docker readiness is checked separately, so a slow Python service does not stall account, model-list or saved-task status.
 

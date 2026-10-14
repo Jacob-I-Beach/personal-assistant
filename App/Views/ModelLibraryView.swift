@@ -11,17 +11,6 @@ struct ModelLibraryView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Toggle("Allow cellular downloads", isOn: Binding(get: { model.settings.allowCellularDownloads }, set: { enabled in
-                        var settings = model.settings; settings.allowCellularDownloads = enabled
-                        do { try model.saveSettings(settings) } catch { model.errorMessage = error.localizedDescription }
-                    })).disabled(model.isDownloading || model.isRunning)
-                    Text("Downloads use Wi-Fi unless enabled here. Tap Download again after an interruption to reuse completed files and resume supported transfers.").font(.caption).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Your assistant. Your choice.").font(.title3.weight(.semibold))
-                        Text("Keep the conversation, tools, and files as you change models.").font(.subheadline).foregroundStyle(.secondary)
-                    }.padding(.vertical, 8)
-                }
                 Section("ChatGPT") {
                     if model.settings.useComputer, let connection = model.settings.companion {
                         Label(model.chatGPTAccountLabel, systemImage: "person.crop.circle")
@@ -69,6 +58,11 @@ struct ModelLibraryView: View {
                     appleRow(model.appleCloud, location: .privateCloud)
                 }
                 Section {
+                    Toggle("Allow cellular downloads", isOn: Binding(get: { model.settings.allowCellularDownloads }, set: { enabled in
+                        var settings = model.settings; settings.allowCellularDownloads = enabled
+                        do { try model.saveSettings(settings) } catch { model.errorMessage = error.localizedDescription }
+                    })).disabled(model.isDownloading || model.isRunning)
+                    Text("Downloads use Wi-Fi unless enabled here. Tap Download again after an interruption to reuse completed files and resume supported transfers.").font(.caption).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 6) {
                         Text("This iPhone").font(.headline)
                         Text("\(ByteCountFormatter.string(fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory), countStyle: .memory)) physical memory · " + (availableMemory == 0 ? "Available memory not reported" : "\(ByteCountFormatter.string(fromByteCount: Int64(availableMemory), countStyle: .memory)) currently available to this app")).font(.caption).foregroundStyle(.secondary)
