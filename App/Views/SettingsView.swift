@@ -110,9 +110,11 @@ struct SettingsView: View {
                     Text("A private workspace for your conversations, models, and useful work.").foregroundStyle(.secondary)
                     NavigationLink("Open-source acknowledgments") { AcknowledgmentsView() }
                 }
-                if let localError { Section { Text(localError).font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("settings-save-error") } }
             }
             .navigationTitle("Settings")
+            .safeAreaInset(edge: .bottom) {
+                if let localError { Label(localError, systemImage: "exclamationmark.circle").font(.subheadline).frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.bar).accessibilityIdentifier("settings-save-error") }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { if connectionIsDirty { discardConnection = true } else { dismiss() } } }
             }

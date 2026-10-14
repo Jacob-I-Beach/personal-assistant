@@ -1017,6 +1017,11 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "30")
         app.buttons["Apply value"].tap()
         XCTAssertTrue(app.staticTexts["Points, 60"].waitForExistence(timeout: 5))
+        let undo = app.buttons["Undo change"]
+        for _ in 0..<4 { if undo.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(undo.isHittable); undo.tap()
+        XCTAssertTrue(app.staticTexts["Points, 40"].waitForExistence(timeout: 5))
+
         let ask = app.buttons["Ask about these changes"]
         for _ in 0..<5 { if ask.isHittable { break }; app.swipeUp() }
         ask.tap()

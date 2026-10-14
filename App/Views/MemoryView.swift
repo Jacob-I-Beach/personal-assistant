@@ -6,6 +6,7 @@ struct MemoryView: View {
     @State private var notes: [SavedMemory] = []
     @State private var editing: SavedMemory?
     @State private var query = ""
+    @State private var failure: String?
     private var matches: [SavedMemory] { notes.filter { query.isEmpty || ($0.title + " " + $0.text).localizedCaseInsensitiveContains(query) } }
     var body: some View {
         List {
@@ -23,13 +24,17 @@ struct MemoryView: View {
                         Text((note.conversationID == nil ? "Across conversations" : "One conversation") + " · " + (note.allowsConnectedModels ? "Connected models allowed" : "On-device models only")).font(.caption2).foregroundStyle(.secondary)
                     }.padding(.vertical, 5)
                 }
-                .swipeActions { Button("Forget", role: .destructive) { Task { try? await model.store?.removeMemory(note.id); await refresh() } } }
+                .swipeActions { Button("Forget", role: .destructive) { Task {
+                    do { try await model.store?.removeMemory(note.id); failure = nil; await refresh() }
+                    catch { failure = error.localizedDescription }
+                } } }
             }
             Section {
                 Text("Forgetting a note stops adding it to future model context and can be undone in history. Original chats and files are separate; forgetting a note does not erase them.").font(.footnote).foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Saved memory")
+        .safeAreaInset(edge: .bottom) { if let failure { Text(failure).font(.subheadline).padding(16).frame(maxWidth: .infinity, alignment: .leading).background(.bar) } }
         .searchable(text: $query, prompt: "Find a saved fact or preference")
         .toolbar { Button("Add memory", systemImage: "plus") { editing = SavedMemory(title: "", text: "") } }
         .task { await refresh() }

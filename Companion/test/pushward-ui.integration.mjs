@@ -1,5 +1,5 @@
 import {chromium} from 'playwright-core';
-import {mkdtemp,rm,mkdir} from 'node:fs/promises';
+import {mkdtemp,rm,mkdir,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {randomBytes} from 'node:crypto';
@@ -20,6 +20,8 @@ try{
   const page=await browser.newPage({viewport:{width:1180,height:900}});
   await page.goto(service.setupURL);
   await page.locator('body.returning').waitFor();
+  const packageVersion=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version;
+  assert.ok((await page.locator('footer').innerText()).includes(packageVersion));
   assert.equal(await page.locator('#connections-panel').getAttribute('open'),null);
   assert.equal(await page.locator('.work').evaluate((work)=>work.getBoundingClientRect().top<document.querySelector('#connections-panel').getBoundingClientRect().top),true);
   await page.locator('#connections-panel > summary').click();

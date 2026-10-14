@@ -24,6 +24,8 @@ import {computerDataRoot,resolveComputerDataRoot} from './data-location.mjs';
 import {ModelCatalog} from './model-catalog.mjs';
 import {ServiceReadiness} from './service-readiness.mjs';
 
+const version=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version;
+if(typeof version!=='string'||!/^\d+\.\d+\.\d+$/.test(version))throw new Error('Invalid companion package version.');
 const assets=fileURLToPath(new URL('../ui/',import.meta.url));
 const terminal=new Set(['completed','failed','cancelled','interrupted']);
 const safeFileName=name=>typeof name==='string'&&name.length>0&&name.length<180&&!/[\\/:\x00-\x1f]/.test(name)&&!['.','..'].includes(name);
@@ -92,7 +94,7 @@ export async function startCompanion(options={}) {
   const api=https.createServer({cert:tls.cert,key:tls.key},async(request,response)=>{
     try {
       const url=new URL(request.url,'https://computer.invalid');
-      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.6',server_id:serverId,name:'Personal Assistant Computer'});
+      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version,server_id:serverId,name:'Personal Assistant Computer'});
       if(url.pathname==='/v1/pair'&&request.method==='POST'){
         if(session.status!=='connected'||!session.sharing)throw new Error('Sign in to ChatGPT on the computer before connecting a phone.');
         const body=await jsonBody(request,4096),device=pairing.redeem(body.pairing_code,body.device_name);
@@ -110,7 +112,7 @@ export async function startCompanion(options={}) {
       }
       if(url.pathname==='/v1/capabilities'&&request.method==='GET'){
         const readiness=computation.snapshot();
-        return jsonReply(response,200,{version:'1.1.6',profile:session,computer_tools:runtime.definitions,computation_ready:readiness.available,computation:readiness,push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
+        return jsonReply(response,200,{version,profile:session,computer_tools:runtime.definitions,computation_ready:readiness.available,computation:readiness,push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
       }
       if(url.pathname==='/v1/models'&&request.method==='GET'){
         const catalog=await modelCatalog.load({force:url.searchParams.get('refresh')==='1'});
@@ -218,7 +220,7 @@ export async function startCompanion(options={}) {
         if(url.pathname==='/'){
           const id=randomBytes(24).toString('base64url'),csrf=randomBytes(24).toString('base64url');
           if(setupSessions.size>30)setupSessions.clear();setupSessions.set(id,{csrf,expires:Date.now()+86400000});
-          body=Buffer.from(body.toString().replace('ASSISTANT_CSRF',csrf));headers['Set-Cookie']=`pa_setup=${id}; HttpOnly; SameSite=Strict; Path=/`;
+          body=Buffer.from(body.toString().replace('ASSISTANT_CSRF',csrf).replace('ASSISTANT_VERSION',version));headers['Set-Cookie']=`pa_setup=${id}; HttpOnly; SameSite=Strict; Path=/`;
         }
         headers['Content-Type']=url.pathname.endsWith('.js')?'text/javascript':url.pathname.endsWith('.css')?'text/css':'text/html';response.writeHead(200,headers);response.end(body);return;
       }
@@ -226,7 +228,7 @@ export async function startCompanion(options={}) {
       requireSetup(request);const body=await jsonBody(request,16384);
       if(url.pathname==='/api/status'){
         const readiness=computation.snapshot();
-        return jsonReply(response,200,{version:'1.1.6',active_work_count:runner.active.size+toolSessions.active.size,package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,model_catalog:modelCatalog.snapshot(session.profileId).catalog,computation_ready:readiness.available,computation:readiness,push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+        return jsonReply(response,200,{version,active_work_count:runner.active.size+toolSessions.active.size,package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,model_catalog:modelCatalog.snapshot(session.profileId).catalog,computation_ready:readiness.available,computation:readiness,push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       }
       if(url.pathname==='/api/check-connection'){
         const connection=await provider.getSession();

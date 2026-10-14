@@ -32,7 +32,7 @@ struct TaskActivityView: View {
                 }.padding(24)
             }.navigationTitle("Task activity").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-                .task {
+                .task(id: "\(model.conversation.messages.last(where: \.isRequest)?.id.uuidString ?? "none")-\(model.isRunning)") {
                     guard let id = model.conversation.messages.last(where: \.isRequest)?.id else { note = "Send a request to start a task record."; return }
                     do {
                         work = try await model.store?.workTurn(id)

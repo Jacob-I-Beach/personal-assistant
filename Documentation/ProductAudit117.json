@@ -1,0 +1,499 @@
+{
+  "audit_baseline": "f9ed6d1",
+  "implementation_baseline": "a1216bc0a29ec405df941ec547fb0e55c56bd2a9",
+  "package_files_verified": 19,
+  "findings": [
+    {
+      "id": "PX-01",
+      "title": "Make first use about a useful conversation, not configuring an AI stack",
+      "priority": "Now",
+      "disposition": "partial",
+      "change": "Home offers ChatGPT and downloaded-model setup side by side and only mentions no-download Apple use when actually available.",
+      "remaining": "A new onboarding wizard and real first-time phone permissions are not claimed.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/WelcomeWorkspaceView.swift",
+        "App/Views/ModelLibraryView.swift",
+        "Documentation/ReleaseValidation115.json"
+      ],
+      "source_evidence_type": "source + V01/V02; product hypothesis",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-02",
+      "title": "Give Home a shorter hierarchy and put unfinished work ahead of feature advertising",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "Waiting questions and saved work precede the starter actions; returning users get compact starters. Greeting and spacing are shorter.",
+      "remaining": "Physical large-text acceptance remains pending.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/WelcomeWorkspaceView.swift",
+        "App/Views/TodayOverviewView.swift"
+      ],
+      "source_evidence_type": "source + V01/V02; visual judgment",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-03",
+      "title": "Unify capability and readiness wording across every screen",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Computer account, model catalog and computation observations are separate. One core parser validates profile ownership and rejects unknown catalog states.",
+      "remaining": "The real HTTP 520 remains unresolved; a saved account is not verified model availability.",
+      "source_paths": [
+        "App/Views/ModelLibraryView.swift",
+        "App/Views/ConnectionsView.swift",
+        "App/Companion/ComputerConnectionView.swift",
+        "App/Views/ModelDownloadsView.swift",
+        "App/Views/ModelAccountDetailsView.swift",
+        "Documentation/ReleaseValidation115.json"
+      ],
+      "source_evidence_type": "source-confirmed inconsistency",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-04",
+      "title": "Keep the chat shell, but simplify navigation and make New chat direct",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "New chat is directly available in the main toolbar; current drafts and explicit model routing are retained.",
+      "remaining": "New submissions still wait for or stop the current run.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/HistoryView.swift",
+        "App/Views/LibraryView.swift",
+        "App/Views/TaskActivityView.swift"
+      ],
+      "source_evidence_type": "source; information-architecture proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-05",
+      "title": "Let users browse saved work while a response runs, without mixing execution contexts",
+      "priority": "Next",
+      "disposition": "deferred",
+      "change": "Retained the existing execution ownership guards. Read-only Library inspection remains available where already supported.",
+      "remaining": "Browsing another chat during an active run needs separate viewed-chat and execution owners; simply removing isRunning guards would misroute callbacks.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/HistoryView.swift",
+        "App/Views/WorkingSurfaceView.swift",
+        "App/Views/WorkspaceFileView.swift"
+      ],
+      "source_evidence_type": "source-confirmed restriction; architectural proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-06",
+      "title": "Make navigation and modal transitions a typed, testable product system",
+      "priority": "Now",
+      "disposition": "partial",
+      "change": "Selected sources and chat destinations are typed; dependent Computer/context handoffs wait for actual dismissal rather than a 350 ms sleep. Import, creation and voice callbacks check their conversation owner.",
+      "remaining": "Some legacy independent sheet booleans and sidebar destination strings remain; this is not a full navigation rewrite.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/ConnectionsView.swift",
+        "App/Companion/ComputerConnectionView.swift",
+        "App/Views/WorkspaceFileView.swift"
+      ],
+      "source_evidence_type": "source; interaction-risk assessment, not reproduced modal bug",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-07",
+      "title": "Make attachments inspectable and use an actual attachment picker",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Library attachments use staged multi-selection, preview, Cancel and Add. Chips preview files/photos and expose named removal controls. The entire batch validates before adding any file.",
+      "remaining": "Physical Photos/Files permission and provider interruption need the phone.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/WorkspaceFileView.swift",
+        "App/Views/CaptureViewer.swift"
+      ],
+      "source_evidence_type": "source-confirmed routing and affordance gap",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-08",
+      "title": "Stop making dictation implicitly cancel the current response",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Microphone no longer calls Stop. Active work is kept with an explanatory notice; recording finalizes before Send and writes only to its captured draft owner.",
+      "remaining": "Permission denial, route changes and final-word timing need physical audio tests.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Voice/VoiceController.swift"
+      ],
+      "source_evidence_type": "source-confirmed behavior; no new audio execution test",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-09",
+      "title": "Turn task state into a calm, actionable in-chat surface",
+      "priority": "Now",
+      "disposition": "partial",
+      "change": "Task Activity leads with the recorded goal, phase and plan; diagnostics are secondary and exclude personal content. It refreshes when the task state changes.",
+      "remaining": "A complete single task-strip replacement and every review/output shortcut remain separate work.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/SavedWorkCard.swift",
+        "App/Views/TaskActivityView.swift",
+        "App/Views/ActivityGroupView.swift"
+      ],
+      "source_evidence_type": "source; product redesign",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-10",
+      "title": "Replace generic failure dead ends with local recovery actions",
+      "priority": "Now",
+      "disposition": "partial",
+      "change": "Editor, settings, interactive-save, search and attachment errors stay at their point of use with preserved state and narrow recovery actions.",
+      "remaining": "Legacy global errors remain for some imports, exports and connection paths; no universal replay action was added.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/SavedWorkCard.swift",
+        "App/Companion/ComputerConnectionView.swift",
+        "App/Views/ModelAccountDetailsView.swift"
+      ],
+      "source_evidence_type": "source-confirmed generic alert; recovery proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-11",
+      "title": "Reduce transcript chrome without reducing useful controls",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "Earlier messages use one actions menu; the newest request/reply retains direct Copy, Share, Edit or Read controls.",
+      "remaining": "No global reveal/hide setting was added.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/ChatMessageRow.swift",
+        "App/Views/SourceListView.swift",
+        "App/Views/ActivityGroupView.swift"
+      ],
+      "source_evidence_type": "source + V08; visual judgment",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-12",
+      "title": "Give each output one canonical identity and an intentional place in the conversation",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "Files are reachable from receipts/attachments with stable IDs and current saved revisions. One complete chat-file index replaces repeated bottom lists capped at six.",
+      "remaining": "A new universal output-message schema and comprehensive revision grouping are not claimed.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/LibraryView.swift",
+        "App/Views/ChatMessageRow.swift",
+        "App/Views/WorkspaceFileView.swift"
+      ],
+      "source_evidence_type": "source-confirmed multiple presentation paths; duplication needs native scenario check",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-13",
+      "title": "Open the document before opening its management controls",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "Files open their original preview before management controls. CSV/TSV tables preserve literal formulas, code is source-only, and document details are secondary.",
+      "remaining": "Format fidelity still depends on Quick Look and existing extraction; no Office editing engine was added.",
+      "source_paths": [
+        "App/Views/LibraryView.swift",
+        "App/Views/WorkspaceFileView.swift"
+      ],
+      "source_evidence_type": "source-confirmed preview-first gap",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-14",
+      "title": "Make every Ask about this action behave consistently",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Existing ordinary Ask actions prepare draft context consistently across surfaces, files, Inbox, calendar/reminder and images. Existing text is preserved and a merge is confirmed; Send is explicit.",
+      "remaining": "Projects still lack a Continue action and artifacts retain their editor rather than a newly introduced Ask workflow.",
+      "source_paths": [
+        "App/Views/WorkingSurfaceView.swift",
+        "App/Views/WorkspaceFileView.swift",
+        "App/Views/TodayOverviewView.swift",
+        "App/Views/CaptureViewer.swift",
+        "App/Views/WelcomeWorkspaceView.swift"
+      ],
+      "source_evidence_type": "source-confirmed conditional action behavior",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-15",
+      "title": "Make interactive results precise, reversible and inspectable",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "Scenarios have exact numeric entry, Reset and Undo. Dirty/failed state is explicit with Retry/Revert. Charts expose every selected series, a data table and a full view.",
+      "remaining": "VoiceOver chart gestures, physical orientation and dense multi-series visual inspection remain to be checked.",
+      "source_paths": [
+        "App/Views/WorkingSurfaceView.swift"
+      ],
+      "source_evidence_type": "source + V08; concrete interaction gaps",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-16",
+      "title": "Make Projects directly usable without knowing a magic prompt",
+      "priority": "Next",
+      "disposition": "deferred",
+      "change": "Inspected optional project records, folder scope, current outputs, revision checks and prior invalidation fixes; retained them.",
+      "remaining": "Direct creation/Continue needs an explicit choice of chat versus folder ownership and an atomic create-and-route operation. No placeholder controls added.",
+      "source_paths": [
+        "App/Views/ProjectsView.swift",
+        "App/Views/LibraryView.swift"
+      ],
+      "source_evidence_type": "source-confirmed missing UI entry points",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-17",
+      "title": "Make search land on the thing it found",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "History results carry message identity and fingerprint, open a bounded window around the exact hit, reject stale results and retain query/result position for Back to results.",
+      "remaining": "Rapid physical navigation and very large real libraries remain unmeasured.",
+      "source_paths": [
+        "App/Views/HistoryView.swift",
+        "App/Views/RootView.swift"
+      ],
+      "source_evidence_type": "source-confirmed navigation gap",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-18",
+      "title": "Give Library search scope, useful empty states and room to grow",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "Library search has All/Imported files/Documents scope, explicit no-results, cancellation and store-actor execution instead of full-text filtering in the view body.",
+      "remaining": "Search still scans stored records; an indexed incremental search engine and measured large-library latency remain future work.",
+      "source_paths": [
+        "App/Views/LibraryView.swift",
+        "App/Views/HistoryView.swift",
+        "App/Views/MemoryView.swift"
+      ],
+      "source_evidence_type": "source-confirmed UI/search structure; performance unmeasured",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-19",
+      "title": "Present memory as useful remembered context, not a database editor",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "Memory is searchable; ordinary title/text correction is primary and source/status/expiration controls move into disclosure. Forget failures are visible.",
+      "remaining": "Direct source-message navigation and a larger plain-language memory redesign are not added.",
+      "source_paths": [
+        "App/Views/MemoryView.swift",
+        "App/Views/WelcomeWorkspaceView.swift"
+      ],
+      "source_evidence_type": "source-confirmed complexity; product proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-20",
+      "title": "Make editing earlier prompts reversible without pretending external actions were undone",
+      "priority": "Next",
+      "disposition": "deferred",
+      "change": "Retained the replacement warning and the 1.1.6 protections that invalidate derived project/context state while preserving external outcomes.",
+      "remaining": "A reversible branch/revision graph, branch navigation and branch-safe tool receipts require explicit storage work.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/HistoryView.swift",
+        "Documentation/PRODUCT_DESIGN.md"
+      ],
+      "source_evidence_type": "current replacement UI + intended-design contrast",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-21",
+      "title": "Separate editing drafts from saved artifact revisions",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Drafts retain their base revision across restarts. Saving is compare-and-swap plus atomic draft removal; stale drafts compare/rebase explicitly. Discard and history do not overwrite saved text.",
+      "remaining": "Actual app termination timing is covered by native UI tests; storage failure fixtures cannot prove real-device disk reliability.",
+      "source_paths": [
+        "App/Views/LibraryView.swift"
+      ],
+      "source_evidence_type": "source-confirmed editor semantics",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-22",
+      "title": "Make settings commit behavior consistent",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Ordinary preferences save immediately. Failed commits leave published/persisted state unchanged and roll back credential/backup side effects. Advanced connection changes use Apply and explicit discard.",
+      "remaining": "The native credential/backup services still depend on a correctly signed, unlocked phone.",
+      "source_paths": [
+        "App/Views/SettingsView.swift",
+        "App/Views/ModelDownloadsView.swift",
+        "App/Views/ReasoningEffortView.swift"
+      ],
+      "source_evidence_type": "source-confirmed inconsistent commitment model",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-23",
+      "title": "Treat keeping and restoring personal work as part of the everyday product",
+      "priority": "Next",
+      "disposition": "deferred",
+      "change": "Retained existing explicit exports and backup exclusion policy, including Health-sensitive protection.",
+      "remaining": "No portable backup/restore format or isolated restore rehearsal exists; an OS backup toggle must not imply an app restore guarantee.",
+      "source_paths": [
+        "App/Views/SettingsView.swift",
+        "App/Views/LibraryView.swift",
+        "App/Views/WorkspaceFileView.swift"
+      ],
+      "source_evidence_type": "source-confirmed backup-default disclosure; new workflow proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-24",
+      "title": "Finish the downloaded-model ownership experience",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "Preserved the 1.1.6 verified download/prepare/use/repair logic and separated selected model from per-chat scope. Unload is clearly memory-only.",
+      "remaining": "Remove downloaded files and exact reclaimed-byte reporting need a validated cache ownership map; no user weights were removed.",
+      "source_paths": [
+        "App/Views/ModelLibraryView.swift",
+        "App/Views/ModelDownloadsView.swift",
+        "App/Views/ReasoningEffortView.swift"
+      ],
+      "source_evidence_type": "source + V04/V05/V06; preserve existing 1.1.5 improvements",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-25",
+      "title": "Keep response controls powerful, but do not make token budgets ordinary homework",
+      "priority": "Next",
+      "disposition": "retained",
+      "change": "Kept the explicit 64K target and optional detailed response/memory controls from 1.1.6, as requested by Jacob. Selection wording now matches actual global selection scope.",
+      "remaining": "The audit suggestion to conceal more token controls does not override the user requested context control; actual iPhone memory grant remains pending.",
+      "source_paths": [
+        "App/Views/ModelLibraryView.swift",
+        "App/Views/ModelDownloadsView.swift",
+        "App/Views/ReasoningEffortView.swift"
+      ],
+      "source_evidence_type": "source + V06; product hierarchy proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-26",
+      "title": "Make Inbox a fast capture tool, not a small workflow form",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "Save-only is the fast default; destination and handling controls are behind a disclosure. Ordinary Ask now prepares context, preserving the draft. Explicit Start reply still executes.",
+      "remaining": "Inbox source-chat reassignment and complete deletion/recovery redesign remain outside this batch.",
+      "source_paths": [
+        "App/Views/AssistantInboxView.swift",
+        "App/Views/WelcomeWorkspaceView.swift",
+        "App/Views/TodayOverviewView.swift"
+      ],
+      "source_evidence_type": "source-confirmed multi-control capture form",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-27",
+      "title": "Connect day context to direct, bounded assistance",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "Calendar and reminder details can prepare a contextual draft with opaque item/source identity and versioned selected data. Existing permissions and reviewed-write path remain authoritative.",
+      "remaining": "A contextual draft does not update an event; real EventKit synchronization remains a device check.",
+      "source_paths": [
+        "App/Views/TodayOverviewView.swift",
+        "App/Views/WelcomeWorkspaceView.swift",
+        "App/Views/ConnectionsView.swift"
+      ],
+      "source_evidence_type": "source-confirmed event detail lacks contextual action",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-28",
+      "title": "Make the camera experience about a question, with depth as an optional instrument",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "The ordinary image viewer offers Ask about this image without requiring depth points. Selection/attachment checks the captured conversation owner.",
+      "remaining": "Depth point selection via VoiceOver, hardware capture and full-screen orientation behavior remain physical/design work.",
+      "source_paths": [
+        "App/Views/CaptureViewer.swift",
+        "App/Views/RootView.swift",
+        "App/Views/WelcomeWorkspaceView.swift"
+      ],
+      "source_evidence_type": "source; visual/functional proposal",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-29",
+      "title": "Turn the computer companion from persistent setup into an optional working companion",
+      "priority": "Next",
+      "disposition": "implemented",
+      "change": "Returning desktop users see work first, with setup collapsed and separate account/models/computation summaries. The view supports system light/dark, narrow width and reduced motion.",
+      "remaining": "A new full desktop navigation shell was not needed; no phone chat or provider identity was moved.",
+      "source_paths": [
+        "App/Companion/ComputerConnectionView.swift",
+        "Companion/ui/index.html",
+        "Companion/ui/styles.css",
+        "App/Views/ModelAccountDetailsView.swift"
+      ],
+      "source_evidence_type": "source-only desktop assessment; no desktop render claim",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-30",
+      "title": "Create a small semantic design system instead of applying decoration screen by screen",
+      "priority": "Next",
+      "disposition": "partial",
+      "change": "Retained semantic system fonts/surfaces and consistent 44-point important controls; reduced-motion sidebar feedback and adaptive desktop colors. Avoided an unrelated palette replacement.",
+      "remaining": "A complete shared token catalog and exhaustive increased-contrast audit are not claimed.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/WelcomeWorkspaceView.swift",
+        "App/Views/LibraryView.swift",
+        "App/Views/WorkingSurfaceView.swift",
+        "App/Views/AppFeedback.swift",
+        "Companion/ui/styles.css"
+      ],
+      "source_evidence_type": "source + V01\u2013V09; visual judgment",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-31",
+      "title": "Make accessibility and interrupted interaction part of the component contract",
+      "priority": "Now",
+      "disposition": "partial",
+      "change": "Added named attachment actions, scalable attachment rows, exact chart/table alternatives, draft ownership and reduced-motion handling. Native large-text journeys are included.",
+      "remaining": "Real VoiceOver, audio interruption, rotation and the largest accessibility matrix still need device-based evidence.",
+      "source_paths": [
+        "App/Views/RootView.swift",
+        "App/Views/WelcomeWorkspaceView.swift",
+        "App/Views/HistoryView.swift",
+        "App/Views/WorkingSurfaceView.swift",
+        "App/Views/AppFeedback.swift",
+        "App/Views/CaptureViewer.swift"
+      ],
+      "source_evidence_type": "source + V02; existing strengths and targeted gaps",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    },
+    {
+      "id": "PX-32",
+      "title": "Validate complete product journeys before claiming market readiness",
+      "priority": "Now",
+      "disposition": "implemented",
+      "change": "Review covers all32 recommendations and all28 proposed journeys with separate evidence levels. Added production-component platform/UI tests and retained synthetic provider policy.",
+      "remaining": "This is engineering validation, not market-readiness or a formative user study; physical acceptance stays pending.",
+      "source_paths": [
+        "Documentation/ReleaseValidation115.json",
+        "App/Views/RootView.swift",
+        "App/Views/LibraryView.swift",
+        "App/Views/WorkingSurfaceView.swift"
+      ],
+      "source_evidence_type": "validation proposal; no new tests executed",
+      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+    }
+  ]
+}

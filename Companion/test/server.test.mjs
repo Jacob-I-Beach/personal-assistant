@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import https from 'node:https';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
@@ -29,6 +29,8 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
     const token=paired.body.credential;
     let timer;
     const caps=await Promise.race([request('/v1/capabilities',undefined,token),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Optional computation blocked account access')),2000);})]).finally(()=>clearTimeout(timer));
+    const packageVersion=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version;
+    assert.equal(caps.body.version,packageVersion);assert.equal((await request('/v1/info')).body.version,packageVersion);
     assert.equal(caps.body.profile.status,'connected');assert.equal(caps.body.computation.state,'checking');releaseCompute(true);
     const catalog=await request('/v1/models',undefined,token);
     assert.equal(catalog.body.catalog.state,'ready');assert.equal(catalog.body.models[0].display_name,'Synthetic');assert.equal(catalog.body.models[0].max_context_window,1000000);
