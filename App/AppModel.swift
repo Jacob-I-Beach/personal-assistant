@@ -153,13 +153,13 @@ final class AppModel: ObservableObject {
     }
     var modelLocation: String {
         switch settings.choice {
-        case .localMLX, .appleOnDevice: "On this iPhone"
+        case .localMLX, .appleOnDevice: return "On this iPhone"
         case .chatGPT:
             if modelCatalog.phase == .unavailable || modelCatalog.phase == .stale { return "Model availability needs a refresh" }
             return usesComputerChatGPT ? (computerAccountNeedsAttention ? "Check your computer connection" : "Using your ChatGPT plan") : (accounts.contains(where: \.isConnected) ? "Using your ChatGPT plan" : "Connect your account")
-        case .appleCloud: "Apple Private Cloud Compute"
-        case .openAI: "OpenAI API"
-        case .compatibleServer: "Connected computer"
+        case .appleCloud: return "Apple Private Cloud Compute"
+        case .openAI: return "OpenAI API"
+        case .compatibleServer: return "Connected computer"
         }
     }
 
