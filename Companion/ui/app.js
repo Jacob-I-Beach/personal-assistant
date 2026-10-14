@@ -3,11 +3,16 @@ async function api(path,body={}){const response=await fetch(path,{method:'POST',
 function notice(error){byId('notice').textContent=error?.message??'';}
 const labels={queued:'Waiting to start',running:'Working',waiting_for_phone:'Needs your iPhone',waiting_for_input:'Needs your answer',completed:'Ready',failed:'Needs attention',cancelled:'Stopped',interrupted:'Ready to continue'};
 function action(text,handler){const button=document.createElement('button');button.textContent=text;button.addEventListener('click',()=>handler().catch(notice));return button;}
-let addressesKey='',jobsKey='',bridgeDevicesKey='',checkingModels=false;
+let addressesKey='',jobsKey='',bridgeDevicesKey='',checkingModels=false,layoutInitialized=false;
 async function refresh(){
   try{const state=await api('/api/status');const session=state.session;
     byId('account').textContent=session.status==='connected'?(session.sharing?'Signed in · '+(session.identity?.name??session.profileLabel??'ChatGPT plan'):'Signed in; plan sharing needs authorization'):'Connect the ChatGPT account you want this computer to use.';
     const catalog=state.model_catalog;
+    const returning=state.devices.length>0||state.jobs.length>0;
+    document.body.classList.toggle('returning',returning);
+    if(!layoutInitialized){byId('connections-panel').open=!returning;layoutInitialized=true;}
+    byId('connection-summary').textContent=(session.status==='connected'?'Account signed in':'Account not connected')+' · '+(catalog?.state==='ready'?'Models available':catalog?.state==='stale'?'Models need a refresh':'Models not verified')+' · '+(state.computation_ready?'Computation ready':state.computation?.state==='checking'?'Computation checking':'Computation unavailable');
+
     if(!checkingModels)byId('catalog-status').textContent=catalog?.state==='ready'?'Model list available.':catalog?.state==='stale'?'Saved model list · '+(catalog.error??'Refresh to check current availability.'):(catalog?.error??'Model availability has not been checked.');
     byId('check-models').disabled=checkingModels||session.status!=='connected'||!session.sharing;
     byId('connect').textContent=session.status==='connecting'?'Waiting for browser authorization…':session.status==='connected'?'Reconnect ChatGPT':'Continue with ChatGPT';byId('connect').disabled=session.status==='connecting';

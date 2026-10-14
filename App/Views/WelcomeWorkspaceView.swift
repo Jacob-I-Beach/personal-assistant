@@ -15,15 +15,17 @@ struct WelcomeWorkspaceView: View {
     let create: () -> Void
     let voice: () -> Void
     private var refreshID: String { "\(scenePhase):\(model.contextRefresh):\(model.settings.localOnly):\(model.settings.locationContextEnabled):\(model.settings.weatherFollowsLocation):\(model.settings.weatherPlace?.id ?? "")" }
+    private var resumable: [WorkTurn] { model.unfinishedReplies.filter { work in !model.pendingQuestions.contains { $0.turnID == work.id } } }
+    private var returning: Bool { model.histories.contains { $0.messageCount > 0 } }
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 20) {
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 VStack(alignment: .leading, spacing: 10) {
                     Text(context.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())).font(.caption.weight(.medium)).foregroundStyle(.secondary)
                     Text(HomeGreeting.title(at: context.date, name: name, weather: weather.weather,
                                             unfinishedCount: model.unfinishedReplies.count, needsAttention: !model.pendingQuestions.isEmpty))
-                        .font(.system(.largeTitle, weight: .semibold)).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("home-greeting")
-                    Text(HomeGreeting.subtitle(weather: weather.weather, unfinishedCount: model.unfinishedReplies.count, at: context.date)).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        .font(.system(.title, weight: .semibold)).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("home-greeting")
+                    if model.pendingQuestions.isEmpty && resumable.isEmpty { Text(HomeGreeting.subtitle(weather: weather.weather, unfinishedCount: 0, at: context.date)).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                     if let value = weather.weather, value.isFresh(at: context.date) {
                         HStack(alignment: .center, spacing: 10) {
                             Image(systemName: value.symbol)
@@ -38,6 +40,20 @@ struct WelcomeWorkspaceView: View {
                     } else if let status = weather.status { Text(status).font(.caption).foregroundStyle(.secondary) }
                 }
             }
+            if !model.pendingQuestions.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Needs your answer").font(.headline)
+                    ForEach(model.pendingQuestions.prefix(3)) { question in
+                        Button { model.openQuestion(question) } label: { HStack { Text(question.title).font(.subheadline); Spacer(); Image(systemName: "arrow.right") }.frame(minHeight: 44) }.buttonStyle(.bordered)
+                    }
+                }
+            }
+            if !resumable.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Pick up your work").font(.subheadline.weight(.semibold))
+                    ForEach(resumable.prefix(2)) { SavedWorkCard(work: $0) }
+                }
+            }
             if model.computerAccountNeedsAttention {
                 Button { navigation.showConnections = true } label: {
                     Label(model.computerAccountDetail, systemImage: "exclamationmark.circle")
@@ -45,11 +61,15 @@ struct WelcomeWorkspaceView: View {
                 }.buttonStyle(.plain)
             } else if model.shouldOfferChatGPTSignIn {
                 VStack(alignment: .leading, spacing: 10) {
-                    Button { model.connectChatGPT() } label: {
-                        HStack { Text(model.isConnecting ? "Connecting…" : "Continue with ChatGPT").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }.padding(8).foregroundStyle(Color(uiColor: .systemBackground))
-                    }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isConnecting).accessibilityIdentifier("home-chatgpt-sign-in")
-                    Button("Choose an on-device model") { model.showModels = true }.font(.footnote).foregroundStyle(.secondary)
+                    Text("Choose how to reply").font(.subheadline.weight(.medium))
+                    Button { model.connectChatGPT() } label: { Label(model.isConnecting ? "Connecting…" : "Continue with ChatGPT", systemImage: "person.crop.circle").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading) }
+                        .buttonStyle(.bordered).disabled(model.isConnecting || model.settings.localOnly).accessibilityIdentifier("home-chatgpt-sign-in")
+                    Button { model.showModels = true } label: { Label("Choose an on-device model", systemImage: "iphone").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading) }.buttonStyle(.bordered)
+                    if model.appleDevice.isAvailable { Text("Apple’s on-device model is available without a separate download.").font(.caption).foregroundStyle(.secondary) }
                 }
+            }
+            if model.settings.choice == .chatGPT && (model.modelCatalog.phase == .stale || model.modelCatalog.phase == .unavailable) {
+                Button { model.showModels = true } label: { Label("Model availability needs attention", systemImage: "exclamationmark.circle").font(.subheadline) }.buttonStyle(.plain)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2), alignment: .leading, spacing: 12) {
                 entry("See & explore", subtitle: "Camera and depth", icon: "viewfinder", action: camera)
@@ -57,14 +77,7 @@ struct WelcomeWorkspaceView: View {
                 entry("Make something", subtitle: "Start with your idea", icon: "square.and.pencil", action: create)
                 entry("Talk it through", subtitle: "Dictate a thought", icon: "waveform", action: voice)
             }
-            let resumable = model.unfinishedReplies.filter { work in !model.pendingQuestions.contains { $0.turnID == work.id } }
-            if !resumable.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Ready to continue").font(.subheadline.weight(.semibold))
-                    ForEach(resumable.prefix(2)) { SavedWorkCard(work: $0) }
-                }
-            }
-            TodayOverviewView(planning: model.planning)
+            TodayOverviewView(planning: model.planning, showsQuestions: false)
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Your workspace").font(.subheadline.weight(.semibold))
@@ -76,7 +89,7 @@ struct WelcomeWorkspaceView: View {
                     VStack(alignment: .leading, spacing: 16) { shortcuts }
                 }
             }
-        }.padding(.top, 34).padding(.bottom, 24)
+        }.padding(.top, 12).padding(.bottom, 20)
             .sheet(isPresented: $showContext) { HomeContextSettingsView() }
             .sheet(isPresented: $showMemory, onDismiss: { Task { await readName() } }) {
                 NavigationStack { MemoryView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showMemory = false } } } }
@@ -103,12 +116,12 @@ struct WelcomeWorkspaceView: View {
     private func entry(_ title: String, subtitle: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: icon).font(.title3).foregroundStyle(.secondary)
+                if !returning { Image(systemName: icon).font(.title3).foregroundStyle(.secondary) }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    if !returning { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
                 }
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
+            }.frame(maxWidth: .infinity, minHeight: returning ? 44 : nil, alignment: .leading).padding(returning ? 12 : 16)
                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
         }.buttonStyle(.plain).accessibilityLabel(title)
     }

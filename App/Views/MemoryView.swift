@@ -5,13 +5,16 @@ struct MemoryView: View {
     @EnvironmentObject private var model: AppModel
     @State private var notes: [SavedMemory] = []
     @State private var editing: SavedMemory?
+    @State private var query = ""
+    private var matches: [SavedMemory] { notes.filter { query.isEmpty || ($0.title + " " + $0.text).localizedCaseInsensitiveContains(query) } }
     var body: some View {
         List {
             Section {
                 Text(model.settings.automaticMemory ? "Useful things you share can become saved context. Review what was learned, correct it, or undo a change." : "Automatic memory is off. You can still add, edit and review saved context.").font(.subheadline).foregroundStyle(.secondary)
                 NavigationLink("History and undo") { MemoryHistoryView() }
             }
-            ForEach(notes) { note in
+            if !query.isEmpty && matches.isEmpty { ContentUnavailableView.search(text: query) }
+            ForEach(matches) { note in
                 Button { editing = note } label: {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(note.title).font(.headline).foregroundStyle(.primary)
@@ -27,6 +30,7 @@ struct MemoryView: View {
             }
         }
         .navigationTitle("Saved memory")
+        .searchable(text: $query, prompt: "Find a saved fact or preference")
         .toolbar { Button("Add memory", systemImage: "plus") { editing = SavedMemory(title: "", text: "") } }
         .task { await refresh() }
         .onAppear { Task { await refresh() } }
@@ -47,7 +51,8 @@ private struct MemoryEditor: View {
             Form {
                 TextField("Title", text: $note.title)
                 TextEditor(text: $note.text).frame(minHeight: 160).accessibilityLabel("Memory note")
-                Section("Meaning and evidence") {
+                Section {
+                DisclosureGroup("Details, source and expiration") {
                     Picker("Kind", selection: $note.kind) { ForEach(MemoryKind.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) } }
                     Picker("Profile field", selection: Binding(get: { note.profileKey ?? "" }, set: { note.profileKey = $0.isEmpty ? nil : $0 })) {
                         Text("None").tag(""); Text("Preferred name").tag("preferred_name"); Text("Occupation").tag("occupation"); Text("Interests").tag("interests")
@@ -61,6 +66,7 @@ private struct MemoryEditor: View {
                     Toggle("Expires", isOn: $hasExpiration)
                     if hasExpiration { DatePicker("Stop using after", selection: $expiration, displayedComponents: .date) }
                     Text("Superseded and expired notes remain inspectable but are excluded from new replies. Tentative notes are labeled as uncertain.").font(.caption).foregroundStyle(.secondary)
+                }
                 }
                 Toggle("Use across conversations", isOn: $acrossConversations)
                 Toggle("Allow with connected models", isOn: $note.allowsConnectedModels)

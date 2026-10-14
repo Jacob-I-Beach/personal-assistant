@@ -149,6 +149,11 @@ enum PrivatePaths {
         var folder = "PersonalAssistant"
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-empty") { folder = "PersonalAssistant-UITests-Empty" }
+        if ProcessInfo.processInfo.arguments.contains("--ui-product117") {
+            let modes = ["editor", "attachments", "search", "surfaces", "settings"]
+            let mode = modes.first(where: { ProcessInfo.processInfo.arguments.contains("--ui-product117-" + $0) }) ?? "default"
+            folder = "PersonalAssistant-UITests-Product117-" + mode
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-demo") { folder = "PersonalAssistant-UITests-Demo" }
         if ProcessInfo.processInfo.arguments.contains("--ui-library") { folder = "PersonalAssistant-UITests-Demo" }
         if ProcessInfo.processInfo.arguments.contains("--ui-presentation") { folder = "PersonalAssistant-UITests-Presentation" }

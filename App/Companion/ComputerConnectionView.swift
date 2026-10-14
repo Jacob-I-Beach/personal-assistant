@@ -10,6 +10,9 @@ struct ComputerConnectionView: View {
     @State private var manualCode = ""
     @State private var pairing = false
     @State private var state: String?
+    @State private var checkedCatalog: ModelCatalogState?
+    @State private var computationState: String?
+    @State private var checking = false
     @State private var error: String?
     var body: some View {
         NavigationStack {
@@ -26,12 +29,15 @@ struct ComputerConnectionView: View {
                             do { try model.saveSettings(next); AppFeedback.play(.selection) } catch { self.error = error.localizedDescription }
                         })).disabled(model.isRunning)
                         Text("The selected GPT stays the same. This computer keeps each accepted task running, saves its progress and supplies computer tools when needed. Keep it awake and online. Local models run on this iPhone.").font(.footnote).foregroundStyle(.secondary)
-                        Button("Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }
+                        Button(checking ? "Checking connection…" : "Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }.disabled(checking || model.settings.localOnly)
                         Button("Update network connection", systemImage: "qrcode.viewfinder") { showScanner = true }
                             .disabled(pairing || !DataScannerViewController.isSupported || model.isRunning)
                         Text("Scan a new code from the same PC to use its private away-from-home address. Your pairing and saved tasks stay connected.").font(.footnote).foregroundStyle(.secondary)
                         NavigationLink { ComputerTasksView(openedTask: openedTask) } label: { Label("Tasks & schedules", systemImage: "clock.arrow.circlepath") }
                         if let state { Text(state).font(.subheadline).foregroundStyle(.secondary) }
+                        Text(checkedCatalog?.detail ?? (model.usesComputerChatGPT ? model.modelCatalog.detail : "This computer's model availability has not been checked.")).font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("computer-model-availability")
+                        if let computationState { Text(computationState).font(.subheadline).foregroundStyle(.secondary) }
+                        Text("Account connection, model availability and computer tools are checked separately. Model discovery does not test a reply.").font(.caption).foregroundStyle(.secondary)
                         Button("Disconnect this iPhone", role: .destructive) {
                             do {
                                 var next = model.settings; next.companion = nil; next.useComputer = false
@@ -94,13 +100,24 @@ struct ComputerConnectionView: View {
         } catch { self.error = error.localizedDescription }
     }
     private func check(_ connection: CompanionConnection) async {
+        guard !checking, !model.settings.localOnly else { return }; checking = true
+        defer { checking = false }
+        var loading = checkedCatalog ?? ModelCatalogState(); loading.begin(owner: connection.destination, saved: nil); checkedCatalog = loading
         do {
             let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
             let info = try await client.json("/v1/capabilities")
             try model.applyComputerAccount(info["profile"] ?? .null, connection: connection, activityProvider: info["presentation"]?["provider"]?.stringValue)
-            state = info["profile"]?["status"] == .string("connected") ? (info["computation_ready"] == .bool(true) ? "ChatGPT, Python and document tools are ready." : "ChatGPT is connected. Open the computer setup to finish computation tools.") : "Sign in to ChatGPT on your computer."
+            guard model.settings.companion == connection else { return }
+            state = info["profile"]?["status"] == .string("connected") ? "Your ChatGPT account is connected." : "Sign in to ChatGPT on your computer."
+            computationState = info["computation_ready"] == .bool(true) ? "Python and document tools are available." : "Computation is not available yet. This is separate from your ChatGPT account."
+            let catalog = try await client.json("/v1/models?refresh=1")
+            guard model.settings.companion == connection else { return }
+            checkedCatalog = try ModelCatalogState.computerObservation(catalog, profileID: connection.profileID, owner: connection.destination)
             error = nil
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            self.error = error.localizedDescription
+            checkedCatalog?.failed(owner: connection.destination, message: "The computer's model availability could not be checked. Saved choices are kept.")
+        }
     }
 }
 

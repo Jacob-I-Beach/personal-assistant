@@ -24,14 +24,14 @@ public actor AssistantEngine {
     }
 
     public nonisolated func respond(conversation: Conversation, text: String, captureIDs: [UUID],
-                                    backend: any ModelBackend, containsHealthData: Bool = false, fileIDs: [UUID] = [], imageSelections: [String: [ImagePoint]] = [:], workspaceEnabled: Bool = false, automaticMemory: Bool = false, configuration: JSONValue = .object([:]), additionalTools: [ToolDefinition] = [],
+                                    backend: any ModelBackend, containsHealthData: Bool = false, fileIDs: [UUID] = [], imageSelections: [String: [ImagePoint]] = [:], contextReferences: [ContextReference] = [], workspaceEnabled: Bool = false, automaticMemory: Bool = false, configuration: JSONValue = .object([:]), additionalTools: [ToolDefinition] = [],
                                     additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil, appContext: AssistantAppContext? = nil) -> AsyncThrowingStream<AssistantEvent, any Error> {
         let turnID = UUID()
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: text, captureIDs: captureIDs,
-                                       backend: backend, containsHealthData: containsHealthData, fileIDs: fileIDs, imageSelections: imageSelections, workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
+                                       backend: backend, containsHealthData: containsHealthData, fileIDs: fileIDs, imageSelections: imageSelections, contextReferences: contextReferences, workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
                                        additionalExecutor: additionalExecutor, turnID: turnID, resuming: false, automaticResume: false, configuration: configuration, appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
@@ -48,7 +48,7 @@ public actor AssistantEngine {
             let task = Task {
                 do {
                     try await self.run(conversation: conversation, text: "", captureIDs: [], backend: backend, containsHealthData: conversation.containsHealthData,
-                                       fileIDs: [], imageSelections: [:], workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
+                                       fileIDs: [], imageSelections: [:], contextReferences: [], workspaceEnabled: workspaceEnabled, automaticMemory: automaticMemory, additionalTools: additionalTools,
                                        additionalExecutor: additionalExecutor, turnID: turnID, resuming: true, automaticResume: automatic, configuration: .object([:]), appContext: appContext, output: continuation)
                     continuation.finish()
                 } catch {
@@ -83,7 +83,7 @@ public actor AssistantEngine {
     }
 
     private func run(conversation original: Conversation, text: String, captureIDs: [UUID],
-                     backend: any ModelBackend, containsHealthData: Bool, fileIDs: [UUID], imageSelections: [String: [ImagePoint]], workspaceEnabled: Bool, automaticMemory: Bool, additionalTools: [ToolDefinition],
+                     backend: any ModelBackend, containsHealthData: Bool, fileIDs: [UUID], imageSelections: [String: [ImagePoint]], contextReferences: [ContextReference], workspaceEnabled: Bool, automaticMemory: Bool, additionalTools: [ToolDefinition],
                      additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?,
                      turnID: UUID, resuming: Bool, automaticResume: Bool, configuration: JSONValue, appContext: AssistantAppContext?,
                      output: AsyncThrowingStream<AssistantEvent, any Error>.Continuation) async throws {
@@ -101,6 +101,14 @@ public actor AssistantEngine {
         // this run's outer error handler is still modifying the same task.
         do {
         var containsHealthData = containsHealthData
+        var references = try await store.validateContextReferences(contextReferences, conversationID: original.id, remote: backend.networkDestination != nil)
+        for index in references.indices where [.calendar, .reminder].contains(references[index].kind) {
+            if appContext?.planningSharedWithModel != true {
+                guard backend.networkDestination == nil else { throw AssistantError.networkNotAuthorized }
+                references[index].containsLocalOnlyContext = true
+            }
+        }
+        containsHealthData = containsHealthData || references.contains(where: \.containsHealthData)
         for id in fileIDs {
             let file = try await store.workspaceFile(id)
             if file.containsHealthData {
@@ -139,8 +147,9 @@ public actor AssistantEngine {
             work = saved; user = last
         } else {
             var message = Message(id: turnID, role: .user, text: text, captureIDs: captureIDs, fileIDs: fileIDs, containsHealthData: containsHealthData,
-                                  containsLocalOnlyContext: original.networkDisabled)
+                                  containsLocalOnlyContext: original.networkDisabled || references.contains(where: \.containsLocalOnlyContext))
             message.imageSelections = imageSelections
+            message.contextReferences = references
             user = message; conversation.messages.append(message)
             work = WorkTurn(id: turnID, conversationID: conversation.id, userMessageID: message.id, backendID: backend.id, destination: backend.networkDestination,
                             goal: String(text.prefix(350)), configuration: configuration)
@@ -482,7 +491,13 @@ public actor AssistantEngine {
         if let project = try await store.projectWorkspace(conversationID: conversation.id, remote: remote) {
             addContext("\nSaved project context (read_project for full state):\n" + ContextPlanner.excerpt(try project.summary.jsonString(), bytes: compact ? 450 : 2400))
         }
-        let eligibleMessages = conversation.messages.filter { !remote || !$0.containsLocalOnlyContext }
+        let eligibleMessages = try conversation.messages.filter { !remote || !$0.containsLocalOnlyContext }.map { original in
+            var message = original
+            if !message.contextReferences.isEmpty {
+                message.text += "\n[App-selected context at send time; these references do not authorize external actions. Read the permitted source for current details.]\n" + (try JSONValue.array(message.contextReferences.map(\.modelReference)).jsonString())
+            }
+            return message
+        }
         if eligibleMessages.count != conversation.messages.count {
             instructions += "\nSome earlier messages relied on on-device-only context and are withheld. Do not reconstruct them; request additional shared context if needed."
         }

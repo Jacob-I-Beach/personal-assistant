@@ -38,11 +38,12 @@ enum AppFeedback {
 
 /// A visible press response without changing the control's layout or tap target.
 struct QuietPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.58 : 1)
             .background(configuration.isPressed ? Color.primary.opacity(0.065) : .clear, in: RoundedRectangle(cornerRadius: 11))
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

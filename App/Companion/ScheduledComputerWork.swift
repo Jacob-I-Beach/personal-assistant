@@ -93,6 +93,7 @@ extension AppModel {
 struct ComputerTasksView: View {
     var openedTask: ((String) -> Void)?
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dismiss) private var dismiss
     @State private var schedules: [JSONValue] = []
     @State private var jobs: [JSONValue] = []
@@ -120,7 +121,7 @@ struct ComputerTasksView: View {
                     Button {
                         let id = job["id"]?.stringValue ?? ""
                         if let openedTask { openedTask(id) }
-                        else { Task { do { try await model.openComputerJob(id); dismiss() } catch { self.error = error.localizedDescription } } }
+                        else { navigation.openComputerJob(id); dismiss() }
                     } label: {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(job["title"]?.stringValue ?? "Assistant task").font(.headline)

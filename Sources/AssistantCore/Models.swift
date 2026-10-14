@@ -61,6 +61,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
     public var citations: [WebCitation]
     public var responseParts: [ResponsePart]
     public var imageSelections: [String: [ImagePoint]] = [:]
+    public var contextReferences: [ContextReference] = []
     public var replyToTaskID: UUID?
     public var isRequest: Bool { role == .user && replyToTaskID == nil }
 
@@ -77,7 +78,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         self.citations = citations
         self.responseParts = responseParts
     }
-    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts, imageSelections, replyToTaskID }
+    enum CodingKeys: String, CodingKey { case id, role, text, createdAt, state, captureIDs, fileIDs, toolCalls, toolCallID, providerID, continuation, containsHealthData, containsLocalOnlyContext, failureReason, citations, responseParts, imageSelections, contextReferences, replyToTaskID }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id); role = try c.decode(MessageRole.self, forKey: .role)
@@ -93,6 +94,7 @@ public struct Message: Codable, Equatable, Sendable, Identifiable {
         citations = try c.decodeIfPresent([WebCitation].self, forKey: .citations) ?? []
         responseParts = try c.decodeIfPresent([ResponsePart].self, forKey: .responseParts) ?? []
         imageSelections = try c.decodeIfPresent([String: [ImagePoint]].self, forKey: .imageSelections) ?? [:]
+        contextReferences = try c.decodeIfPresent([ContextReference].self, forKey: .contextReferences) ?? []
         replyToTaskID = try c.decodeIfPresent(UUID.self, forKey: .replyToTaskID)
     }
     public var toolFailureDescription: String? {

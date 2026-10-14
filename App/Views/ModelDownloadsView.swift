@@ -73,7 +73,7 @@ struct LocalModelDetailsView: View {
                     }.padding(.vertical, 6)
                     if model.downloadingModelID == entry.id { ModelDownloadProgress(entry: entry) }
                     else if downloaded {
-                        Button(selected ? "Selected for this chat" : "Use this model", systemImage: selected ? "checkmark" : "arrow.right") {
+                        Button(selected ? "Selected model" : "Use this model", systemImage: selected ? "checkmark" : "arrow.right") {
                             model.chooseLocal(entry); dismiss()
                         }.disabled(selected || model.isRunning)
                     } else {

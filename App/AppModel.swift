@@ -18,8 +18,11 @@ final class AppModel: ObservableObject {
     @Published var attachedCaptureIDs: [UUID] = []
     @Published var selectedImagePoints: [String: [ImagePoint]] = [:]
     @Published var draft = ""
+    @Published var draftContextReferences: [ContextReference] = []
+    @Published var pendingContextualDraft: ContextualDraftProposal?
+    @Published var composerFocusRequest = UUID()
     @Published var editingMessageID: UUID?
-    private var draftBeforeEditing: (text: String, captures: [UUID], files: [UUID], health: Bool, selections: [String: [ImagePoint]])?
+    private var draftBeforeEditing: (text: String, captures: [UUID], files: [UUID], health: Bool, selections: [String: [ImagePoint]], references: [ContextReference])?
     @Published var draftContainsHealthData = false
     @Published var libraryContainsHealthData = false
     @Published var isRunning = false
@@ -95,6 +98,7 @@ final class AppModel: ObservableObject {
     private var downloadTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
     private var draftTask: Task<Void, Never>?
+    private var conversationSelectionID = UUID()
     private var settingsURL: URL?
     private var computerAccountURL: URL?
     private var accountRefreshID = UUID()
@@ -216,6 +220,7 @@ final class AppModel: ObservableObject {
                 if ProcessInfo.processInfo.arguments.contains("--ui-local-controls") { settings.choice = .localMLX; rebuildLocalBackend() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-recovery09") { await installRecovery09Fixture() }
                 if ProcessInfo.processInfo.arguments.contains("--ui-activity103") { await installActivityFixture() }
+                if ProcessInfo.processInfo.arguments.contains("--ui-product117") { await installProductFixture() }
                 #endif
                 await refresh()
                 await refreshWorkspaces()
@@ -302,19 +307,21 @@ final class AppModel: ObservableObject {
     }
     func flushDraft() {
         drafts[conversation.id.uuidString] = draft; drafts["selected"] = conversation.id.uuidString
-        if draft.isEmpty && attachedFileIDs.allSatisfy({ id in files.first { $0.id == id }?.containsHealthData != true }) { draftContainsHealthData = false }
+        if draft.isEmpty && !draftContextReferences.contains(where: \.containsHealthData) && attachedFileIDs.allSatisfy({ id in files.first { $0.id == id }?.containsHealthData != true }) { draftContainsHealthData = false }
         drafts["health:" + conversation.id.uuidString] = draftContainsHealthData ? "true" : "false"
         drafts["files:" + conversation.id.uuidString] = attachedFileIDs.map(\.uuidString).joined(separator: ",")
         drafts["captures:" + conversation.id.uuidString] = attachedCaptureIDs.map(\.uuidString).joined(separator: ",")
         if let data = try? JSONEncoder().encode(selectedImagePoints) { drafts["points:" + conversation.id.uuidString] = String(decoding: data, as: UTF8.self) }
+        if let data = try? JSONEncoder().encode(draftContextReferences) { drafts["references:" + conversation.id.uuidString] = String(decoding: data, as: UTF8.self) }
         guard let draftURL else { return }
         do { try JSONEncoder().encode(drafts).write(to: draftURL, options: .atomic) }
         catch { errorMessage = "Your draft could not be saved. Free some storage before closing the app." }
     }
     func newConversation(folderID: UUID? = nil) {
         guard !isRunning else { return }; cancelEditing(); detachWatchRequest(); draftTask?.cancel(); flushDraft()
+        conversationSelectionID = UUID()
         ReplyReturnRoute.clear()
-        if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) {
+        if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty) {
             let savedDraft = conversation
             Task {
                 do { try await store?.save(savedDraft); await refresh() }
@@ -322,19 +329,24 @@ final class AppModel: ObservableObject {
             }
         }
         conversation = Conversation(); conversation.folderID = folderID
-        attachedCaptureIDs = []; selectedImagePoints = [:]; attachedFileIDs = []; draft = ""; draftContainsHealthData = false; errorMessage = nil; noticeMessage = nil
+        attachedCaptureIDs = []; selectedImagePoints = [:]; attachedFileIDs = []; draftContextReferences = []; pendingContextualDraft = nil; draft = ""; draftContainsHealthData = false; errorMessage = nil; noticeMessage = nil
         requiresManualResume = false
     }
     func selectConversation(_ summary: ConversationSummary) async {
         guard !isRunning, let store else { return }; cancelEditing(); if summary.id != conversation.id { detachWatchRequest() }; draftTask?.cancel(); flushDraft()
+        let selection = UUID(); conversationSelectionID = selection
         do {
-            if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty) { try await store.save(conversation) }
-            conversation = try await store.loadConversation(summary.id)
+            if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty) { try await store.save(conversation) }
+            let loaded = try await store.loadConversation(summary.id)
+            guard conversationSelectionID == selection, !isRunning else { return }
+            conversation = loaded
             await replyActivity.viewed(conversationID: summary.id)
             attachedFileIDs = (drafts["files:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }.filter { id in files.contains { $0.id == id } }
             attachedCaptureIDs = (drafts["captures:" + summary.id.uuidString] ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0)) }
             selectedImagePoints = (try? JSONDecoder().decode([String: [ImagePoint]].self, from: Data((drafts["points:" + summary.id.uuidString] ?? "{}").utf8))) ?? [:]
             draft = drafts[summary.id.uuidString] ?? ""; draftContainsHealthData = drafts["health:" + summary.id.uuidString] == "true"
+            draftContextReferences = (try? JSONDecoder().decode([ContextReference].self, from: Data((drafts["references:" + summary.id.uuidString] ?? "[]").utf8))) ?? []
+            pendingContextualDraft = nil
             noticeMessage = nil; errorMessage = nil
             if settings.choice == .chatGPT, let work = unfinishedReplies.first(where: { $0.conversationID == summary.id && $0.backendID.hasPrefix("companion:") }),
                let record = try? await store.companionRun(work.id), !record.stopRequested,
@@ -370,9 +382,9 @@ final class AppModel: ObservableObject {
             case .delete:
                 try await store.removeConversation(id)
                 if conversation.id == id {
-                    detachWatchRequest(); conversation = Conversation(); draft = ""; attachedCaptureIDs = []; attachedFileIDs = []; draftContainsHealthData = false
+                    detachWatchRequest(); conversation = Conversation(); draft = ""; attachedCaptureIDs = []; attachedFileIDs = []; draftContextReferences = []; pendingContextualDraft = nil; draftContainsHealthData = false
                 }
-                for key in [id.uuidString, "files:" + id.uuidString, "captures:" + id.uuidString, "health:" + id.uuidString] { drafts.removeValue(forKey: key) }
+                for key in [id.uuidString, "files:" + id.uuidString, "captures:" + id.uuidString, "health:" + id.uuidString, "points:" + id.uuidString, "references:" + id.uuidString] { drafts.removeValue(forKey: key) }
                 flushDraft(); await refresh(); return
             }
             if id == conversation.id { conversation = try await store.loadConversation(id) }
@@ -439,26 +451,25 @@ final class AppModel: ObservableObject {
         do { return [try await store.captureManifestURL(id), try await store.captureImageURL(id)] }
         catch { errorMessage = error.localizedDescription; return [] }
     }
-    func artifactURL(_ artifact: ArtifactRecord) async -> URL? {
-        do { return try await store?.exportArtifact(artifact) }
-        catch { errorMessage = error.localizedDescription; return nil }
-    }
-    func reviseArtifact(_ artifact: ArtifactRecord, content: String) async -> ArtifactRecord? {
+    func publishArtifactEdit(previous: ArtifactRecord, saved: ArtifactRecord) async -> String? {
+        var warning: String?
         do {
-            guard let store else { return nil }
-            let revised = try await store.reviseArtifact(id: artifact.id, expectedRevision: artifact.revision, content: content)
-            _ = try await store.refreshPublishedOutput(id: revised.id, filename: revised.filename, previous: Data(artifact.content.utf8), replacement: Data(content.utf8), conversationID: revised.conversationID)
-            try await store.saveArtifactDraft(id: artifact.id, text: nil)
-            await refresh()
-            return revised
-        } catch { errorMessage = error.localizedDescription; return nil }
+            if let result = try await store?.refreshPublishedOutput(id: saved.id, filename: saved.filename, previous: Data(previous.content.utf8), replacement: Data(saved.content.utf8), conversationID: saved.conversationID) {
+                warning = result.warning
+            }
+        } catch { warning = "The revision is saved in Library, but its Files copy could not be updated. Export the saved revision when needed." }
+        await refresh()
+        return warning
     }
 
     func send(_ suppliedText: String? = nil) {
         let enteredText = suppliedText ?? draft
-        let hasAttachments = !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty
+        let hasAttachments = !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty
         let text = enteredText
         guard isInitialized, !isRunning, hasAttachments || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if settings.networkDestination != nil && draftContextReferences.contains(where: \.containsLocalOnlyContext) {
+            noticeMessage = "This selected context stays on this iPhone. Choose an on-device model or remove its context chip before sending."; showModels = true; return
+        }
         if isManagingAccount && settings.choice == .chatGPT { noticeMessage = "The account change is finishing. Your draft is saved."; return }
         if settings.choice == .chatGPT && ((settings.chatGPTAccountID == nil && !(settings.useComputer && settings.companion != nil)) || settings.chatGPTModel.isEmpty) {
             showModels = true; noticeMessage = "Connect ChatGPT or choose an on-device model. Your draft is saved."; return
@@ -566,20 +577,23 @@ final class AppModel: ObservableObject {
     }
     func beginEditing(_ message: Message) {
         guard !isRunning, message.isRequest, conversation.messages.contains(where: { $0.id == message.id }) else { return }
-        if editingMessageID == nil { draftBeforeEditing = (draft, attachedCaptureIDs, attachedFileIDs, draftContainsHealthData, selectedImagePoints) }
+        if editingMessageID == nil { draftBeforeEditing = (draft, attachedCaptureIDs, attachedFileIDs, draftContainsHealthData, selectedImagePoints, draftContextReferences) }
         editingMessageID = message.id; draft = message.text
         attachedCaptureIDs = message.captureIDs; attachedFileIDs = message.fileIDs; draftContainsHealthData = message.containsHealthData
         selectedImagePoints = message.imageSelections
+        draftContextReferences = message.contextReferences
     }
     func cancelEditing() {
         guard editingMessageID != nil else { return }
-        if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections }
+        if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections; draftContextReferences = prior.references }
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
     private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false) {
         guard let engine else { return }
+        conversationSelectionID = UUID()
         let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
+        let contextReferences = draftContextReferences
         let previousIDs = Set(original.messages.map(\.id))
         draftTask?.cancel()
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
@@ -646,7 +660,7 @@ final class AppModel: ObservableObject {
                     activity = "Continuing from saved work"
                 } else {
                     events = engine.respond(conversation: current, text: text, captureIDs: attachments, backend: selectedBackend,
-                        containsHealthData: healthData, fileIDs: fileAttachments, imageSelections: imageSelections, workspaceEnabled: selection.workspaceSearchEnabled,
+                        containsHealthData: healthData, fileIDs: fileAttachments, imageSelections: imageSelections, contextReferences: contextReferences, workspaceEnabled: selection.workspaceSearchEnabled,
                         automaticMemory: selection.automaticMemory, additionalTools: extras, additionalExecutor: execute, appContext: appContext)
                 }
                 for try await event in events {
@@ -676,6 +690,7 @@ final class AppModel: ObservableObject {
                             attachedCaptureIDs = []
                             selectedImagePoints = [:]
                             attachedFileIDs = []
+                            draftContextReferences = []
                             if draft == text || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { draft = ""; flushDraft() }
                         }
                     case .toolResult(let result):
@@ -790,6 +805,7 @@ final class AppModel: ObservableObject {
             return UILocalIsolationBackend()
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-interactions") { return UIInteractionBackend() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-product117") { return UIProductBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-streaming") { return UIStreamingBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-continuity") { return UIContinuityBackend() }
         if ProcessInfo.processInfo.arguments.contains("--ui-background") { return UIBackgroundBackend() }
@@ -829,18 +845,35 @@ final class AppModel: ObservableObject {
 
     func saveSettings(_ value: ModelSettings, credential: String = "") throws {
         guard !isRunning else { throw AssistantError.busy }
+        let previous = settings
         let changedAccountRoute = value.useComputer != settings.useComputer || value.companion != settings.companion || value.localOnly != settings.localOnly
+        guard !value.includeInDeviceBackup || !libraryContainsHealthData else { throw AssistantError.provider("A library containing Health-derived information stays excluded from device backups. You can export selected items yourself.") }
+        guard credential.isEmpty || !credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AssistantError.provider("Enter a connection credential, or leave the field empty to keep the saved credential.") }
+        if let endpoint = value.endpoint { try EndpointPolicy.validate(endpoint) }
+        guard let settingsURL else { throw AssistantError.provider("App storage is unavailable.") }
+        let priorCredential = try (!credential.isEmpty ? value.credentialAccount.map { try CredentialStore.read(account: $0) } : nil)
+        let backupChanged = value.includeInDeviceBackup != previous.includeInDeviceBackup
+        do {
+            if backupChanged, let root { try PrivatePaths.configureBackup(root: root, includeUserData: value.includeInDeviceBackup) }
+            if !credential.isEmpty, let account = value.credentialAccount { try CredentialStore.save(credential, account: account) }
+            #if DEBUG
+            if failPreferenceWritesForTest { throw CocoaError(.fileWriteNoPermission) }
+            #endif
+            try JSONEncoder().encode(value).write(to: settingsURL, options: .atomic)
+        } catch {
+            var rollbackFailed = false
+            if let account = value.credentialAccount, let priorCredential {
+                do { if priorCredential.isEmpty { try CredentialStore.remove(account: account) } else { try CredentialStore.save(priorCredential, account: account) } }
+                catch { rollbackFailed = true }
+            }
+            if backupChanged, let root { do { try PrivatePaths.configureBackup(root: root, includeUserData: previous.includeInDeviceBackup) } catch { rollbackFailed = true } }
+            if rollbackFailed { throw AssistantError.provider("The preferences were not committed, and a system-storage change could not be restored. Unlock the iPhone and review the connection and backup settings before retrying.") }
+            throw error
+        }
         if value.choice != settings.choice || value.networkDestination != settings.networkDestination || value.localRepository != settings.localRepository
             || value.chatGPTModel != settings.chatGPTModel || value.openAIModel != settings.openAIModel || value.localOnly || !value.automaticChatTitles {
-            titleTask?.cancel()
-            activity = nil; activeToolCall = nil; noticeMessage = nil
-            responseWasBackgrounded = false
+            titleTask?.cancel(); activity = nil; activeToolCall = nil; noticeMessage = nil; responseWasBackgrounded = false
         }
-        guard !value.includeInDeviceBackup || !libraryContainsHealthData else { throw AssistantError.provider("A library containing Health-derived information stays excluded from device backups. You can export selected items yourself.") }
-        if let endpoint = value.endpoint { try EndpointPolicy.validate(endpoint) }
-        if !credential.isEmpty, let account = value.credentialAccount { try CredentialStore.save(credential, account: account) }
-        guard let settingsURL else { throw AssistantError.provider("App storage is unavailable.") }
-        try JSONEncoder().encode(value).write(to: settingsURL, options: .atomic)
         let leavingLocal = settings.choice == .localMLX && value.choice != .localMLX
         let changedLocal = value.localRepository != settings.localRepository || value.localRevision != settings.localRevision || value.localResponseTokens != settings.localResponseTokens
             || value.localContextTokens != settings.localContextTokens || value.localMemoryGiB != settings.localMemoryGiB
@@ -857,7 +890,12 @@ final class AppModel: ObservableObject {
         if value.localOnly { cancelConnection(); stopDownload() }
         if changedLocal { rebuildLocalBackend() }
         else if leavingLocal { releaseLocalBackend(localBackend) }
-        if let root { try PrivatePaths.configureBackup(root: root, includeUserData: value.includeInDeviceBackup) }
+    }
+    #if DEBUG
+    var failPreferenceWritesForTest = false
+    #endif
+    func updatePreference<Value>(_ key: WritableKeyPath<ModelSettings, Value>, to value: Value) throws {
+        var next = settings; next[keyPath: key] = value; try saveSettings(next)
     }
     func setPlanningAccess(calendars: [String], reminders: [String], connected: Bool) throws {
         guard let settingsURL else { throw AssistantError.provider("App storage is unavailable.") }
@@ -1295,6 +1333,7 @@ final class AppModel: ObservableObject {
     func refreshAccounts(force: Bool = false) async {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return }
+        if ProcessInfo.processInfo.arguments.contains("--ui-product117") { return }
         #endif
         let refreshID = UUID(); accountRefreshID = refreshID
         guard !settings.localOnly else { modelCatalog = .init(); return }
@@ -1316,15 +1355,11 @@ final class AppModel: ObservableObject {
                 }
                 let catalog = try await client.json(force ? "/v1/models?refresh=1" : "/v1/models")
                 guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }
-                guard catalog["profile_id"] == .string(connection.profileID) else { throw AssistantError.provider("The account on the computer changed. Check Account & connection before loading its models.") }
-                let models = try ChatGPTModel.catalog(from: JSONEncoder().encode(catalog))
-                if catalog["catalog"]?["state"] == .string("unavailable") {
-                    modelCatalog.failed(owner: owner, message: catalog["catalog"]?["error"]?.stringValue ?? "The model list could not refresh. Your sign-in is saved.")
+                let observation = try ModelCatalogState.computerObservation(catalog, profileID: connection.profileID, owner: owner)
+                if observation.phase == .unavailable {
+                    modelCatalog.failed(owner: owner, message: observation.issue ?? "Current model availability could not be checked. Your sign-in is saved.")
                 } else {
-                    let dateText = catalog["catalog"]?["updated_at"]?.stringValue
-                    let date = dateText.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
-                    let stale = catalog["catalog"]?["state"] == .string("stale") ? (catalog["catalog"]?["error"]?.stringValue ?? "Current model availability could not be checked.") : nil
-                    keepModelCatalog(AccountModelCatalog(owner: owner, models: models, updatedAt: date), staleReason: stale)
+                    keepModelCatalog(AccountModelCatalog(owner: owner, models: observation.models, updatedAt: observation.updatedAt ?? Date()), staleReason: observation.issue)
                 }
             } catch {
                 guard accountRefreshID == refreshID, settings.companion == connection, usesComputerChatGPT, !settings.localOnly else { return }

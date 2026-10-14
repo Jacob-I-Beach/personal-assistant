@@ -7,6 +7,13 @@ struct LibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var showImport = false
+    @State private var searchResult: LibrarySearchResult?
+    @State private var searching = false
+    @State private var searchError: String?
+    @State private var scope = "All"
+    private var searchKey: String { query + model.files.map { $0.id.uuidString }.joined() + model.artifacts.map { $0.id.uuidString + String($0.revision) }.joined() }
+    private var filteredFiles: [WorkspaceFile] { scope == "Documents" ? [] : model.files.filter { query.isEmpty || searchResult?.fileIDs.contains($0.id) == true } }
+    private var filteredArtifacts: [ArtifactRecord] { scope == "Imported files" ? [] : latestArtifacts.filter { query.isEmpty || searchResult?.artifactIDs.contains($0.id) == true } }
     private var latestArtifacts: [ArtifactRecord] {
         let oldVersions = Set(model.artifacts.compactMap(\.previousRevisionID))
         return model.artifacts.filter { !oldVersions.contains($0.id) }
@@ -22,7 +29,13 @@ struct LibraryView: View {
                     NavigationLink { MemoryView() } label: { Label("Saved memory", systemImage: "brain.head.profile") }
                 }
                 Section("Your files") {
-                    ForEach(model.files.filter { query.isEmpty || ($0.filename + " " + $0.text).localizedCaseInsensitiveContains(query) }) { file in
+                    Picker("Show", selection: $scope) { ForEach(["All", "Imported files", "Documents"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented)
+                    if searching { ProgressView("Searching Library") }
+                    if let searchError { Text(searchError).foregroundStyle(.secondary) }
+                    if !query.isEmpty && !searching && searchError == nil && filteredFiles.isEmpty && filteredArtifacts.isEmpty {
+                        ContentUnavailableView.search(text: query)
+                    }
+                    ForEach(filteredFiles) { file in
                         NavigationLink { WorkspaceFileView(id: file.id) } label: { WorkspaceFileRow(file: file) }
                     }
                     if latestArtifacts.isEmpty && model.files.isEmpty {
@@ -31,13 +44,23 @@ struct LibraryView: View {
                             Text("Documents, tables, scripts, and other files created in a conversation will appear here. You can edit, share, and revisit them.").foregroundStyle(.secondary)
                         }.padding(.vertical, 10)
                     }
-                    ForEach(latestArtifacts.filter { query.isEmpty || ($0.filename + " " + $0.content).localizedCaseInsensitiveContains(query) }) { artifact in
+                    ForEach(filteredArtifacts) { artifact in
                         NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }
                     }
                 }
             }
             .navigationTitle("Library")
             .searchable(text: $query, prompt: "Search files and contents")
+            .task(id: searchKey) {
+                guard !query.isEmpty else { searchResult = nil; searching = false; searchError = nil; return }
+                searching = true; searchError = nil; searchResult = nil
+                do {
+                    try await Task.sleep(for: .milliseconds(200))
+                    let result = try await model.store?.searchLibrary(query)
+                    try Task.checkCancellation(); searchResult = result; searching = false
+                } catch is CancellationError { }
+                catch { searchError = error.localizedDescription; searching = false }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Import files", systemImage: "doc.badge.plus") { showImport = true }.disabled(model.isImportingFiles) }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
@@ -67,103 +90,122 @@ struct ArtifactCard: View {
 }
 struct ArtifactDetailView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var artifact: ArtifactRecord
-    @State private var text = ""
-    @State private var editing = false
+    @StateObject private var editor: ArtifactEditor
     @State private var exportURL: URL?
-    @State private var saving = false
     @State private var showExport = false
-    @State private var exportNotice: String?
-    @State private var draftTask: Task<Void, Never>?
-    @State private var history: [ArtifactRecord] = []
     @State private var showHistory = false
-    init(artifact: ArtifactRecord) { _artifact = State(initialValue: artifact) }
+    @State private var showComparison = false
+    @State private var discardDraft = false
+    @State private var history: [ArtifactRecord] = []
+    init(artifact: ArtifactRecord) { _editor = StateObject(wrappedValue: ArtifactEditor(artifact: artifact)) }
     var body: some View {
-        Group {
-            if editing { TextEditor(text: $text).font(.body.monospaced()).padding(10).accessibilityLabel("Edit artifact").disabled(saving) }
+        VStack(spacing: 0) {
+            if editor.loading { ProgressView("Opening saved document").frame(maxWidth: .infinity, maxHeight: .infinity) }
             else {
-                ScrollView {
-                    if artifact.filename.hasSuffix(".md") { AssistantMarkdown(text: text).padding(20).frame(maxWidth: .infinity, alignment: .leading) }
-                    else { Text(text).font(.body.monospaced()).textSelection(.enabled).padding(20).frame(maxWidth: .infinity, alignment: .leading) }
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(editor.editing ? (editor.draftSaved ? "Draft saved on this device" : "Editing draft") : "Saved revision \(editor.artifact.revision)").font(.subheadline.weight(.medium)).accessibilityIdentifier("artifact-version-status")
+                        if editor.editing { Text(editor.baseRevision.map { "Based on revision \($0)" } ?? "Older draft · compare before saving").font(.caption).foregroundStyle(.secondary) }
+                    }
+                    Spacer()
+                    if !editor.editing && editor.hasDraft { Button("Resume draft") { editor.beginEditing() }.font(.subheadline) }
+                }.padding(.horizontal, 20).padding(.vertical, 12)
+                if editor.editing {
+                    TextEditor(text: $editor.text).font(.body.monospaced()).padding(10).accessibilityLabel("Edit artifact").disabled(editor.saving)
+                } else {
+                    ScrollView {
+                        if editor.artifact.filename.hasSuffix(".md") { AssistantMarkdown(text: editor.artifact.content).padding(20).frame(maxWidth: .infinity, alignment: .leading) }
+                        else if ["csv", "tsv"].contains(URL(fileURLWithPath: editor.artifact.filename).pathExtension.lowercased()) {
+                            DelimitedContentView(text: editor.artifact.content, delimiter: editor.artifact.filename.lowercased().hasSuffix(".tsv") ? "\t" : ",")
+                        } else { Text(editor.artifact.content).font(.body.monospaced()).textSelection(.enabled).padding(20).frame(maxWidth: .infinity, alignment: .leading) }
+                    }
                 }
             }
         }
-        .navigationTitle(artifact.filename).navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(editor.artifact.filename).navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if editing {
-                    Button("Save revision") {
-                        saving = true; draftTask?.cancel()
-                        Task {
-                            if let revised = await model.reviseArtifact(artifact, content: text) {
-                                artifact = revised; text = revised.content; exportURL = await model.artifactURL(revised); editing = false
-                            }
-                            saving = false
-                        }
-                    }.disabled(saving || text == artifact.content)
+                if editor.editing {
+                    Menu {
+                        Button("View saved revision") { Task { await editor.showSaved(); await refreshExport() } }
+                        Button("Compare with saved revision") { Task { await editor.reviewCurrent(); showComparison = true } }
+                        Button("Discard draft", role: .destructive) { discardDraft = true }
+                    } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Draft actions")
+                    Button("Save revision") { Task { await save() } }.disabled(!editor.canSave)
                 } else {
-                    Button("Edit", systemImage: "pencil") { editing = true }
-                    Button("Revision history", systemImage: "clock.arrow.circlepath") {
-                        Task { history = (try? await model.store?.artifactHistory(artifact.id)) ?? []; showHistory = true }
-                    }
-                    if let exportURL {
-                        Menu {
-                            ShareLink(item: exportURL) { Label("Share", systemImage: "square.and.arrow.up") }
-                            Button("Save to Files", systemImage: "folder.badge.plus") { exportNotice = nil; showExport = true }
-                        } label: { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Artifact actions")
-                    }
+                    Button("Edit", systemImage: "pencil") { editor.beginEditing() }.disabled(editor.loading)
+                    Menu {
+                        Button("Revision history", systemImage: "clock.arrow.circlepath") {
+                            Task { history = (try? await model.store?.artifactHistory(editor.artifact.id)) ?? []; showHistory = true }
+                        }
+                        if let exportURL {
+                            ShareLink(item: exportURL) { Label("Share saved revision", systemImage: "square.and.arrow.up") }
+                            Button("Save to Files", systemImage: "folder.badge.plus") { showExport = true }
+                        }
+                    } label: { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Artifact actions")
                 }
             }
         }
-        .sheet(isPresented: $showExport, onDismiss: { if exportNotice == nil { exportNotice = "Export cancelled." } }) {
-            if let exportURL {
-                DocumentExportPicker(url: exportURL) { status in
-                    exportNotice = status == "completed" ? "Export completed. Cloud synchronization was not checked." : "Export cancelled."
-                    showExport = false
+        .safeAreaInset(edge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                if editor.needsComparison {
+                    Text("The draft is based on a different saved version. Compare before saving.").font(.subheadline)
+                    Button("Compare versions") { Task { await editor.reviewCurrent(); showComparison = true } }
                 }
+                if let error = editor.error { Text(error).font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("artifact-local-error") }
+                if let notice = editor.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(editor.needsComparison || editor.error != nil || editor.notice != nil ? 16 : 0).background(.bar)
+        }
+        .confirmationDialog("Discard this draft?", isPresented: $discardDraft, titleVisibility: .visible) {
+            Button("Discard draft", role: .destructive) { Task { await editor.discard(); await refreshExport() } }
+            Button("Keep draft", role: .cancel) { }
+        } message: { Text("The saved document and its revision history will stay unchanged.") }
+        .sheet(isPresented: $showComparison) {
+            NavigationStack {
+                List {
+                    Section("Saved revision \(editor.artifact.revision)") { Text(editor.artifact.content).textSelection(.enabled) }
+                    Section(editor.baseRevision.map { "Draft based on revision \($0)" } ?? "Draft with an unknown base") { Text(editor.text).textSelection(.enabled) }
+                    Section {
+                        Button("Use draft with this saved revision") { Task { await editor.useDraftOverCurrentRevision(); showComparison = false } }
+                        Text("This keeps your draft and updates its base. Save revision is still a separate action.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }.navigationTitle("Compare versions").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showComparison = false } } }
             }
         }
         .sheet(isPresented: $showHistory) {
             NavigationStack {
                 List {
-                    Text("Current revision \(artifact.revision)").font(.headline)
-                    if history.isEmpty { Text("Earlier revisions will appear here after a saved change.").foregroundStyle(.secondary) }
+                    Text("Current revision \(editor.artifact.revision)").font(.headline)
+                    if history.isEmpty { Text("Earlier revisions appear after a saved change.").foregroundStyle(.secondary) }
                     ForEach(history, id: \.revision) { earlier in
                         DisclosureGroup("Revision \(earlier.revision)") {
-                            Text(earlier.content).font(.subheadline).textSelection(.enabled)
-                            Button("Restore as a new revision") {
-                                Task { if let revised = await model.reviseArtifact(artifact, content: earlier.content) { artifact = revised; text = revised.content; exportURL = await model.artifactURL(revised); showHistory = false } }
-                            }
+                            Text(earlier.content).textSelection(.enabled)
+                            Button("Use this version as a draft") { editor.useHistoricalText(earlier.content); showHistory = false }.disabled(editor.hasDraft)
+                            if editor.hasDraft { Text("Finish or discard your existing draft first.").font(.caption).foregroundStyle(.secondary) }
                         }
                     }
                 }.navigationTitle("Document history").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showHistory = false } } }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if let exportNotice { Text(exportNotice).font(.caption).foregroundStyle(.secondary).padding().frame(maxWidth: .infinity).background(.bar) }
+        .sheet(isPresented: $showExport) {
+            if let exportURL { DocumentExportPicker(url: exportURL) { result in editor.notice = result == "completed" ? "Export completed. Cloud synchronization was not checked." : "Export cancelled."; showExport = false } }
         }
-        .task {
-            if let draft = try? await model.store?.artifactDraft(id: artifact.id) { text = draft; editing = true }
-            else { text = artifact.content }
-            exportURL = await model.artifactURL(artifact)
+        .task { await editor.load(model.store); await refreshExport() }
+        .onChange(of: editor.text) { _, _ in editor.changed() }
+        .onChange(of: model.artifacts.first(where: { $0.id == editor.artifact.id })?.revision) { _, _ in
+            guard !editor.loading, !editor.saving else { return }
+            Task { await editor.reviewCurrent(); if !editor.editing { await refreshExport() } }
         }
-        .onChange(of: text) { _, value in
-            guard editing, !saving else { return }
-            draftTask?.cancel()
-            let id = artifact.id
-            draftTask = Task {
-                try? await Task.sleep(for: .milliseconds(400))
-                guard !Task.isCancelled else { return }
-                do { try await model.store?.saveArtifactDraft(id: id, text: value) }
-                catch { model.errorMessage = error.localizedDescription }
-            }
-        }
-        .onDisappear {
-            draftTask?.cancel()
-            if editing && text != artifact.content {
-                let id = artifact.id, value = text
-                Task { try? await model.store?.saveArtifactDraft(id: id, text: value) }
-            }
+        .onDisappear { Task { await editor.flush() } }
+    }
+    private func refreshExport() async {
+        do { exportURL = try await model.store?.exportArtifact(editor.artifact) }
+        catch { editor.error = error.localizedDescription }
+    }
+    private func save() async {
+        if let result = await editor.save() {
+            if let warning = await model.publishArtifactEdit(previous: result.previous, saved: result.saved) { editor.notice = warning }
+            await refreshExport(); AppFeedback.play(.saved)
         }
     }
 }

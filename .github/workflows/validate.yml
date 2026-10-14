@@ -13,7 +13,7 @@ on:
       validation_scope:
         description: Full UI suite, streaming repair, or a single capped EventKit/Release repair job
         type: choice
-        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification, response-09, health-09, foundation-10, companion-10, continuity-101, companion-tls, activity-103, activity-103-chat, server-110, coherence-111, pushward-112, local-113, audit-114, catalog-layout-114, models-115]
+        options: [full, streaming-repair, planning-repair, interaction-diagnostics, release-verification, response-09, health-09, foundation-10, companion-10, continuity-101, companion-tls, activity-103, activity-103-chat, server-110, coherence-111, pushward-112, local-113, audit-114, catalog-layout-114, models-115, product-117]
         default: full
 permissions:
   contents: read
@@ -198,7 +198,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(inputs.validation_scope == 'models-115' && '["models-115"]' || inputs.validation_scope == 'catalog-layout-114' && '["catalog-layout-114"]' || inputs.validation_scope == 'audit-114' && '["audit-114"]' || inputs.validation_scope == 'local-113' && '["local-113"]' || inputs.validation_scope == 'pushward-112' && '["pushward-112"]' || inputs.validation_scope == 'coherence-111' && '["coherence-111"]' || inputs.validation_scope == 'server-110' && '["server-110"]' || inputs.validation_scope == 'activity-103-chat' && '["activity-103-chat"]' || inputs.validation_scope == 'activity-103' && '["activity-103"]' || inputs.validation_scope == 'companion-tls' && '["companion-tls"]' || inputs.validation_scope == 'continuity-101' && '["continuity-101"]' || inputs.validation_scope == 'companion-10' && '["companion-10"]' || (inputs.validation_scope == 'foundation-10' && '["foundation-10"]' || (inputs.validation_scope == 'health-09' && '["health-review"]' || (inputs.validation_scope == 'response-09' && '["response-controls","health-recovery"]' || (inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))))))) }}
+        suite: ${{ fromJSON(inputs.validation_scope == 'product-117' && '["product-drafts117","product-navigation117","product-interactions117"]' || inputs.validation_scope == 'models-115' && '["models-115"]' || inputs.validation_scope == 'catalog-layout-114' && '["catalog-layout-114"]' || inputs.validation_scope == 'audit-114' && '["audit-114"]' || inputs.validation_scope == 'local-113' && '["local-113"]' || inputs.validation_scope == 'pushward-112' && '["pushward-112"]' || inputs.validation_scope == 'coherence-111' && '["coherence-111"]' || inputs.validation_scope == 'server-110' && '["server-110"]' || inputs.validation_scope == 'activity-103-chat' && '["activity-103-chat"]' || inputs.validation_scope == 'activity-103' && '["activity-103"]' || inputs.validation_scope == 'companion-tls' && '["companion-tls"]' || inputs.validation_scope == 'continuity-101' && '["continuity-101"]' || inputs.validation_scope == 'companion-10' && '["companion-10"]' || (inputs.validation_scope == 'foundation-10' && '["foundation-10"]' || (inputs.validation_scope == 'health-09' && '["health-review"]' || (inputs.validation_scope == 'response-09' && '["response-controls","health-recovery"]' || (inputs.validation_scope == 'streaming-repair' && '["streaming"]' || (inputs.validation_scope == 'release-verification' && '["release"]' || (inputs.validation_scope == 'interaction-diagnostics' && '["disclosure","attachment","coherence"]' || '["workflows","reading","files","library","coherence"]'))))))) }}
     runs-on: xcode-27
     timeout-minutes: 15
     steps:
@@ -231,6 +231,18 @@ jobs:
           fi
           test_options=()
           case "${{ matrix.suite }}" in
+            product-drafts117)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests/ProductJourneyPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests")
+              scenarios="testProduct117DraftRestoresWithoutChangingSavedRevision testProduct117PreferenceSavesWithoutGlobalSaveModal testProduct117AttachmentsPreviewCancelAndAddPreserveDraft"
+              ;;
+            product-navigation117)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests")
+              scenarios="testProduct117SearchReturnsToExactOldMessageAndKeepsQuery testWelcomeCatalogAndSettings testDarkAndLargeTextControlsRemainUsable testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testLocalMessageStaysLocalWithSavedComputerWork"
+              ;;
+            product-interactions117)
+              test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests")
+              scenarios="testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly testProduct117DictationDoesNotCancelAnActiveResponse testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable"
+              ;;
             models-115)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests")
               scenarios="testLocalQwenContextAndMemoryControlsAreReachable testInsufficientQwenAllowanceRequiresAnExplicitSmallerContext testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings testLocalMessageStaysLocalWithSavedComputerWork testWelcomeCatalogAndSettings testDarkAndLargeTextControlsRemainUsable testAttachmentPreviewWorkingSurfacesAndActualMessageEdit"

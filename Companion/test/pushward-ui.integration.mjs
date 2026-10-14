@@ -19,6 +19,10 @@ try{
   browser=await chromium.launch({headless:true,executablePath:'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'});
   const page=await browser.newPage({viewport:{width:1180,height:900}});
   await page.goto(service.setupURL);
+  await page.locator('body.returning').waitFor();
+  assert.equal(await page.locator('#connections-panel').getAttribute('open'),null);
+  assert.equal(await page.locator('.work').evaluate((work)=>work.getBoundingClientRect().top<document.querySelector('#connections-panel').getBoundingClientRect().top),true);
+  await page.locator('#connections-panel > summary').click();
   await page.getByText('Ready for Python, spreadsheets, documents and page inspection.').waitFor();
   assert.equal(await page.locator('#bridge-form').isVisible(),false);
   assert.equal(await page.locator('#bridge-test').isVisible(),false);
@@ -39,5 +43,12 @@ try{
   await page.locator('#push-status').scrollIntoViewIfNeeded();
   await page.screenshot({path:join(directory,'deferred-delivery-controls.png')});
   await page.locator('#account').scrollIntoViewIfNeeded();await page.screenshot({path:join(directory,'catalog-unavailable-controls.png')});
+  await page.emulateMedia({colorScheme:'light',reducedMotion:'reduce'});
+  await page.setViewportSize({width:420,height:880});
+  await page.locator('#connections-panel > summary').click();await page.evaluate(()=>scrollTo(0,0));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'narrow layout must not overflow');
+  await page.screenshot({path:join(directory,'companion-returning-light-117.png')});
+  await page.emulateMedia({colorScheme:'dark'});await page.setViewportSize({width:1180,height:900});
+  await page.screenshot({path:join(directory,'companion-returning-dark-117.png')});
   console.log('Deferred delivery controls and absence of PushWard calls verified in Edge. No live push or model call.');
 }finally{await browser?.close();await service.close();await rm(root,{recursive:true,force:true});}

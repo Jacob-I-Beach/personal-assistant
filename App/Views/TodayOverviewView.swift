@@ -5,16 +5,15 @@ struct TodayOverviewView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var navigation: ChatNavigation
     @ObservedObject var planning: PlanningService
+    var showsQuestions = true
     @State private var selectedItem: PlanningItem?
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
+            if !model.settings.calendarSourceIDs.isEmpty || !model.settings.reminderSourceIDs.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 HStack { Text("Today").font(.headline); Spacer(); Button("Planning access", systemImage: "slider.horizontal.3") { model.showPlanningAccess = true }.labelStyle(.iconOnly) }
                 if let notice = planning.homeNotice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
-                if model.settings.calendarSourceIDs.isEmpty && model.settings.reminderSourceIDs.isEmpty {
-                    Button { model.showPlanningAccess = true } label: { Label("Connect Calendar & Reminders", systemImage: "calendar.badge.plus").font(.subheadline) }
-                    Text("Bring your schedule and commitments into your day.").font(.caption).foregroundStyle(.secondary)
-                } else if planning.today.isEmpty { Text("No events or due reminders in your selected sources today.").font(.subheadline).foregroundStyle(.secondary) }
+                if planning.today.isEmpty { Text("No events or due reminders in your selected sources today.").font(.subheadline).foregroundStyle(.secondary) }
                 ForEach(planning.today.prefix(6), id: \.id) { item in
                     Button { selectedItem = item } label: {
                         HStack(alignment: .top, spacing: 12) {
@@ -28,7 +27,8 @@ struct TodayOverviewView: View {
                     }.buttonStyle(.plain)
                 }
             }.padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
-            if !model.pendingQuestions.isEmpty {
+            }
+            if showsQuestions && !model.pendingQuestions.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Needs you").font(.headline)
                     ForEach(model.pendingQuestions.prefix(3)) { question in
@@ -60,7 +60,7 @@ struct TodayOverviewView: View {
                 }
             }
         }
-        .sheet(item: $selectedItem) { item in
+        .sheet(item: $selectedItem, onDismiss: { navigation.presentationDidDismiss() }) { item in
             NavigationStack {
                 List {
                     Section { Text(item.title).font(.title2.weight(.semibold)); Text(item.sourceTitle).foregroundStyle(.secondary) }
@@ -69,6 +69,11 @@ struct TodayOverviewView: View {
                     if !item.location.isEmpty { Text(item.location) }
                     if !item.notes.isEmpty { Text(item.notes).textSelection(.enabled) }
                     Text(item.kind == "calendar" ? "Ask the assistant to help prepare for this event or find another time. Changes appear for review." : "Ask the assistant to update or complete this reminder. Changes appear for review.").font(.footnote).foregroundStyle(.secondary)
+                    Button(item.kind == "calendar" ? "Prepare for this event" : "Plan this reminder", systemImage: "text.bubble") {
+                        let ref = ContextReference(kind: item.kind == "calendar" ? .calendar : .reminder, sourceID: item.id, title: item.title, conversationID: model.conversation.id, snapshot: try? item.modelValue.jsonString())
+                        navigation.compose(ContextualDraftProposal(reference: ref, prompt: item.kind == "calendar" ? "Help me prepare for this event." : "Help me plan this reminder."), afterDismissal: true)
+                        selectedItem = nil
+                    }.disabled(model.isRunning)
                 }.navigationTitle(item.kind == "calendar" ? "Event" : "Reminder").navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { selectedItem = nil } } }
             }

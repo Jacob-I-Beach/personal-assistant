@@ -3,6 +3,7 @@ import SwiftUI
 
 struct WorkReceiptView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var navigation: ChatNavigation
     let message: Message
     @State private var memoryUndoNotice: String?
     private var call: ToolCall? {
@@ -105,6 +106,16 @@ struct WorkReceiptView: View {
                         ForEach(ToolResultPresentation.summary(tool: toolName, output: output)) { field in
                             VStack(alignment: .leading, spacing: 3) { Text(field.label).font(.caption).foregroundStyle(.secondary); Text(field.value).font(.subheadline) }
                         }
+                    }
+                    if message.toolFailureDescription == nil,
+                       let raw = output?["artifact_id"]?.stringValue, let id = UUID(uuidString: raw),
+                       let artifact = model.artifacts.first(where: { $0.id == id && $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains(id) }) {
+                        Button { navigation.destination = .artifact(id) } label: { Label("Open " + artifact.filename, systemImage: "doc.text") }
+                    }
+                    if message.toolFailureDescription == nil,
+                       let raw = output?["file_id"]?.stringValue, let id = UUID(uuidString: raw),
+                       let file = model.files.first(where: { $0.id == id && !model.conversation.excludedFileIDs.contains(id) }) {
+                        Button { navigation.destination = .file(id) } label: { Label("Open " + file.filename, systemImage: file.icon) }
                     }
                     if ["save_memory", "forget_memory"].contains(toolName), let raw = output?["memory_change_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
                         if let title = output?["title"]?.stringValue { Text(title).font(.subheadline) }

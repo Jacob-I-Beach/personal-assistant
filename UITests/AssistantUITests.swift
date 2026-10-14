@@ -486,7 +486,8 @@ final class AssistantUITests: XCTestCase {
         let first = app.staticTexts["1+1"]
         for _ in 0..<12 { if first.isHittable { break }; app.swipeDown() }
         XCTAssertTrue(first.isHittable)
-        app.buttons["Edit message"].firstMatch.tap()
+        app.buttons["Actions for earlier request"].firstMatch.tap()
+        app.buttons["Edit message"].tap()
         XCTAssertTrue(app.staticTexts["Editing message"].waitForExistence(timeout: 5))
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
         composer.tap(); composer.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "1+2")
@@ -640,7 +641,7 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Settings & access"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Settings")
-        app.buttons["Close"].tap()
+        app.buttons["Done"].tap()
         XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
 
@@ -649,9 +650,10 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["study-plan.md"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Files in this chat"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Copy code"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Conversation-rich-content")
+        app.buttons["Files in this chat"].tap()
         app.staticTexts["study-plan.md"].tap()
         XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Artifact-preview")
@@ -672,7 +674,7 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-demo"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["study-plan.md"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Files in this chat"].waitForExistence(timeout: 15))
         app.terminate()
         app.launchArguments = ["--ui-library"]
         app.launch()
@@ -682,7 +684,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Recently created"].exists)
         app.buttons["Add to message"].tap()
         XCTAssertTrue(app.buttons["Choose files"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Library"].exists)
+        XCTAssertTrue(app.buttons["From Library"].exists)
         XCTAssertFalse(app.buttons["Read responses aloud"].exists)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
         app.buttons["History"].tap()
@@ -709,16 +711,16 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Sidebar-managed-chats")
         app.buttons["Close sidebar"].tap()
         app.buttons["Add to message"].tap()
-        app.buttons["Library"].tap()
+        app.buttons["From Library"].tap()
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
-        app.staticTexts["sample.csv"].tap()
-        app.buttons["Attach to current chat"].tap()
+        app.buttons["Select sample.csv"].tap()
+        app.buttons["Add 1"].tap()
         print("After Library attachment, app state: \(app.state.rawValue)\n" + app.debugDescription)
         saveScreenshot(app, name: "After-library-attachment")
         XCTAssertTrue(app.staticTexts["sample.csv"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "File-attachment")
         app.buttons["Add to message"].tap()
-        app.buttons["Library"].tap()
+        app.buttons["From Library"].tap()
         XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Library-files")
         app.staticTexts["study-report.pdf"].tap()
@@ -790,7 +792,7 @@ final class AssistantUITests: XCTestCase {
         app.buttons["252,000 tokens"].tap(); app.buttons["Done"].tap()
         XCTAssertFalse(app.alerts["Could not finish"].exists)
         app.buttons["Assistant menu"].tap()
-        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists); XCTAssertFalse(app.buttons["Library"].exists)
+        XCTAssertFalse(app.buttons["New conversation"].exists); XCTAssertFalse(app.buttons["Settings"].exists); XCTAssertFalse(app.buttons["From Library"].exists)
         saveScreenshot(app, name: "Focused-chat-menu")
     }
 
@@ -937,6 +939,116 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(contacts.waitForExistence(timeout: 5)); contacts.tap()
         XCTAssertTrue(app.buttons["Connect Contacts"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Contacts-connection")
+    }
+
+
+    private func productApp(_ mode: String) -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-product117", "--ui-product117-" + mode, "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Add to message"].waitForExistence(timeout: 15))
+        return app
+    }
+    private func openProductLibrary(_ app: XCUIApplication) {
+        app.buttons["History"].tap(); app.buttons["Library"].tap()
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
+    }
+    func testProduct117DraftRestoresWithoutChangingSavedRevision() {
+        let app = productApp("editor"); openProductLibrary(app)
+        app.staticTexts["journey-notes.md"].tap(); app.buttons["Edit"].tap()
+        let editor = app.textViews["Edit artifact"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5)); editor.tap(); editor.typeText("\nDraft amendment")
+        XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 5))
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 15)); openProductLibrary(app)
+        app.staticTexts["journey-notes.md"].tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5)); XCTAssertTrue((editor.value as? String ?? "").contains("Draft amendment"))
+        saveScreenshot(app, name: "Product117-restored-draft")
+        app.buttons["Draft actions"].tap(); app.buttons["View saved revision"].tap()
+        XCTAssertTrue(app.staticTexts["Saved revision 1"].waitForExistence(timeout: 5)); XCTAssertFalse(app.staticTexts["Draft amendment"].exists)
+        app.buttons["Resume draft"].tap(); app.buttons["Draft actions"].tap(); app.buttons["Discard draft"].tap()
+        app.buttons["Discard draft"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Saved revision 1"].waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["Resume draft"].exists)
+        app.buttons["Edit"].tap(); editor.tap(); editor.typeText("\nA committed revision")
+        app.buttons["Save revision"].tap()
+        XCTAssertTrue(app.staticTexts["Saved revision 2"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Product117-saved-revision")
+    }
+    func testProduct117AttachmentsPreviewCancelAndAddPreserveDraft() {
+        let app = productApp("attachments")
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        composer.tap(); composer.typeText("Keep my draft")
+        app.buttons["Add to message"].tap(); app.buttons["From Library"].tap()
+        XCTAssertTrue(app.buttons["Select journey-table.csv"].waitForExistence(timeout: 5))
+        app.buttons["Preview journey-table.csv"].tap()
+        XCTAssertTrue(app.otherElements["file-content-preview"].waitForExistence(timeout: 5) || app.staticTexts["=1+1"].exists)
+        saveScreenshot(app, name: "Product117-file-preview")
+        app.buttons["Done"].tap(); app.buttons["Select journey-table.csv"].tap(); app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.buttons["Remove journey-table.csv"].exists)
+        XCTAssertEqual(composer.value as? String, "Keep my draft")
+        app.buttons["Add to message"].tap(); app.buttons["From Library"].tap()
+        app.buttons["Select journey-table.csv"].tap(); app.buttons["Add 1"].tap()
+        XCTAssertTrue(app.buttons["Remove journey-table.csv"].waitForExistence(timeout: 5))
+        XCTAssertEqual(composer.value as? String, "Keep my draft")
+        saveScreenshot(app, name: "Product117-attached-draft")
+    }
+    func testProduct117SearchReturnsToExactOldMessageAndKeepsQuery() {
+        let app = productApp("search")
+        app.buttons["History"].tap()
+        let search = app.searchFields.firstMatch; search.tap(); search.typeText("amber telescope")
+        let hit = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "history-match-")).firstMatch
+        XCTAssertTrue(hit.waitForExistence(timeout: 5)); hit.tap()
+        XCTAssertTrue(app.buttons["Back to results"].waitForExistence(timeout: 5))
+        let target = app.staticTexts["Exact old result: amber telescope"]
+        XCTAssertTrue(target.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(target.frame.maxY, 120); XCTAssertLessThan(target.frame.minY, app.frame.height - 130)
+        saveScreenshot(app, name: "Product117-exact-history-landing")
+        app.buttons["Back to results"].tap()
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); XCTAssertEqual(search.value as? String, "amber telescope")
+        XCTAssertTrue(hit.exists)
+    }
+    func testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly() {
+        let app = productApp("surfaces")
+        let exact = app.buttons["Set exact Minutes"]
+        for _ in 0..<6 { if exact.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(exact.isHittable); exact.tap()
+        let field = app.textFields["scenario-exact-value"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "30")
+        app.buttons["Apply value"].tap()
+        XCTAssertTrue(app.staticTexts["Points, 60"].waitForExistence(timeout: 5))
+        let ask = app.buttons["Ask about these changes"]
+        for _ in 0..<5 { if ask.isHittable { break }; app.swipeUp() }
+        ask.tap()
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        XCTAssertTrue((composer.value as? String ?? "").contains("Explain these changes"))
+        XCTAssertFalse(app.buttons["Stop response"].exists)
+        XCTAssertFalse(app.staticTexts["Synthetic response received the selected context."].exists)
+        saveScreenshot(app, name: "Product117-contextual-draft")
+    }
+    func testProduct117PreferenceSavesWithoutGlobalSaveModal() {
+        let app = productApp("settings")
+        app.buttons["History"].tap(); app.buttons["Settings & access"].tap()
+        let toggle = app.switches["Allow cellular downloads"]
+        for _ in 0..<5 { if toggle.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(toggle.isHittable)
+        let old = toggle.value as? String; toggle.tap(); let changed = toggle.value as? String
+        XCTAssertNotEqual(changed, old)
+        app.buttons["Done"].tap(); XCTAssertFalse(app.alerts["Settings saved"].exists)
+        app.buttons["History"].tap(); app.buttons["Settings & access"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5)); XCTAssertEqual(toggle.value as? String, changed)
+        saveScreenshot(app, name: "Product117-immediate-preferences")
+    }
+    func testProduct117DictationDoesNotCancelAnActiveResponse() {
+        continueAfterFailure = false
+        let app = XCUIApplication(); app.launchArguments = ["--ui-streaming", "--ui-dark"]
+        app.launch(); XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
+        XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 10))
+        app.buttons["Dictate message"].tap()
+        XCTAssertTrue(app.staticTexts["Finish or stop the response before dictating. Your draft and current work are kept."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Stop response"].exists)
+        saveScreenshot(app, name: "Product117-dictation-does-not-stop-work")
+        app.buttons["Stop response"].tap()
     }
 
     private func saveScreenshot(_ app: XCUIApplication, name: String) {

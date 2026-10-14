@@ -6,7 +6,10 @@ import UIKit
 final class ChatViewport: ObservableObject {
     @Published private(set) var nearBottom = true
     weak var controller: ChatScrollController?
+    private(set) var pendingMessage: (conversationID: UUID, id: UUID)?
     func jumpToLatest() { controller?.jumpToLatest() }
+    func jumpToMessage(_ id: UUID, in conversationID: UUID) { pendingMessage = (conversationID, id); controller?.focusMessage(id, in: conversationID) }
+    func messageWasFocused(_ id: UUID) { if pendingMessage?.id == id { pendingMessage = nil } }
     func pinDisclosure(_ id: UUID) { controller?.pinDisclosure(id) }
     func updateNearBottom(_ value: Bool) { if nearBottom != value { nearBottom = value } }
 }
@@ -65,6 +68,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
     private var frameDriver: ChatFrameDriver?
     private var lastFrameTime: CFTimeInterval = 0
     private var pendingJump = true
+    private var messageFocus: (conversationID: UUID, id: UUID)?
     private var reconciling = false
     private var lastContentSize = CGSize.zero
     private var lastViewportSize = CGSize.zero
@@ -108,6 +112,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         loadViewIfNeeded()
         if self.conversationID != conversationID {
             self.conversationID = conversationID; anchor = nil; disclosureAnchor = nil; scroll.contentInset.bottom = 0; lastOffset = 0; pendingJump = true; follow.followLatest()
+            if messageFocus?.conversationID == conversationID { pendingJump = false; follow.beginReading() }
         }
         self.streaming = streaming
         self.hasMessages = hasMessages
@@ -115,13 +120,21 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         host.view.invalidateIntrinsicContentSize()
         scroll.setNeedsLayout()
     }
-    func attach(_ viewport: ChatViewport) { self.viewport = viewport; viewport.controller = self }
+    func attach(_ viewport: ChatViewport) {
+        self.viewport = viewport; viewport.controller = self
+        if let request = viewport.pendingMessage { focusMessage(request.id, in: request.conversationID) }
+    }
+    func focusMessage(_ id: UUID, in owner: UUID) {
+        loadViewIfNeeded(); messageFocus = (owner, id); pendingJump = false; disclosureAnchor = nil
+        follow.beginReading(); displayLink?.isPaused = true; scroll.setNeedsLayout()
+    }
     func detach() {
         displayLink?.invalidate(); displayLink = nil; frameDriver = nil; scroll.didLayout = nil; scroll.delegate = nil; dismissKeyboard = nil
         if viewport?.controller === self { viewport?.controller = nil }
     }
     func jumpToLatest() {
         loadViewIfNeeded()
+        if let focus = messageFocus { viewport?.messageWasFocused(focus.id) }; messageFocus = nil
         disclosureAnchor = nil; follow.followLatest(); pendingJump = true
         scroll.contentInset.bottom = 0
         // Stop an existing deceleration and perform the jump now, even when no
@@ -161,6 +174,14 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         defer { reconciling = false }
         let viewportChanged = lastViewportSize != scroll.bounds.size
         let changed = lastContentSize != scroll.contentSize || viewportChanged
+        if let focus = messageFocus, focus.conversationID == conversationID {
+            guard let marker = scroll.markers[focus.id]?.value, marker.window != nil else { return }
+            let target = max(0, min(marker.convert(.zero, to: scroll).y - 12, naturalMaximumOffset))
+            scroll.setContentOffset(CGPoint(x: 0, y: target), animated: false)
+            messageFocus = nil; viewport?.messageWasFocused(focus.id); pendingJump = false
+            lastContentSize = scroll.contentSize; lastViewportSize = scroll.bounds.size
+            rememberPosition(); publishPosition(); return
+        }
         if !scroll.isDragging && !scroll.isDecelerating && (changed || pendingJump) {
             let target: CGFloat
             // Empty chats show onboarding from its beginning, including at large text sizes.
@@ -238,6 +259,7 @@ final class ChatScrollController: UIViewController, UIScrollViewDelegate, UIGest
         }
     }
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        if let focus = messageFocus { viewport?.messageWasFocused(focus.id) }; messageFocus = nil
         disclosureAnchor = nil
         reachedBottomDuringGesture = false
         follow.beginReading(); displayLink?.isPaused = true; pendingJump = false; rememberPosition()

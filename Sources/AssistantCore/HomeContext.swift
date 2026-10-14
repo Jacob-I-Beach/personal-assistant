@@ -69,7 +69,7 @@ public enum HomeGreeting {
         else if let weather, weather.isFresh(at: date), weather.celsius < 6 { phrase = "Cold air, fresh ideas." }
         else if calendar.isDateInWeekend(date) { phrase = "A little space to explore." }
         else if hour < 5 { phrase = "Something on your mind?" }
-        else if hour < 12 { phrase = "Start with something worthwhile." }
+        else if hour < 12 { phrase = "What’s on your mind?" }
         else if hour < 17 { phrase = "Make room for a good idea." }
         else { phrase = "Bring a little clarity." }
         guard let name, !name.isEmpty, name.count <= 24 else { return phrase }
@@ -81,7 +81,7 @@ public enum HomeGreeting {
             if weather.celsius < 6 { return "A cold day outside. Room for a new idea here." }
             if weather.code >= 51 { return "A little weather outside. What’s on your mind?" }
         }
-        return "Bring an idea, a question, or something in front of you."
+        return "Ask a question, or show me something."
     }
 }
 extension LocalStore {

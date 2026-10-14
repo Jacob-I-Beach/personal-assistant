@@ -42,4 +42,18 @@ public struct ModelCatalogState: Equatable, Sendable {
         case .unavailable: issue ?? "The model list could not be loaded."
         }
     }
+    public static func computerObservation(_ payload: JSONValue, profileID: String, owner: String) throws -> ModelCatalogState {
+        guard payload["profile_id"] == .string(profileID) else { throw AssistantError.provider("The computer account changed. Check the existing connection before loading its models.") }
+        var result = ModelCatalogState(); result.begin(owner: owner, saved: nil)
+        let models = try ChatGPTModel.catalog(from: JSONEncoder().encode(payload))
+        let state = payload["catalog"]?["state"]?.stringValue
+        guard ["ready", "stale", "unavailable"].contains(state ?? "") else { throw AssistantError.provider("The computer returned no recognized model-availability state. Your account is kept.") }
+        let issue = payload["catalog"]?["error"]?.stringValue ?? "Current model availability could not be checked. Your sign-in is kept."
+        if state == "unavailable" { result.failed(owner: owner, message: issue) }
+        else {
+            let time = payload["catalog"]?["updated_at"]?.stringValue.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+            result.receive(AccountModelCatalog(owner: owner, models: models, updatedAt: time), staleReason: state == "stale" ? issue : nil)
+        }
+        return result
+    }
 }

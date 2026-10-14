@@ -15,7 +15,7 @@ public enum ChatTimeline {
         var names: [String: String] = [:]
         for message in messages {
             for call in message.toolCalls { names[call.id] = call.name == "use_tool" ? call.arguments["name"]?.stringValue ?? "tool" : call.name }
-            let visible = !message.text.isEmpty || !message.captureIDs.isEmpty || !message.fileIDs.isEmpty || !message.displayParts.isEmpty || message.role == .tool || message.state == .failed || message.state == .interrupted
+            let visible = !message.text.isEmpty || !message.captureIDs.isEmpty || !message.fileIDs.isEmpty || !message.contextReferences.isEmpty || !message.displayParts.isEmpty || message.role == .tool || message.state == .failed || message.state == .interrupted
             guard visible else { continue }
             let name = names[message.toolCallID ?? ""] ?? "tool"
             let activity = message.role == .tool && !["prepare_route", "present_surface", "update_plan", "request_input"].contains(name)

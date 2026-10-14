@@ -136,7 +136,7 @@ public actor LocalStore {
             """, parameters).map { row in
                 let message = try Self.decode(Message.self, row[4].data!)
                 return HistoryMatch(id: UUID(uuidString: row[0].text!)!, conversationID: UUID(uuidString: row[1].text!)!,
-                                    title: row[2].text!, excerpt: row[3].text!, role: message.role, createdAt: message.createdAt)
+                                    title: row[2].text!, excerpt: row[3].text!, role: message.role, createdAt: message.createdAt, sourceFingerprint: HistoryLanding.fingerprint(message.text))
             }
     }
     public func message(_ id: UUID, in conversationID: UUID) throws -> Message {
@@ -196,7 +196,7 @@ public actor LocalStore {
             if files.fileExists(atPath: directory.path) { try files.removeItem(at: directory) }
         }
         try database.transaction {
-            for artifact in generated { try database.execute("DELETE FROM metadata WHERE key = ?", [.text("artifact-draft:" + artifact.id.uuidString)]) }
+            for artifact in generated { try database.execute("DELETE FROM metadata WHERE key IN (?,?)", [.text("artifact-draft:" + artifact.id.uuidString), .text("artifact-draft-state:" + artifact.id.uuidString)]) }
             for (history, parent) in [("artifact_history", "artifacts"), ("surface_history", "work_surfaces")] {
                 let present = try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?)", [.text(history), .text(parent)])
                 if present.count == 2 { try database.execute("DELETE FROM \(history) WHERE id IN (SELECT id FROM \(parent) WHERE conversation_id=?)", [.text(id.uuidString)]) }
@@ -233,20 +233,30 @@ public actor LocalStore {
         try database.execute("INSERT INTO artifacts(id, conversation_id, created_at, payload) VALUES(?,?,?,?)",
             [.text(artifact.id.uuidString), .text(artifact.conversationID.uuidString), .real(artifact.createdAt.timeIntervalSince1970), .blob(try Self.encode(artifact))])
     }
-    public func saveArtifactDraft(id: UUID, text: String?) throws {
-        let key = "artifact-draft:" + id.uuidString
-        guard let text else { try database.execute("DELETE FROM metadata WHERE key = ?", [.text(key)]); return }
+    public func saveArtifactDraft(id: UUID, text: String?, baseRevision: Int? = nil) throws {
+        try Task.checkCancellation()
+        let oldKey = "artifact-draft:" + id.uuidString, key = "artifact-draft-state:" + id.uuidString
+        guard let text else { try database.execute("DELETE FROM metadata WHERE key IN (?,?)", [.text(key), .text(oldKey)]); return }
+        guard !(try database.execute("SELECT id FROM artifacts WHERE id=?", [.text(id.uuidString)])).isEmpty else { throw AssistantError.provider("The saved document is no longer available. Your editor text has been kept on screen.") }
         guard text.utf8.count <= 2 * 1024 * 1024 else { throw AssistantError.provider("This draft exceeds the supported editor size.") }
-        try database.execute("INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [.text(key), .text(text)])
+        let value = String(decoding: try JSONEncoder().encode(ArtifactDraft(text: text, baseRevision: baseRevision)), as: UTF8.self)
+        try database.transaction {
+            try database.execute("INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [.text(key), .text(value)])
+            try database.execute("DELETE FROM metadata WHERE key=?", [.text(oldKey)])
+        }
     }
     public func artifactDraft(id: UUID) throws -> String? {
-        try database.execute("SELECT value FROM metadata WHERE key = ?", [.text("artifact-draft:" + id.uuidString)]).first?[0].text
+        try artifactDraftRecord(id: id)?.text
     }
     public func artifacts(conversationID: UUID? = nil) throws -> [ArtifactRecord] {
         let scope = conversationID == nil ? "" : " WHERE conversation_id = ?"
         return try database.execute("SELECT payload FROM artifacts" + scope + " ORDER BY created_at DESC",
                                     conversationID.map { [.text($0.uuidString)] } ?? [])
             .map { try Self.decode(ArtifactRecord.self, $0[0].data!) }
+    }
+    public func artifactRecord(_ id: UUID) throws -> ArtifactRecord {
+        guard let payload = try database.execute("SELECT payload FROM artifacts WHERE id=?", [.text(id.uuidString)]).first?[0].data else { throw AssistantError.provider("This saved document is no longer available.") }
+        return try Self.decode(ArtifactRecord.self, payload)
     }
     public func exportArtifact(_ artifact: ArtifactRecord) throws -> URL {
         guard JavaScriptSandbox.validFilename(artifact.filename),

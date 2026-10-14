@@ -4,9 +4,12 @@ import UIKit
 
 struct CaptureViewer: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dismiss) private var dismiss
     let captureID: UUID
     var initialPoints: [ImagePoint] = []
+    var targetConversationID: UUID?
+    @State private var draftOwner: UUID?
     @State private var capture: CaptureObservation?
     @State private var image: UIImage?
     @State private var points: [ImagePoint] = []
@@ -40,8 +43,15 @@ struct CaptureViewer: View {
                             if !capture.recognizedText.isEmpty {
                                 DisclosureGroup("Recognized text") { Text(capture.recognizedText.joined(separator: "\n")).font(.subheadline).textSelection(.enabled).padding(.top, 8) }
                             }
+                            Button("Ask about this image", systemImage: "text.bubble") {
+                                guard let draftOwner, draftOwner == model.conversation.id else { failure = "The conversation changed. Reopen the image from the intended chat."; return }
+                                let ref = ContextReference(kind: .capture, sourceID: captureID.uuidString, title: "Selected image", conversationID: draftOwner)
+                                navigation.compose(ContextualDraftProposal(reference: ref, prompt: "Help me understand this image."), afterDismissal: true)
+                                dismiss()
+                            }.disabled(model.isRunning || image == nil)
                             if !points.isEmpty {
                                 Button("Use selected points in chat", systemImage: "paperclip") {
+                                    guard draftOwner == model.conversation.id else { failure = "The conversation changed. Open this image from the intended draft before attaching it."; return }
                                     model.attach(captureID); model.selectedImagePoints[captureID.uuidString] = points; model.flushDraft(); dismiss()
                                 }.disabled(model.isRunning)
                                 Text("Attaches the image and selected coordinates. Your message stays unchanged.").font(.caption).foregroundStyle(.secondary)
@@ -55,12 +65,16 @@ struct CaptureViewer: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .task(id: captureID) {
+            draftOwner = targetConversationID ?? model.conversation.id
             points = initialPoints
             capture = model.captures.first { $0.id == captureID }
             if capture == nil { capture = try? await model.store?.loadCapture(captureID) }
             image = await model.image(captureID)
             if image == nil { failure = "This image is no longer available in the app's Library." }
             exportURLs = await model.captureExportURLs(captureID)
+        }
+        .onDisappear {
+            if navigation.pendingContext?.reference.kind == .capture { navigation.presentationDidDismiss() }
         }
     }
 }

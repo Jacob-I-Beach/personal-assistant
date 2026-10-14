@@ -8,8 +8,9 @@ extension LocalStore {
         return try database.execute("SELECT payload FROM artifact_history WHERE id=? ORDER BY revision DESC", [.text(id.uuidString)])
             .map { try Self.decode(ArtifactRecord.self, $0[0].data!) }
     }
-    public func reviseArtifact(id: UUID, expectedRevision: Int, content: String, sourceCallID: String? = nil, localOnly: Bool = false, health: Bool = false) throws -> ArtifactRecord {
-        guard let original = try artifacts().first(where: { $0.id == id }), original.revision == expectedRevision else { throw AssistantError.invalidTool("This document changed. Read its current revision before saving your changes.") }
+    public func reviseArtifact(id: UUID, expectedRevision: Int, content: String, sourceCallID: String? = nil, localOnly: Bool = false, health: Bool = false, clearDraft: Bool = false) throws -> ArtifactRecord {
+        let original = try artifactRecord(id)
+        guard original.revision == expectedRevision else { throw AssistantError.invalidTool("This document changed. Read its current revision before saving your changes.") }
         guard content.utf8.count <= 2 * 1024 * 1024 else { throw AssistantError.invalidTool("The revised document exceeds 2 MB.") }
         try prepareArtifactHistory()
         var revised = original
@@ -22,6 +23,7 @@ extension LocalStore {
         do {
             try database.execute("INSERT INTO artifact_history(id,revision,payload) VALUES(?,?,?)", [.text(id.uuidString), .integer(Int64(original.revision)), .blob(try Self.encode(original))])
             try database.execute("UPDATE artifacts SET payload=? WHERE id=?", [.blob(try Self.encode(revised)), .text(id.uuidString)])
+            if clearDraft { try database.execute("DELETE FROM metadata WHERE key IN (?,?)", [.text("artifact-draft:" + id.uuidString), .text("artifact-draft-state:" + id.uuidString)]) }
             try database.execute("COMMIT")
         } catch { try? database.execute("ROLLBACK"); throw error }
         return revised

@@ -8,6 +8,7 @@ struct MessageRow: View {
     @EnvironmentObject private var chatNavigation: ChatNavigation
     let message: Message
     let showsResponseActions: Bool
+    var compactActions = false
     @State private var selectedImage: ImageSelection?
     private struct ImageSelection: Identifiable { let id: UUID; let points: [ImagePoint] }
     var body: some View {
@@ -72,8 +73,35 @@ struct MessageRow: View {
                 }
             } else { Label("File removed from Library", systemImage: "doc").font(.caption).foregroundStyle(.secondary) }
         }
+        ForEach(message.contextReferences.filter { $0.kind != .file && $0.kind != .capture }) { reference in
+            if [.surface, .artifact].contains(reference.kind) {
+            Button {
+                guard let id = UUID(uuidString: reference.sourceID) else { return }
+                if reference.kind == .surface { chatNavigation.destination = .surface(id, selectedRevision: reference.revision) }
+                else if reference.kind == .artifact { chatNavigation.destination = .artifact(id) }
+            } label: {
+                Label(reference.title + (reference.revision.map { " · revision \($0)" } ?? ""), systemImage: "link")
+                    .font(.caption).lineLimit(2).padding(10).background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+            }.buttonStyle(.plain)
+                .accessibilityLabel("Selected context: " + reference.title)
+            } else {
+                Label(reference.title, systemImage: "link").font(.caption).foregroundStyle(.secondary)
+                    .accessibilityLabel("Selected context: " + reference.title)
+            }
+        }
     }
-    private var actions: some View {
+    @ViewBuilder private var actions: some View {
+        if compactActions {
+            Menu {
+                if !message.text.isEmpty {
+                    Button("Copy message", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.role == .user ? message.text : message.answerText; AppFeedback.play(.copied) }
+                    ShareLink(item: message.role == .user ? message.text : message.answerText) { Label("Share message", systemImage: "square.and.arrow.up") }
+                }
+                if message.role == .assistant { Button("Read response aloud", systemImage: "speaker.wave.2") { voice.speak(MarkdownContent(message.answerText).renderPlainText()) } }
+                else if message.isRequest { Button("Edit message", systemImage: "square.and.pencil") { model.beginEditing(message) }.disabled(model.isRunning) }
+            } label: { Image(systemName: "ellipsis").font(.subheadline).frame(width: 44, height: 44).foregroundStyle(.secondary) }
+                .accessibilityLabel(message.role == .user ? "Actions for earlier request" : "Actions for earlier reply")
+        } else {
         HStack(spacing: 8) {
             if !message.text.isEmpty {
                 MessageActionButton(title: "Copy message", icon: "doc.on.doc", confirmation: "Copied") { UIPasteboard.general.string = message.role == .user ? message.text : message.answerText }
@@ -88,5 +116,6 @@ struct MessageRow: View {
             }
         }.buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
             .accessibilityIdentifier(message.role == .assistant ? "final-response-actions" : "user-message-actions")
+        }
     }
 }

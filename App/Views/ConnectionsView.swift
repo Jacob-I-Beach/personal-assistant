@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConnectionsView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dismiss) private var dismiss
     @State private var destination: Destination?
     private enum Destination: String, Identifiable { case planning, context, health, folders, models, watch, computer, contacts; var id: String { rawValue } }
@@ -44,11 +45,7 @@ struct ConnectionsView: View {
                     case .models: ModelLibraryView()
                     case .watch: WatchRequestsView()
                     case .computer: ComputerConnectionView(openedTask: { id in
-                        self.destination = nil; dismiss()
-                        Task {
-                            try? await Task.sleep(for: .milliseconds(350))
-                            do { try await model.openComputerJob(id) } catch { model.errorMessage = error.localizedDescription }
-                        }
+                        navigation.openComputerJob(id); self.destination = nil; dismiss()
                     })
                     case .contacts: ContactsConnectionView()
                     }
