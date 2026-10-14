@@ -21,6 +21,7 @@ on:
           - testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings
           - testWelcomeCatalogAndSettings
           - testDarkAndLargeTextControlsRemainUsable
+          - testAttachmentPreviewWorkingSurfacesAndActualMessageEdit
 permissions:
   contents: read
   actions: read
