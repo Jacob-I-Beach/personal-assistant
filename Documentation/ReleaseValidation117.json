@@ -1,0 +1,183 @@
+{
+  "version": "1.1.7",
+  "build": 22,
+  "source": "100e00404c82a627bba9d9836330f67b4b525bb4",
+  "native_run": 38649322248,
+  "test_only_rechecks": [
+    38651497096,
+    38651932273
+  ],
+  "tests": {
+    "windows_core": 246,
+    "mac_core": 246,
+    "native_platform": 22,
+    "native_ui_covered": 12,
+    "companion": 67,
+    "updater": 7,
+    "companion_browser": "Edge production UI with synthetic provider; light/dark, narrow, reduced-motion, readiness and version consistency"
+  },
+  "native_ui_passed": [
+    "testAttachmentPreviewWorkingSurfacesAndActualMessageEdit",
+    "testDarkAndLargeTextControlsRemainUsable",
+    "testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable",
+    "testLocalMessageStaysLocalWithSavedComputerWork",
+    "testProduct117AttachmentsPreviewCancelAndAddPreserveDraft",
+    "testProduct117DictationDoesNotCancelAnActiveResponse",
+    "testProduct117DraftRestoresWithoutChangingSavedRevision",
+    "testProduct117PreferenceSavesWithoutGlobalSaveModal",
+    "testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly",
+    "testProduct117SearchReturnsToExactOldMessageAndKeepsQuery",
+    "testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable",
+    "testWelcomeCatalogAndSettings"
+  ],
+  "native_platform_passed": [
+    "AppleToolSchemaPlatformTests.testCompactToolSchemaKeepsAnArrayOfNamedArguments",
+    "AppleToolSchemaPlatformTests.testNullableObjectsKeepTheirNestedFields",
+    "ComputerAccountPlatformTests.testAuthenticatedIdentityIsBoundToThePairedAccountAndCachesNoCredentials",
+    "ComputerAccountPlatformTests.testSavedTaskUsesOriginalModelWithoutChangingTheNextMessageSelection",
+    "ComputerAccountPlatformTests.testSharingAndAuthenticationAreDifferentStates",
+    "LocalIsolationPlatformTests.testLocalSelectionsCannotRecoverAnOlderComputerModel",
+    "LocalIsolationPlatformTests.testNewAppleRequestUsesTheOnDeviceBackendEvenWithComputerEnabled",
+    "LocalIsolationPlatformTests.testPausedPresentationIgnoresOldBridgeHints",
+    "LocalModelPlatformTests.testLocalPreferencesPersistAndPersonalBuildDoesNotClaimPushProvisioning",
+    "LocalModelPlatformTests.testPinnedDownloadReportsBytesAndReusesCompletedFileWithoutAnotherRequest",
+    "LocalModelPlatformTests.testQwenTextPlanUsesTheReportedHeadroomAndAutomaticDoesNotReuseOldManualContext",
+    "NativeReviewPlatformTests.testCancelMessageEditRestoresDraftAndAttachmentsWithoutChangingHistory",
+    "NativeReviewPlatformTests.testDismissalResolvesOnlyTheMatchingNativeRequest",
+    "NativeReviewPlatformTests.testInterruptedReviewIsNotRecordedAsAUserCancellation",
+    "NativeReviewPlatformTests.testUnusedDownloadedBackendUnloadsWithoutInitializingMetal",
+    "ProductJourneyPlatformTests.testArtifactEditorRestoresConflictedDraftAndDiscardKeepsNewerSavedText",
+    "ProductJourneyPlatformTests.testAttachmentBatchIsAtomicWhenASelectedFileIsUnavailable",
+    "ProductJourneyPlatformTests.testContextProposalPreservesDraftAndRejectsDelayedOwnerChange",
+    "ProductJourneyPlatformTests.testContextRoutingWaitsForRealDismissalAndRetainsTheSelectedIdentity",
+    "ProductJourneyPlatformTests.testPreferenceCommitAndFailedWriteKeepPublishedAndPersistedValuesConsistent",
+    "ProductJourneyPlatformTests.testSpeechAuthorizationCompletionAcceptsAnOffMainCallback",
+    "ProductJourneyPlatformTests.testSpeechRecognitionCompletionCopiesValuesBeforeReturningToUI"
+  ],
+  "phone_packages": {
+    "Standard": {
+      "file": "PersonalAssistant-Standard.ipa",
+      "sha256": "298ac1d6fc7bb5e580b77831f0e7ae6a43fa84d38ba5c5d3b968de8c51cbd50f",
+      "bytes": 22377076,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.1.7",
+      "build": "22",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.1.7",
+          "build": "22"
+        }
+      ],
+      "requested_entitlements": {},
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "Memory": {
+      "file": "PersonalAssistant-Memory.ipa",
+      "sha256": "5edc75e5c51c8ccda84942da3b96ba7e61b93c3c36f55171cd51fe34dd92b886",
+      "bytes": 22377165,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.1.7",
+      "build": "22",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.1.7",
+          "build": "22"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.kernel.increased-memory-limit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "computer": {
+    "source": "b88c7a0",
+    "package": "1.1.7-release-r2",
+    "installed": true,
+    "account_pairing_tasks_certificate_preserved": true,
+    "paired_devices": 1,
+    "saved_tasks": 25,
+    "actual_windows_startup_verified": true,
+    "pinned_tailscale_https": {
+      "status": 200,
+      "version": "1.1.7",
+      "certificatePinned": true
+    }
+  },
+  "gpt": {
+    "checked_at": "2026-10-14T23:19:04.771Z",
+    "network": {
+      "status": 200,
+      "version": "1.1.7",
+      "certificatePinned": true
+    },
+    "account_connected": true,
+    "sharing": true,
+    "catalog": "ready",
+    "model_count": 8,
+    "selected_model_available": true,
+    "computation_ready": true,
+    "active_work_count": 0,
+    "live_inference_tested": false,
+    "cause_of_earlier_520": "Not established; fresh discovery succeeded without resetting credentials."
+  },
+  "audit_disposition": {
+    "implemented_bounded_changes": 15,
+    "partial": 12,
+    "deferred_architecture": 4,
+    "retained_user_preference": 1,
+    "total_recommendations": 32,
+    "proposed_journeys_mapped": 28
+  },
+  "physical_acceptance": "Deferred by user; fixtures do not prove actual audio, 64K memory, inference or extended lock behavior.",
+  "health_and_external_notifications": "Deferred",
+  "attempts": [
+    {
+      "run": 38645232042,
+      "source": "e3990be",
+      "result": "Native compile failed on QuickLook actor conformance and missing reload store;246Mac core passed."
+    },
+    {
+      "run": 38646406308,
+      "source": "0638d6b",
+      "result": "Release and simulator compiled;246core,20platform,7of12UI passed. Identifier and selector issues subsequently corrected."
+    },
+    {
+      "run": 38647962008,
+      "source": "c61b2f4",
+      "result": "Cancelled to include the speech callback bridge and test/identifier corrections; no passing validation claimed."
+    },
+    {
+      "run": 38649322248,
+      "source": "100e004",
+      "result": "Final archive and simulator passed;246Mac core,22platform,11of12UI passed."
+    },
+    {
+      "run": 38651497096,
+      "source": "4ac31ce",
+      "production": "100e004",
+      "result": "Focused microphone journey passed; complete draft established before tap and unchanged afterward."
+    },
+    {
+      "run": 38651932273,
+      "source": "19673e1",
+      "production": "100e004",
+      "result": "Strengthened attachment/PDF journey passed after waiting for actual document content; final page screenshot inspected."
+    }
+  ],
+  "visual_inspection": "Final PDF page, restored draft/saved revision, CSV, contextual draft, exact search and large-text screenshots inspected. Simulator evidence does not establish physical accessibility or performance."
+}

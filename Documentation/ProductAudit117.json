@@ -17,7 +17,7 @@
         "Documentation/ReleaseValidation115.json"
       ],
       "source_evidence_type": "source + V01/V02; product hypothesis",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-02",
@@ -32,7 +32,7 @@
         "App/Views/TodayOverviewView.swift"
       ],
       "source_evidence_type": "source + V01/V02; visual judgment",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-03",
@@ -50,7 +50,7 @@
         "Documentation/ReleaseValidation115.json"
       ],
       "source_evidence_type": "source-confirmed inconsistency",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-04",
@@ -66,7 +66,7 @@
         "App/Views/TaskActivityView.swift"
       ],
       "source_evidence_type": "source; information-architecture proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-05",
@@ -82,7 +82,7 @@
         "App/Views/WorkspaceFileView.swift"
       ],
       "source_evidence_type": "source-confirmed restriction; architectural proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-06",
@@ -98,7 +98,7 @@
         "App/Views/WorkspaceFileView.swift"
       ],
       "source_evidence_type": "source; interaction-risk assessment, not reproduced modal bug",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-07",
@@ -113,7 +113,7 @@
         "App/Views/CaptureViewer.swift"
       ],
       "source_evidence_type": "source-confirmed routing and affordance gap",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-08",
@@ -127,7 +127,7 @@
         "App/Voice/VoiceController.swift"
       ],
       "source_evidence_type": "source-confirmed behavior; no new audio execution test",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-09",
@@ -143,7 +143,7 @@
         "App/Views/ActivityGroupView.swift"
       ],
       "source_evidence_type": "source; product redesign",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-10",
@@ -159,7 +159,7 @@
         "App/Views/ModelAccountDetailsView.swift"
       ],
       "source_evidence_type": "source-confirmed generic alert; recovery proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-11",
@@ -175,7 +175,7 @@
         "App/Views/ActivityGroupView.swift"
       ],
       "source_evidence_type": "source + V08; visual judgment",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-12",
@@ -191,7 +191,7 @@
         "App/Views/WorkspaceFileView.swift"
       ],
       "source_evidence_type": "source-confirmed multiple presentation paths; duplication needs native scenario check",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-13",
@@ -205,7 +205,7 @@
         "App/Views/WorkspaceFileView.swift"
       ],
       "source_evidence_type": "source-confirmed preview-first gap",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-14",
@@ -222,7 +222,7 @@
         "App/Views/WelcomeWorkspaceView.swift"
       ],
       "source_evidence_type": "source-confirmed conditional action behavior",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-15",
@@ -235,7 +235,7 @@
         "App/Views/WorkingSurfaceView.swift"
       ],
       "source_evidence_type": "source + V08; concrete interaction gaps",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-16",
@@ -249,7 +249,7 @@
         "App/Views/LibraryView.swift"
       ],
       "source_evidence_type": "source-confirmed missing UI entry points",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-17",
@@ -263,7 +263,7 @@
         "App/Views/RootView.swift"
       ],
       "source_evidence_type": "source-confirmed navigation gap",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-18",
@@ -278,7 +278,7 @@
         "App/Views/MemoryView.swift"
       ],
       "source_evidence_type": "source-confirmed UI/search structure; performance unmeasured",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-19",
@@ -292,7 +292,7 @@
         "App/Views/WelcomeWorkspaceView.swift"
       ],
       "source_evidence_type": "source-confirmed complexity; product proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-20",
@@ -307,7 +307,7 @@
         "Documentation/PRODUCT_DESIGN.md"
       ],
       "source_evidence_type": "current replacement UI + intended-design contrast",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-21",
@@ -320,7 +320,7 @@
         "App/Views/LibraryView.swift"
       ],
       "source_evidence_type": "source-confirmed editor semantics",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-22",
@@ -335,7 +335,7 @@
         "App/Views/ReasoningEffortView.swift"
       ],
       "source_evidence_type": "source-confirmed inconsistent commitment model",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-23",
@@ -350,7 +350,7 @@
         "App/Views/WorkspaceFileView.swift"
       ],
       "source_evidence_type": "source-confirmed backup-default disclosure; new workflow proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-24",
@@ -365,7 +365,7 @@
         "App/Views/ReasoningEffortView.swift"
       ],
       "source_evidence_type": "source + V04/V05/V06; preserve existing 1.1.5 improvements",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-25",
@@ -380,7 +380,7 @@
         "App/Views/ReasoningEffortView.swift"
       ],
       "source_evidence_type": "source + V06; product hierarchy proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-26",
@@ -395,7 +395,7 @@
         "App/Views/TodayOverviewView.swift"
       ],
       "source_evidence_type": "source-confirmed multi-control capture form",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-27",
@@ -410,7 +410,7 @@
         "App/Views/ConnectionsView.swift"
       ],
       "source_evidence_type": "source-confirmed event detail lacks contextual action",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-28",
@@ -425,7 +425,7 @@
         "App/Views/WelcomeWorkspaceView.swift"
       ],
       "source_evidence_type": "source; visual/functional proposal",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-29",
@@ -441,7 +441,7 @@
         "App/Views/ModelAccountDetailsView.swift"
       ],
       "source_evidence_type": "source-only desktop assessment; no desktop render claim",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-30",
@@ -459,7 +459,7 @@
         "Companion/ui/styles.css"
       ],
       "source_evidence_type": "source + V01\u2013V09; visual judgment",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-31",
@@ -477,7 +477,7 @@
         "App/Views/CaptureViewer.swift"
       ],
       "source_evidence_type": "source + V02; existing strengths and targeted gaps",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     },
     {
       "id": "PX-32",
@@ -493,7 +493,7 @@
         "App/Views/WorkingSurfaceView.swift"
       ],
       "source_evidence_type": "validation proposal; no new tests executed",
-      "verification": "See ReleaseValidation117.json and ProductJourneys117.json; native run pending at this report revision."
+      "verification": "Automated evidence is complete in ReleaseValidation117.json and ProductJourneys117.json. Implemented scope is bounded; listed remaining work and physical checks are not claimed complete."
     }
   ],
   "live_connection_observation": "2026-10-14T22:16:24Z: existing account returned8models; no reset or inference; earlier520 no longer reproduced in this check."

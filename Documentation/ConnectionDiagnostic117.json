@@ -1,5 +1,5 @@
 {
-  "checked_at_utc": "2026-10-14T22:20:12.330Z",
+  "checked_at_utc": "2026-10-14T23:19:04.771Z",
   "check": "Existing saved-account model discovery; no inference",
   "account_connected": true,
   "sharing": true,
@@ -14,5 +14,6 @@
   "credential_reset": false,
   "interpretation": "The prior HTTP520 is not reproduced by this check. Model generation is untested; no cause or fix attribution is established.",
   "selected_model": "gpt-6.1-sol",
-  "selected_model_available": true
+  "selected_model_available": true,
+  "initial_successful_observation_utc": "2026-10-14T22:20:12.330Z"
 }

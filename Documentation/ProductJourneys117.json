@@ -13,7 +13,7 @@
       "remaining": "Completing first setup and actual provider use on phone",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J02",
@@ -23,7 +23,7 @@
       "remaining": "Combined all-runtimes-unavailable phone journey",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J03",
@@ -33,7 +33,7 @@
       "remaining": "Fresh real GPT availability; HTTP520 still not resolved",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J04",
@@ -43,7 +43,7 @@
       "remaining": "Two similarly named real files, replacement and Files-provider interruption",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J05",
@@ -53,7 +53,7 @@
       "remaining": "Every corresponding picker path with physical permissions",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J06",
@@ -63,7 +63,7 @@
       "remaining": "Actual dictation after intentionally stopping",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J07",
@@ -73,7 +73,7 @@
       "remaining": "Physical microphone permission, cutoff, interruptions and final words",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J08",
@@ -83,7 +83,7 @@
       "remaining": "Full contextual source matrix on phone",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J09",
@@ -93,7 +93,7 @@
       "remaining": "Very large real chat performance",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J10",
@@ -103,7 +103,7 @@
       "remaining": "Native stale-row notification interaction",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J11",
@@ -113,7 +113,7 @@
       "remaining": "Large Library latency benchmark and repeated rapid-query UI test",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J12",
@@ -123,7 +123,7 @@
       "remaining": "Same output via all three entry points in one native test",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J13",
@@ -133,7 +133,7 @@
       "remaining": "Physical interruption/storage timing",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J14",
@@ -143,7 +143,7 @@
       "remaining": "Physical disk-full behavior",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J15",
@@ -153,7 +153,7 @@
       "remaining": "Signed-device credential/backup rollback",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J16",
@@ -163,7 +163,7 @@
       "remaining": "Native forced-write-failure Retry/Revert journey",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J17",
@@ -173,7 +173,7 @@
       "remaining": "Multi-series selection and VoiceOver native inspection",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J18",
@@ -183,7 +183,7 @@
       "remaining": "Physical background time and unknown-effect review matrix",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J19",
@@ -193,7 +193,7 @@
       "remaining": "One-hour lock/cellular reconnection on phone",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J20",
@@ -203,7 +203,7 @@
       "remaining": "Direct creation and Continue design/implementation",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J21",
@@ -213,7 +213,7 @@
       "remaining": "Provenance source-jump and complete native correction flow",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J22",
@@ -223,7 +223,7 @@
       "remaining": "Native fast-capture usability round",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J23",
@@ -233,7 +233,7 @@
       "remaining": "Remove/reclaim lifecycle and real large download/inference",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J24",
@@ -243,7 +243,7 @@
       "remaining": "Calendar/image native dismissal and physical permissions",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J25",
@@ -253,7 +253,7 @@
       "remaining": "Physical VoiceOver, rotation, audio and full interruption matrix",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     },
     {
       "id": "J26",
@@ -263,7 +263,7 @@
       "remaining": "Portable archive format and isolated restore rehearsal",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J27",
@@ -273,7 +273,7 @@
       "remaining": "User assessment with real task workload",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "No additional native completion claim; the stated source/core/companion coverage and remaining work still apply."
     },
     {
       "id": "J28",
@@ -283,7 +283,13 @@
       "remaining": "Authorized live answer quality and formative user session",
       "external_inference": false,
       "personal_records_used": false,
-      "native_result": "pending collection where applicable"
+      "native_result": "Related native coverage passed; see release test list. The full proposed scenario is not asserted beyond its listed evidence."
     }
+  ],
+  "native_run": 38649322248,
+  "production_source": "100e00404c82a627bba9d9836330f67b4b525bb4",
+  "same_binary_rechecks": [
+    38651497096,
+    38651932273
   ]
 }

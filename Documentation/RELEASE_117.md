@@ -1,6 +1,6 @@
 # Personal Assistant 1.1.7 · Product journeys
 
-Candidate following the supplied product/UX audit, based on packaged 1.1.6. This is one coherent native update; Apple signing and physical acceptance remain deferred.
+Version 1.1.7, build 22 is packaged from native source 100e00404c82a627bba9d9836330f67b4b525bb4. It includes the 1.1.6 fixes and this product/UX batch. Computer 1.1.7 release r2 is installed; Apple signing and physical acceptance remain deferred.
 
 ## Added
 - Exact-source context chips and draft-only Ask actions for files, surfaces, images, Inbox and planning items. Existing drafts require a merge confirmation; source versions and permissions are rechecked before model dispatch.
@@ -19,6 +19,16 @@ Candidate following the supplied product/UX audit, based on packaged 1.1.6. This
 - Implicit send from ordinary contextual Ask, implicit Stop from microphone, misleading per-chat model-selection wording, fixed-delay Computer task navigation, and the general Settings saved modal.
 
 ## Still pending
-- Native compile and UI evidence are being collected. Physical dictation, VoiceOver, model inference/memory and real service availability are separate checks.
-- Full branching, portable backup/restore and separate read-only browsing while a response owns a chat need explicit data-model work. The audit disposition records the remaining proposals without calling them completed.
+- Physical dictation, VoiceOver, model inference/memory and extended-lock/cellular behavior remain separate checks. Native builds and automated evidence are complete.
+- Direct project creation/continuation, full branching, portable backup/restore and separate read-only browsing while a response owns a chat need explicit data-model work. The audit disposition records the remaining proposals without calling them completed.
 - Health, remote notifications and Live Activities remain deferred. Existing identity, data, pairing and downloads are preserved.
+
+## Validation
+
+246 Windows and Mac core tests, 67 companion tests, 7 updater tests and 22 native platform tests pass. Twelve UI journeys have passing coverage against the final app. Main run 38649322248 provides the Release IPA, simulator and 11 UI passes; focused recheck 38651497096 establishes the typed draft before the microphone action and passes against the unchanged app. Recheck 38651932273 verifies actual PDF page content after loading, rather than only the toolbar. Both production-source checks identify 100e004. Final PDF, editor, search and context screenshots were visually inspected.
+
+Earlier compile failures, a cancelled intermediate run and test-selector failures are retained in BuildValidation.json. The full workflow’s initial UI failure is not presented as an entirely green run. ReleaseValidation117.json ties the passing coverage to the final binary.
+
+## Current computer observation
+
+At 22:20 UTC on October 14, existing-account model discovery returned eight models including GPT-6.1-Sol. The account, pairing, 25 tasks, certificate, private network and actual Windows startup were preserved through the 1.1.7 update. No credentials were reset and no live model prompt was run. The cause of the earlier HTTP 520 is not established.
