@@ -58,6 +58,8 @@ struct ReasoningEffortView: View {
                             if local.fits {
                                 ForEach(local.presets, id: \.self) { value in choice(value.formatted() + " tokens", tokens: value) }
                                 LabeledContent("Estimated working context", value: local.selectedContextTokens.formatted() + " tokens")
+                                    .accessibilityElement(children: .ignore).accessibilityLabel("Estimated working context")
+                                    .accessibilityValue(local.selectedContextTokens.formatted() + " tokens").accessibilityIdentifier("local-working-context")
                             } else {
                                 Label("More memory headroom needed", systemImage: "memorychip")
                                 Text("The runtime cannot fit at this moment. Your download is kept; this is separate from the size of your message.").font(.caption).foregroundStyle(.secondary)

@@ -4,6 +4,7 @@ extension LocalStore {
     private func prepareArtifactHistory() throws { try database.execute("CREATE TABLE IF NOT EXISTS artifact_history(id TEXT NOT NULL,revision INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(id,revision))") }
     public func artifactHistory(_ id: UUID) throws -> [ArtifactRecord] {
         try prepareArtifactHistory()
+        guard !(try database.execute("SELECT id FROM artifacts WHERE id=?", [.text(id.uuidString)])).isEmpty else { return [] }
         return try database.execute("SELECT payload FROM artifact_history WHERE id=? ORDER BY revision DESC", [.text(id.uuidString)])
             .map { try Self.decode(ArtifactRecord.self, $0[0].data!) }
     }
@@ -13,6 +14,7 @@ extension LocalStore {
         try prepareArtifactHistory()
         var revised = original
         revised.content = content; revised.revision += 1
+        revised.lastMutationCallID = sourceCallID; revised.updatedAt = Date()
         revised.containsLocalOnlyContext = revised.containsLocalOnlyContext || localOnly
         revised.containsHealthData = revised.containsHealthData || health
         // Preserve the original creation link used by existing chat cards.
@@ -52,11 +54,11 @@ public enum ArtifactRevisionTools {
                     content = content.replacingOccurrences(of: before, with: after)
                 }
             }
-            let saved = try await store.reviseArtifact(id: id, expectedRevision: Int(call.arguments["expected_revision"]?.numberValue ?? 0), content: content, sourceCallID: call.id, localOnly: localOnly, health: health)
+            let saved = try await store.reviseArtifact(id: id, expectedRevision: try ToolArguments.integer(call.arguments["expected_revision"], field: "expected_revision"), content: content, sourceCallID: call.id, localOnly: localOnly, health: health)
             let copy = try await store.refreshPublishedOutput(id: saved.id, filename: saved.filename, previous: Data(current.content.utf8), replacement: Data(saved.content.utf8), conversationID: conversationID)
             output = .object(["artifact_id": .string(id.uuidString), "filename": .string(saved.filename), "revision": .number(Double(saved.revision)), "status": .string("saved"), "history_preserved": .bool(true), "export_status": .string(copy?.status ?? "stored_in_library")])
         } else {
-            let requested = Int(call.arguments["revision"]?.numberValue ?? 0), offset = Int(call.arguments["offset"]?.numberValue ?? 0)
+            let requested = try ToolArguments.integer(call.arguments["revision"], field: "revision"), offset = try ToolArguments.integer(call.arguments["offset"], field: "offset")
             let record: ArtifactRecord
             if requested == 0 || requested == current.revision { record = current }
             else { guard let earlier = try await store.artifactHistory(id).first(where: { $0.revision == requested }) else { throw AssistantError.invalidTool("That revision is unavailable.") }; record = earlier }

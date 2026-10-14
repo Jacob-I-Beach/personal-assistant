@@ -2,13 +2,14 @@ import {normalizeArguments} from './tool-arguments.mjs';
 
 /** Isolated computer tools are callable without routing model inference here. */
 export class ToolSessions {
-  constructor(store,runtime){this.store=store;this.runtime=runtime;this.active=new Map();}
+  constructor(store,runtime,{mayRun=()=>true}={}){this.store=store;this.runtime=runtime;this.active=new Map();this.mayRun=mayRun;}
   create(owner,body){
     if(typeof body.request_key!=='string'||body.request_key.length>200||typeof body.conversation_id!=='string')throw new Error('A saved chat and turn are required.');
     return this.store.create(owner,'tools:'+body.request_key,{execution_only:true,conversation_id:body.conversation_id,turn_id:body.request_key,title:'Computer tools',contains_health_data:body.contains_health_data===true}).job;
   }
   start(id,owner,call){
     const job=this.store.get(id,owner),definition=this.runtime.definitions.find(tool=>tool.name===call.name);
+    if(!this.mayRun(job))throw new Error('This device no longer permits computer tools.');
     if(!job.payload.execution_only||!definition||!/^[a-zA-Z0-9_-]{1,200}$/.test(call.id??''))throw new Error('This computer action is unavailable.');
     if(job.status==='cancelled')throw new Error('This work was stopped.');
     call={...call,arguments:normalizeArguments(call.arguments,definition.parameters)};
@@ -28,12 +29,20 @@ export class ToolSessions {
     if(job.status!=='cancelled')this.store.status(id,'cancelled','Stopped by the user. Saved results are kept.');
     return this.store.metadata(id,owner);
   }
-  async prepareHandoff(job){
+  async prepareHandoff(job,signal){
+    signal?.throwIfAborted();
     const input=structuredClone(job.payload.body.input),sourceID=job.payload.source_tool_session_id;
     if(!sourceID)return {input,receipts:[]};
     const source=this.store.get(sourceID,job.owner);
     if(!source.payload.execution_only||source.payload.turn_id!==job.payload.turn_id||source.payload.conversation_id!==job.payload.conversation_id)throw new Error('Invalid tool workspace handoff.');
-    await Promise.all([...this.active.entries()].filter(([key])=>key.startsWith(sourceID+':')).map(([,item])=>item.promise));
+    const pending=Promise.all([...this.active.entries()].filter(([key])=>key.startsWith(sourceID+':')).map(([,item])=>item.promise));
+    if(signal)await new Promise((resolve,reject)=>{
+      const abort=()=>{this.cancel(sourceID,job.owner);reject(signal.reason??new Error('Stopped'));};
+      signal.addEventListener('abort',abort,{once:true});
+      pending.then(resolve,reject).finally(()=>signal.removeEventListener('abort',abort));
+      if(signal.aborted)abort();
+    });else await pending;
+    signal?.throwIfAborted();
     const copied=new Set(this.store.files(job.id,job.owner).map(file=>file.id));
     for(const metadata of this.store.files(sourceID,job.owner))if(!copied.has(metadata.id))this.store.saveFile(job.id,{...metadata},this.store.file(sourceID,job.owner,metadata.id).data);
     const receipts=[];

@@ -7,6 +7,7 @@ public struct WorkSurface: Codable, Equatable, Identifiable, Sendable {
     public var id = UUID()
     public var conversationID: UUID
     public var sourceCallID: String
+    public var lastMutationCallID: String?
     public var spec: JSONValue
     public var createdAt = Date()
     public var updatedAt = Date()
@@ -120,6 +121,12 @@ public struct WorkSurface: Codable, Equatable, Identifiable, Sendable {
 extension LocalStore {
     private func rememberSurface(_ surface: WorkSurface) throws {
         try database.execute("CREATE TABLE IF NOT EXISTS surface_history(id TEXT NOT NULL,revision INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(id,revision))")
+        if let data = try database.execute("SELECT payload FROM surface_history WHERE id=? AND revision=?", [.text(surface.id.uuidString), .integer(Int64(surface.revision))]).first?[0].data {
+            // Recover only the identical orphaned current revision left by an
+            // older nontransactional save. A conflicting history stays intact.
+            guard try Self.decode(WorkSurface.self, data) == surface else { throw AssistantError.invalidTool("This surface's saved history conflicts with its current revision.") }
+            return
+        }
         try database.execute("INSERT INTO surface_history(id,revision,payload) VALUES(?,?,?)", [.text(surface.id.uuidString), .integer(Int64(surface.revision)), .blob(try Self.encode(surface))])
     }
     public func reviseSurface(id: UUID, conversationID: UUID, expectedRevision: Int, replacement: WorkSurface) throws -> WorkSurface {
@@ -128,6 +135,7 @@ extension LocalStore {
         try WorkSurface.validate(replacement.spec)
         var updated = replacement
         updated.id = original.id; updated.createdAt = original.createdAt; updated.sourceCallID = original.sourceCallID
+        updated.lastMutationCallID = replacement.sourceCallID
         updated.revision = original.revision + 1; updated.updatedAt = Date()
         updated.containsLocalOnlyContext = original.containsLocalOnlyContext || replacement.containsLocalOnlyContext
         updated.containsHealthData = original.containsHealthData || replacement.containsHealthData
@@ -138,8 +146,10 @@ extension LocalStore {
                 if let value = original.inputValues[key], let low = input["min"]?.numberValue, let high = input["max"]?.numberValue, (low...high).contains(value) { updated.inputValues[key] = value }
             }
         }
-        try rememberSurface(original)
-        try database.execute("UPDATE work_surfaces SET payload=? WHERE id=?", [.blob(try Self.encode(updated)), .text(id.uuidString)])
+        try database.transaction {
+            try rememberSurface(original)
+            try database.execute("UPDATE work_surfaces SET payload=? WHERE id=?", [.blob(try Self.encode(updated)), .text(id.uuidString)])
+        }
         return updated
     }
     private func prepareSurfaces() throws { try database.execute("CREATE TABLE IF NOT EXISTS work_surfaces(id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, payload BLOB NOT NULL)") }
@@ -149,7 +159,7 @@ extension LocalStore {
         let activeCalls = Set(conversation.messages.flatMap(\.toolCalls).map(\.id))
         return try database.execute("SELECT payload FROM work_surfaces WHERE conversation_id = ?", [.text(conversationID.uuidString)])
             .map { row in let surface = try Self.decode(WorkSurface.self, row[0].data!); try WorkSurface.validate(surface.spec); return surface }
-            .filter { activeCalls.contains($0.sourceCallID) && (!remote || (!$0.containsLocalOnlyContext && (!$0.containsHealthData || conversation.containsHealthData))) }
+            .filter { activeCalls.contains($0.sourceCallID) && !conversation.excludedSurfaceIDs.contains($0.id) && (!remote || (!$0.containsLocalOnlyContext && (!$0.containsHealthData || conversation.containsHealthData))) }
             .sorted { $0.createdAt < $1.createdAt }
     }
     public func saveSurface(_ surface: WorkSurface) throws {
@@ -164,9 +174,12 @@ extension LocalStore {
         for input in surface.inputs {
             guard let number = inputs[input["id"]!.stringValue!], number.isFinite, (input["min"]!.numberValue!...input["max"]!.numberValue!).contains(number) else { throw AssistantError.invalidTool("A parameter is outside its allowed range.") }
         }
-        try rememberSurface(surface)
+        let previous = surface
         surface.selectedIDs = selected; surface.inputValues = inputs; surface.updatedAt = Date(); surface.revision += 1
-        try database.execute("UPDATE work_surfaces SET payload = ? WHERE id = ?", [.blob(try Self.encode(surface)), .text(id.uuidString)])
+        try database.transaction {
+            try rememberSurface(previous)
+            try database.execute("UPDATE work_surfaces SET payload = ? WHERE id = ?", [.blob(try Self.encode(surface)), .text(id.uuidString)])
+        }
         return surface
     }
 }

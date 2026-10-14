@@ -47,7 +47,7 @@ def sections(binary: bytes) -> dict:
     return result
 
 
-def prepare(source: Path, checksums: Path, destination: Path) -> dict:
+def prepare(source: Path, checksums: Path, destination: Path, increased_memory: bool = False) -> dict:
     receipt = inspect(source, checksums)
     if destination.exists() or source.resolve() == destination.resolve():
         raise ValueError('Preserve the source and any existing output.')
@@ -75,7 +75,8 @@ def prepare(source: Path, checksums: Path, destination: Path) -> dict:
         executable = app / info['CFBundleExecutable']
         original_sections = sections(executable.read_bytes())
         entitlements = staging / 'empty-entitlements.plist'
-        entitlements.write_bytes(plistlib.dumps({}))
+        requested = {'com.apple.developer.kernel.increased-memory-limit': True} if increased_memory else {}
+        entitlements.write_bytes(plistlib.dumps(requested))
         subprocess.run(['/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none',
                         '--generate-entitlement-der', '--entitlements', str(entitlements), str(app)], check=True)
         subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], check=True)
@@ -96,14 +97,16 @@ def prepare(source: Path, checksums: Path, destination: Path) -> dict:
                     output.write(path, path.relative_to(staging).as_posix())
     output_checksums = destination.parent / 'SHA256SUMS.txt'
     digest = hashlib.sha256(destination.read_bytes()).hexdigest()
-    output_checksums.write_text(digest + '  ' + destination.name + '\n', encoding='utf-8')
+    previous_checksums = output_checksums.read_text(encoding='utf-8') if output_checksums.exists() else ''
+    output_checksums.write_text(previous_checksums.rstrip() + '\n' + digest + '  ' + destination.name + '\n', encoding='utf-8')
     result = inspect(destination, output_checksums)
-    if result['requested_entitlements'] or result['health_enabled_in_app']:
-        raise ValueError('The standard input still requests protected capabilities.')
+    if result['requested_entitlements'] != requested or result['health_enabled_in_app']:
+        raise ValueError('The signing input requests unexpected capabilities.')
     result.update(source_sha256=receipt['sha256'], health_deferred=True,
                   compiled_sections_unchanged=True, activity_extension_preserved=True,
                   apple_adhoc_signature_verified=True, changed_files=changed,
-                  note='Unsigned installation input with a verified ad-hoc signature. Personal signing is still required.')
+                  increased_memory_requested=increased_memory,
+                  note='Unsigned installation input with a verified ad-hoc signature. Personal signing is still required. A memory request is not a granted profile entitlement or measured iOS allowance.')
     destination.with_suffix('.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
     return result
 
@@ -113,5 +116,6 @@ if __name__ == '__main__':
     parser.add_argument('source', type=Path)
     parser.add_argument('checksums', type=Path)
     parser.add_argument('destination', type=Path)
+    parser.add_argument('--increased-memory', action='store_true', help='Request only the regular increased-memory entitlement; matching provisioning is still required.')
     args = parser.parse_args()
-    print(json.dumps(prepare(args.source, args.checksums, args.destination), indent=2))
+    print(json.dumps(prepare(args.source, args.checksums, args.destination, args.increased_memory), indent=2))

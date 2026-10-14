@@ -118,7 +118,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
             }
             // Persist one coherent projection per batch, including exact action
             // receipts and visible questions/answers, before moving the cursor.
-            let snapshotCursor = Int(batch["job"]?["cursor"]?.numberValue ?? 0)
+            let snapshotCursor = try ToolArguments.integer(batch["job"]?["cursor"], field: "progress cursor")
             let canPublish = replay.canPublish(cursor: transcript.cursor, snapshotCursor: snapshotCursor)
             if !events.isEmpty && canPublish {
                 let visibleFiles = Set(transcript.messages.flatMap(\.fileIDs))

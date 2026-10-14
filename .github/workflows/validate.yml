@@ -157,6 +157,7 @@ jobs:
           python scripts/prepare_iloader_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/PersonalAssistant-HealthKit.ipa --healthkit
           (cd .build/device && shasum -a 256 *.ipa > SHA256SUMS.txt)
           python scripts/prepare_standard_package.py .build/device/PersonalAssistant-unsigned.ipa .build/device/SHA256SUMS.txt .build/device/PersonalAssistant-Standard.ipa
+          python scripts/prepare_standard_package.py .build/device/PersonalAssistant-Standard.ipa .build/device/SHA256SUMS.txt .build/device/PersonalAssistant-Memory.ipa --increased-memory
           (cd .build/device && shasum -a 256 *.ipa > SHA256SUMS.txt)
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-unsigned.ipa .build/device/SHA256SUMS.txt --report .build/device/CompletePackageValidation.json
           python scripts/inspect_ipa.py .build/device/PersonalAssistant-iPhone-only.ipa .build/device/SHA256SUMS.txt --report .build/device/iPhonePackageValidation.json
@@ -230,7 +231,7 @@ jobs:
           case "${{ matrix.suite }}" in
             models-115)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests")
-              scenarios="testLocalQwenContextAndMemoryControlsAreReachable testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings testLocalMessageStaysLocalWithSavedComputerWork testWelcomeCatalogAndSettings testDarkAndLargeTextControlsRemainUsable"
+              scenarios="testLocalQwenContextAndMemoryControlsAreReachable testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings testLocalMessageStaysLocalWithSavedComputerWork testWelcomeCatalogAndSettings testDarkAndLargeTextControlsRemainUsable testAttachmentPreviewWorkingSurfacesAndActualMessageEdit"
               ;;
             catalog-layout-114)
               scenarios="testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable testLocalMessageStaysLocalWithSavedComputerWork"

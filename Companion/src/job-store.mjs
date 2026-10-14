@@ -86,19 +86,23 @@ export class JobStore {
     else{const old=this.get(row.id,row.owner).payload;payload={title:old.title??'Assistant task',body:{model:old.body?.model??''},execution_only:old.execution_only===true};this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON(payload,'summary:'+row.id),row.id);}
     return {id:row.id,owner:row.owner,requestKey:row.request_key,status:row.status,createdAt:row.created,updatedAt:row.updated,cursor:row.cursor,payload};
   }
-  incomplete(owner){return this.db.prepare("SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status IN ('running','waiting_for_phone','waiting_for_input')"+(owner?' AND owner=?':'')).all(...(owner?[owner]:[])).map(row=>this.metadataRow(row));}
-  append(id, event) {
-    this.db.exec('BEGIN IMMEDIATE');
-    try {
-      const row = this.db.prepare('SELECT cursor FROM jobs WHERE id=?').get(id);
-      if (!row) throw new Error('The task no longer exists.');
-      const seq = row.cursor + 1;
-      const value = {...event, seq, recordedAt: new Date().toISOString()};
-      this.db.prepare('INSERT INTO events(job_id,seq,data) VALUES(?,?,?)').run(id, seq, this.vault.sealJSON(value, `event:${id}:${seq}`));
-      this.db.prepare('UPDATE jobs SET cursor=?,updated=? WHERE id=?').run(seq, Date.now(), id);
-      this.db.exec('COMMIT'); return value;
-    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  incomplete(owner){return this.db.prepare("SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status IN ('queued','running','waiting_for_phone','waiting_for_input')"+(owner?' AND owner=?':'')).all(...(owner?[owner]:[])).map(row=>this.metadataRow(row));}
+  controlled(id){const row=this.db.prepare('SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE id=?').get(id);if(!row)throw new Error('Task not found.');return this.metadataRow(row);}
+  queued(after=0,limit=100){return this.db.prepare("SELECT rowid AS queue_cursor,id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status='queued' AND rowid>? ORDER BY rowid LIMIT ?").all(after,limit).map(row=>({...this.metadataRow(row),queueCursor:row.queue_cursor}));}
+  transaction(action){this.db.exec('BEGIN IMMEDIATE');try{const value=action();this.db.exec('COMMIT');return value;}catch(error){this.db.exec('ROLLBACK');throw error;}}
+  appendWithin(id,event){
+    const row=this.db.prepare('SELECT cursor FROM jobs WHERE id=?').get(id);if(!row)throw new Error('The task no longer exists.');
+    const seq=row.cursor+1,value={...event,seq,recordedAt:new Date().toISOString()};
+    this.db.prepare('INSERT INTO events(job_id,seq,data) VALUES(?,?,?)').run(id,seq,this.vault.sealJSON(value,`event:${id}:${seq}`));
+    this.db.prepare('UPDATE jobs SET cursor=?,updated=? WHERE id=?').run(seq,Date.now(),id);return value;
   }
+  checkpointEvents(id,checkpoint,events){return this.transaction(()=>{this.checkpoint(id,checkpoint);return events.map(event=>this.appendWithin(id,event));});}
+  reviewReceipt(id,operationId,event){return this.transaction(()=>{
+    this.db.prepare("UPDATE operations SET status='started' WHERE job_id=? AND id=? AND result IS NULL").run(id,operationId);
+    return this.appendWithin(id,event);
+  });}
+  append(id, event) { return this.transaction(()=>this.appendWithin(id,event)); }
+
   events(id, owner, after = 0, limit = 200) {
     this.assertOwner(id, owner);
     if (!Number.isSafeInteger(after) || after < 0) throw new Error('Invalid progress cursor.');
@@ -106,13 +110,15 @@ export class JobStore {
       .all(id, after, Math.min(200, Math.max(1, limit))).map(row => this.vault.openJSON(row.data, `event:${id}:${row.seq}`));
   }
   status(id, status, text, extra = {}) {
+    return this.transaction(()=>{
     const allowed = ['queued','running','waiting_for_phone','waiting_for_input','completed','failed','cancelled','interrupted'];
     if (!allowed.includes(status)) throw new Error('Invalid task status.');
     const current = this.db.prepare('SELECT status FROM jobs WHERE id=?').get(id)?.status;
     if (!current) throw new Error('The task no longer exists.');
     if (['completed','cancelled'].includes(current) && current !== status) throw Object.assign(new Error('A finished task cannot be restarted or relabeled.'), {status: 409});
     this.db.prepare('UPDATE jobs SET status=?,updated=? WHERE id=?').run(status, Date.now(), id);
-    return this.append(id, {...extra, type: 'status', status, text});
+    return this.appendWithin(id, {...extra, type: 'status', status, text});
+    });
   }
   checkpoint(id, value) {
     this.db.prepare('UPDATE jobs SET checkpoint=?,updated=? WHERE id=?').run(this.vault.sealJSON(value, 'checkpoint:' + id), Date.now(), id);

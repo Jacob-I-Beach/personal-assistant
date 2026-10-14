@@ -124,6 +124,7 @@ public struct CompanionTranscript: Sendable {
     }
     public mutating func apply(_ event: JSONValue) throws -> (ToolCall, ToolResult)? {
         guard let value = event["seq"]?.numberValue, let sequence = Int(exactly: value), sequence > cursor else { return nil }
+        guard sequence <= 0x3fff_ffff_ffff else { throw AssistantError.invalidTool("The computer progress cursor is outside the supported range.") }
         guard sequence == cursor + 1 else { throw AssistantError.provider("Some computer progress is missing. Reconnect to recover the saved sequence.") }
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = event["recordedAt"]?.stringValue.flatMap { formatter.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) } ?? Date()
@@ -177,16 +178,28 @@ public struct CompanionTranscript: Sendable {
         case "executed_tool":
             guard let callData = event["call"], let raw = event["result"], let succeeded = raw["succeeded"]?.boolValue else { throw AssistantError.invalidTool("The computer returned an incomplete action receipt.") }
             let call = try JSONDecoder().decode(ToolCall.self, from: JSONEncoder().encode(callData))
+            guard raw["callID"]?.stringValue == call.id, raw["name"]?.stringValue == call.name else {
+                throw AssistantError.invalidTool("The computer action receipt does not match its request.")
+            }
             guard toolIDs.insert(call.id).inserted else { break }
             var result = ToolResult(callID: call.id, name: call.name, succeeded: succeeded, output: raw["output"] ?? .null)
             result.completedAt = date
+            if let completed = raw["completedAt"], completed != .null {
+                if let seconds = completed.numberValue, seconds.isFinite, abs(seconds) < 100_000_000_000 { result.completedAt = Date(timeIntervalSinceReferenceDate: seconds) }
+                else if let text = completed.stringValue, let parsed = formatter.date(from: text) ?? ISO8601DateFormatter().date(from: text) { result.completedAt = parsed }
+                else { throw AssistantError.invalidTool("The computer action receipt has an invalid completion time.") }
+            }
             result.containsHealthData = raw["containsHealthData"]?.boolValue
             result.containsLocalOnlyContext = raw["containsLocalOnlyContext"]?.boolValue
             result.authorizedHealthDestination = raw["authorizedHealthDestination"]?.stringValue
+            if let workspace = raw["authorizedWorkspaceID"], workspace != .null {
+                guard let id = workspace.stringValue.flatMap(UUID.init(uuidString:)) else { throw AssistantError.invalidTool("The workspace receipt is invalid.") }
+                result.authorizedWorkspaceID = id
+            }
             if let response = raw["userResponse"], response != .null { result.userResponse = try JSONDecoder().decode(Message.self, from: JSONEncoder().encode(response)) }
             let index = ensureAssistant(sequence: sequence, date: date)
             messages[index].toolCalls.append(call); messages[index].state = .complete
-            var receipt = Message(id: identifier(sequence, role: 1), role: .tool, text: try result.modelText(), state: succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: health || result.containsHealthData == true)
+            var receipt = Message(id: identifier(sequence, role: 1), role: .tool, text: try result.modelText(), state: succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: health || result.containsHealthData == true, containsLocalOnlyContext: result.containsLocalOnlyContext == true)
             receipt.createdAt = date; messages.append(receipt)
             if let response = result.userResponse { messages.append(response) }
             let actualTool = call.name == "use_tool" ? call.arguments["name"]?.stringValue : call.name

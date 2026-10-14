@@ -181,6 +181,7 @@ public actor AssistantEngine {
         let availableMemories = MemoryContext.eligible(try await store.memories(), conversationID: conversation.id, remote: backend.networkDestination != nil)
         var localOnlyContext = backend.networkDestination == nil && (availableMemories.contains { !$0.allowsConnectedModels } || conversation.messages.contains(where: \.containsLocalOnlyContext))
         let eligibleAttachments = conversation.messages.filter { backend.networkDestination == nil || !$0.containsLocalOnlyContext }
+        try await store.classifyWork(turnID, localOnly: localOnlyContext, health: conversation.containsHealthData)
         try await backend.prepareForResponse(containsImages: eligibleAttachments.contains { !$0.captureIDs.isEmpty })
         contextConfiguration["context_text_bytes"] = .number(Double(backend.contextLimits.maximumTextBytes))
         work.configuration = .object(contextConfiguration)
@@ -206,7 +207,7 @@ public actor AssistantEngine {
             request.toolCatalog = broker.availableDefinitions
             request.serverContext = ServerContextSnapshot.make(conversation: conversation, memories: availableMemories)
             request.toolExecutor = { call in output.yield(.toolStarted(call)); return try await broker.execute(call) }
-            let kept = max(turnStart + 1, min(conversation.messages.count, Int(work.configuration["handoff_message_count"]?.numberValue ?? 0)))
+            let kept = max(turnStart + 1, min(conversation.messages.count, try ToolArguments.integer(work.configuration["handoff_message_count"], field: "handoff_message_count")))
             let prefix = Array(conversation.messages.prefix(kept)).map { original in
                 var message = original
                 if work.configuration["handoff_message_count"] != nil && message.role == .assistant && message.state == .interrupted { message.state = .complete; message.failureReason = nil }
@@ -239,6 +240,7 @@ public actor AssistantEngine {
         let turnMessages = Array(conversation.messages[turnStart...])
         var executedCallIDs = Set(turnMessages.filter { $0.role == .tool }.compactMap(\.toolCallID))
         let priorExecutionCount = executedCallIDs.count
+        let admission = ToolAdmission(previous: executedCallIDs)
         let calls = turnMessages.filter { $0.state == .complete }.flatMap(\.toolCalls)
         if resuming {
             if let lastScript = turnMessages.last(where: { message in
@@ -248,6 +250,7 @@ public actor AssistantEngine {
             for call in calls where !executedCallIDs.contains(call.id) {
                 try Task.checkCancellation()
                 guard executedCallIDs.count - priorExecutionCount < 24 else { throw AssistantError.workBudgetReached }
+                try await admission.admit(call)
                 output.yield(.toolStarted(call))
                 let result = try await broker.execute(call)
                 localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
@@ -271,8 +274,9 @@ public actor AssistantEngine {
             try await backend.prepareForResponse(containsImages: conversation.messages.contains { (backend.networkDestination == nil || !$0.containsLocalOnlyContext) && !$0.captureIDs.isEmpty })
             var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs, appContext: appContext, turnInstructions: turnInstructions)
             localOnlyContext = localOnlyContext || request.containsLocalOnlyContext
-            if localOnlyContext { await broker.protectLocalContext() }
+            if localOnlyContext { try await broker.protectLocalContext() }
             request.toolExecutor = { call in
+                try await admission.admit(call)
                 output.yield(.toolStarted(call))
                 return try await broker.execute(call)
             }
@@ -373,6 +377,7 @@ public actor AssistantEngine {
                     throw AssistantError.invalidTool("The model repeated a tool-call identifier. Execution was stopped.")
                 }
                 guard executedCallIDs.count - priorExecutionCount <= 24 else { throw AssistantError.workBudgetReached }
+                try await admission.admit(call)
                 output.yield(.toolStarted(call))
                 let result = try await broker.execute(call)
                 localOnlyContext = localOnlyContext || result.containsLocalOnlyContext == true
@@ -394,6 +399,7 @@ public actor AssistantEngine {
               !message.containsHealthData || destination == nil || conversation.allowedHealthDestinations.contains(destination!) else { throw AssistantError.networkNotAuthorized }
         for id in message.captureIDs { _ = try await store.loadCapture(id) }
         if !conversation.messages.contains(where: { $0.id == message.id }) { conversation.messages.append(message) }
+        try await store.classifyWork(turnID, localOnly: message.containsLocalOnlyContext, health: message.containsHealthData)
     }
     private func commitComputerTranscript(_ messages: [Message], receipts: [ToolResult], prefix: [Message], conversationID: UUID, turnID: UUID, destination: String?) async throws {
         var current = try await store.loadConversation(conversationID)

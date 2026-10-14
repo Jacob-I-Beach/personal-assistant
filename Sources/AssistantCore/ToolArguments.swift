@@ -3,6 +3,13 @@ import Foundation
 /// The canonical contract is typed. Compact/local callers and saved v1 calls may
 /// supply text scalars; conversion follows the declared schema, never a guess.
 public enum ToolArguments {
+    /// The exact integer domain shared by Swift and JavaScript tool contracts.
+    public static func integer(_ value: JSONValue?, default fallback: Int = 0, field: String = "argument") throws -> Int {
+        guard let value else { return fallback }
+        guard let number = value.numberValue, number.isFinite, abs(number) <= 9_007_199_254_740_991,
+              let result = Int(exactly: number) else { throw AssistantError.invalidTool("\(field) needs a supported whole number.") }
+        return result
+    }
     public static func normalize(_ input: JSONValue, schema: JSONValue, path: String = "arguments", depth: Int = 0) throws -> JSONValue {
         guard depth < 20 else { throw AssistantError.invalidTool("The tool arguments are too deeply nested.") }
         var value = input
@@ -44,6 +51,7 @@ public enum ToolArguments {
             value = .array(try items.map { try normalize($0, schema: itemSchema, path: path, depth: depth + 1) })
         case "number", "integer":
             guard let number = value.numberValue, number.isFinite, kind != "integer" || number.rounded() == number else { throw AssistantError.invalidTool("\(path) needs \(kind == "integer" ? "a whole number" : "a number").") }
+            if kind == "integer" { _ = try integer(value, field: path) }
             if let minimum = schema["minimum"]?.numberValue, number < minimum { throw AssistantError.invalidTool("\(path) is below the supported minimum.") }
             if let maximum = schema["maximum"]?.numberValue, number > maximum { throw AssistantError.invalidTool("\(path) exceeds the supported maximum.") }
         case "boolean":

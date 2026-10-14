@@ -1,26 +1,40 @@
 import {randomUUID} from 'node:crypto';
 
 export class Scheduler {
-  constructor(store,runner,{mayRun=()=>true,now=()=>Date.now()}={}){this.store=store;this.runner=runner;this.mayRun=mayRun;this.now=now;this.busy=false;}
+  constructor(store,runner,{mayRun=()=>true,now=()=>Date.now()}={}){
+    this.store=store;this.runner=runner;this.mayRun=mayRun;this.now=now;this.busy=false;
+    if(!store.db.prepare('PRAGMA table_info(schedules)').all().some(column=>column.name==='request_key')){
+      store.transaction(()=>{
+        store.db.exec('ALTER TABLE schedules ADD COLUMN request_key TEXT');
+        const keys=new Set();
+        for(const row of store.db.prepare('SELECT * FROM schedules ORDER BY rowid').all()){
+          const value=this.decode(row),key=JSON.stringify([row.owner,value.request_key]);
+          if(keys.has(key)){store.db.prepare('UPDATE schedules SET enabled=0,next_run=NULL WHERE id=?').run(row.id);continue;}
+          keys.add(key);store.db.prepare('UPDATE schedules SET request_key=? WHERE id=?').run(value.request_key??null,row.id);
+        }
+      });
+    }
+    store.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS schedule_request_identity ON schedules(owner,request_key)');
+  }
   decode(row){return row?{id:row.id,owner:row.owner,enabled:!!row.enabled,...this.store.vault.openJSON(row.data,'schedule:'+row.id)}:null;}
   list(owner){return this.store.db.prepare('SELECT * FROM schedules WHERE owner=? ORDER BY rowid DESC LIMIT 100').all(owner).map(row=>this.decode(row));}
-  save(schedule){const {id,owner,enabled,...data}=schedule;this.store.db.prepare('INSERT INTO schedules(id,owner,enabled,next_run,data) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,next_run=excluded.next_run,data=excluded.data').run(id,owner,enabled?1:0,data.runs.find(run=>run.status==='scheduled')?.at??null,this.store.vault.sealJSON(data,'schedule:'+id));}
+  save(schedule){const {id,owner,enabled,...data}=schedule;this.store.db.prepare('INSERT INTO schedules(id,owner,enabled,next_run,data,request_key) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,next_run=excluded.next_run,data=excluded.data,request_key=excluded.request_key').run(id,owner,enabled?1:0,data.runs.find(run=>run.status==='scheduled')?.at??null,this.store.vault.sealJSON(data,'schedule:'+id),data.request_key??null);}
   create(owner,body){
     if(typeof body.request_key!=='string'||body.request_key.length>200||!body.request_key)throw new Error('A schedule needs a stable request key.');
-    const existing=this.list(owner).find(item=>item.request_key===body.request_key);
+    const existing=this.decode(this.store.db.prepare('SELECT * FROM schedules WHERE owner=? AND request_key=?').get(owner,body.request_key));
     if(existing){if(existing.prompt!==body.prompt||JSON.stringify(existing.runs.map(run=>run.at))!==JSON.stringify(body.run_at))throw Object.assign(new Error('This schedule request changed.'),{status:409});return existing;}
     if(typeof body.prompt!=='string'||!body.prompt.trim()||body.prompt.length>6000||typeof body.title!=='string'||body.title.length>120)throw new Error('Give the scheduled task a short title and request.');
     const times=body.run_at;
     if(!Array.isArray(times)||times.length<1||times.length>30||times.some((time,index)=>!Number.isSafeInteger(time)||time<this.now()-60000||time>this.now()+90*86400000||(index>0&&time-times[index-1]<15*60000)))throw new Error('Choose 1–30 future runs within 90 days, at least 15 minutes apart.');
     const source=this.store.get(body.source_job_id,owner);
-    if(this.list(owner).filter(item=>item.enabled).length>=20)throw new Error('Pause or finish an existing schedule before adding another.');
+    if(this.store.db.prepare('SELECT COUNT(*) AS count FROM schedules WHERE owner=? AND enabled=1').get(owner).count>=20)throw new Error('Pause or finish an existing schedule before adding another.');
     const selected=this.store.files(source.id,owner).filter(file=>file.role==='input');
     const inputFiles=selected.map(file=>({id:file.id,version:file.version,sha:file.sha}));
     const schedule={id:randomUUID(),owner,enabled:true,request_key:body.request_key,title:body.title,prompt:body.prompt,source_job_id:source.id,input_files:inputFiles,contains_health_data:source.payload.contains_health_data===true||selected.some(file=>file.contains_health_data===true),created_at:this.now(),runs:times.map(at=>({at,status:'scheduled',job_id:null}))};
     this.save(schedule);return schedule;
   }
-  setEnabled(owner,id,enabled){const value=this.list(owner).find(item=>item.id===id);if(!value)throw new Error('Schedule not found.');value.enabled=enabled===true;this.save(value);return value;}
-  stopOwner(owner){for(const value of this.list(owner)){value.enabled=false;this.save(value);}}
+  setEnabled(owner,id,enabled){const value=this.decode(this.store.db.prepare('SELECT * FROM schedules WHERE owner=? AND id=?').get(owner,id));if(!value)throw new Error('Schedule not found.');if(enabled===true&&!value.enabled&&this.store.db.prepare('SELECT COUNT(*) AS count FROM schedules WHERE owner=? AND enabled=1').get(owner).count>=20)throw new Error('Pause another schedule first.');value.enabled=enabled===true;this.save(value);return value;}
+  stopOwner(owner){this.store.db.prepare('UPDATE schedules SET enabled=0,next_run=NULL WHERE owner=?').run(owner);}
   async tick(){
     if(this.busy||this.stopped)return;this.busy=true;
     try{

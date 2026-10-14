@@ -7,6 +7,7 @@ Version 1.1.5, build 20 is a source candidate. Native compilation, screen review
 - A language-only runtime cache for the already-downloaded, pinned Qwen 3.5 4B checkpoint. It copies the original language tensor bytes in bounded chunks, keeps the original package for vision, and needs approximately 2.37 GB of additional storage on first use. No new model download or altered quantization is involved.
 - Runtime preparation before request/context assembly, and tests that distinguish resource readiness from a genuinely oversized request.
 - Separate model details, downloads, and account/connection views. Memory details remain available without filling the everyday chooser.
+- A separate memory-entitlement signing input, requesting only Apple's regular increased-memory capability. It needs a matching profile and actual phone verification; it does not itself grant more RAM.
 
 ## Changed
 
@@ -15,12 +16,14 @@ Version 1.1.5, build 20 is a source candidate. Native compilation, screen review
 - Model replacement waits for the previous runtime to become idle and release its allocations. Text prefill and the unused GPU cache are bounded more tightly.
 - The model sheet uses concise selectable rows. Saved GPT IDs get readable names without inventing current model availability. Full connection errors are under Manage; download/network and memory controls have their own views.
 - Selecting Automatic context now explicitly clears a prior manual context request.
+- The supplied 18-finding audit was reconciled against the current source. Repairs cover checked tool arguments, execution admission, schedule and device authority, protected plans, complete receipt recovery, atomic status/surface saves, conversation-edit lineage, deletion of orphaned histories, browser review/cancellation and safer file replacement. See AUDIT_115.md for evidence and the remaining filesystem concurrency limitation.
 
 ## Removed
 
 - Loading the unused vision tower during text-only Qwen initialization, including the eager-load peak before the upstream sanitizer discarded it.
 - The misleading tool/context error emitted before discovering that a local model could not fit in memory.
 - Zero-context readouts and diagnostic paragraphs in the everyday model chooser. A runtime that cannot fit is described as a memory-readiness issue.
+- Display-page limits used as complete recovery/control inventories, and tool-budget checks that happened only after a native effect.
 
 ## Evidence and limits
 
@@ -30,12 +33,12 @@ The pinned checkpoint `mlx-community/Qwen3.5-4B-4bit@0e7ffd5c629ef7719d4cbc04069
 
 The revised cold planner estimates a 32,768-token text context at 3.05 GiB headroom. This is not physical inference acceptance: actual loaded footprint, tokenizer allocations, thermal state, memory pressure and sustained context performance must still be checked on the phone. The initial reserves are planning allowances and are replaced by measured loaded usage where available. Vision can still exceed the current allowance. No increased-memory entitlement is claimed in the Standard package.
 
-The user confirms AFM now works and the Qwen download completed. Authenticated GPT model discovery still returns HTTP 520; existing token metadata and registered-client binding checks did not reveal a mismatch. One controlled same-account reconnect was requested separately. Saved credentials are not proof of service availability, and this release does not claim to restore GPT.
+The user confirms AFM now works and the Qwen download completed. Authenticated GPT model discovery still returns HTTP 520 after the user tried a controlled same-account reconnect; token metadata and registered-client binding checks did not reveal a mismatch. Saved credentials are not proof of service availability, and this release does not claim to restore GPT.
 
 ## Validation
 
-- 217 shared-core tests pass on Windows, including bounded exact-byte weight projection, cache reuse, invalid/truncated inputs, cancellation, measured memory budgets and preparation before context assembly.
-- Native platform/UI checks and the unsigned Standard package are pending.
+- Shared-core and companion regression counts will be recorded in the final validation receipt. Cases cover bounded exact-byte weight projection, cache reuse, invalid/truncated inputs, cancellation, measured memory budgets, preparation before context assembly and the audit repairs above.
+- The first native run compiled and archived successfully, passed 11 platform tests and four of seven UI scenarios. Three UI locator/scroll assumptions were corrected after inspecting actual screenshots. Final native validation and packages are pending.
 - Health and task notifications/Live Activities remain deferred. No live model inference, new API billing, account reset or pairing reset was performed for validation.
 
 ## Primary implementation references

@@ -35,7 +35,7 @@ $status = $null
 if ($connection) {
     $status = Setup-Request $connection '/api/status'
     $active = @($status.jobs | Where-Object { $_.status -notin @('completed','failed','cancelled','interrupted') })
-    if ($active.Count -gt 0) { throw 'A computer task is still active. Let it finish, then open this update again.' }
+    if ($active.Count -gt 0 -or $status.active_work_count -gt 0) { throw 'A computer task is still active. Let it finish, then open this update again.' }
 }
 $version = (Get-Content -LiteralPath (Join-Path $package 'package.json') -Raw | ConvertFrom-Json).version
 $registered = (Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).PersonalAssistantComputer

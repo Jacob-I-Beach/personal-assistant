@@ -623,6 +623,9 @@ final class AppModel: ObservableObject {
                 if savedWork == nil, let editID, let store {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
+                    if current.excludedArtifactIDs != original.excludedArtifactIDs || current.excludedSurfaceIDs != original.excludedSurfaceIDs || current.invalidatedProjectRevisions != original.invalidatedProjectRevisions {
+                        noticeMessage = "Work changed by the removed messages is kept, but excluded from this revised chat. Project context will be rebuilt from the remaining conversation."
+                    }
                 } else { try await store?.save(current) }
                 let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request]
                     + (computerReply ? [ComputerScheduleTools.create, ComputerFileTools.transfer, ComputerActionReview.definition] + ComputerTools.definitions : [])

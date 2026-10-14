@@ -6,7 +6,7 @@ final class PublishedFileTests: XCTestCase {
         let file = UUID(), job = UUID()
         let event: JSONValue = .object(["seq": .number(1), "type": .string("executed_tool"),
             "call": .object(["id": .string("show"), "name": .string("publish_task_files"), "arguments": .object([:])]),
-            "result": .object(["succeeded": .bool(true), "output": .object(["caption": .string("The requested screenshot"),
+            "result": .object(["callID": .string("show"), "name": .string("publish_task_files"), "succeeded": .bool(true), "output": .object(["caption": .string("The requested screenshot"),
                 "presented_files": .array([.object(["id": .string(file.uuidString)])])])])])
         var transcript = CompanionTranscript(jobID: job, providerID: "computer", health: false)
         _ = try transcript.apply(event)

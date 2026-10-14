@@ -40,7 +40,7 @@ final class CompanionTranscriptTests: XCTestCase, @unchecked Sendable {
             .object(["seq": .number(1), "type": .string("response_begin")]),
             .object(["seq": .number(2), "type": .string("text_delta"), "text": .string("Let’s choose a day."), "phase": .string("commentary")]),
             .object(["seq": .number(3), "type": .string("executed_tool"), "call": .object(["id": .string("question"), "name": .string("request_input"), "arguments": .object(["question": .string("Which day?")])]),
-                     "result": .object(["succeeded": .bool(true), "output": .object(["question": .string("Which day?"), "answer": .string("Saturday")]), "userResponse": encodedAnswer])]),
+                     "result": .object(["callID": .string("question"), "name": .string("request_input"), "succeeded": .bool(true), "output": .object(["question": .string("Which day?"), "answer": .string("Saturday")]), "userResponse": encodedAnswer])]),
             .object(["seq": .number(4), "type": .string("text_delta"), "text": .string("Saturday works.")]),
             .object(["seq": .number(5), "type": .string("status"), "status": .string("completed")])
         ]

@@ -28,6 +28,9 @@ public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public var automaticResumeCount: Int { automaticResumes ?? resumes }
     public var configuration: JSONValue = .object([:])
     public var plan: [JSONValue] = []
+    /// Nil denotes a legacy record whose derived text has not been classified.
+    public var containsLocalOnlyContext: Bool?
+    public var containsHealthData: Bool?
     public func permitsContextRetry(maximumTextBytes: Int) -> Bool {
         guard needsChangedRequest == true else { return true }
         let prior = configuration["context_text_bytes"]?.numberValue.flatMap { Int(exactly: $0) } ?? (destination == nil ? 32_768 : 128_000)
@@ -36,6 +39,7 @@ public struct WorkTurn: Codable, Identifiable, Equatable, Sendable {
     public init(id: UUID, conversationID: UUID, userMessageID: UUID, backendID: String, destination: String? = nil, goal: String, configuration: JSONValue = .object([:])) {
         self.id = id; self.conversationID = conversationID; self.userMessageID = userMessageID
         self.backendID = backendID; self.destination = destination; self.goal = goal; self.configuration = configuration
+        containsLocalOnlyContext = false; containsHealthData = false
     }
 }
 struct ToolOperation: Codable, Sendable {
@@ -60,6 +64,11 @@ extension LocalStore {
     public func saveWorkTurn(_ value: WorkTurn) throws {
         try ensureWorkJournal()
         var value = value; value.updatedAt = Date()
+        if let previous = try workTurn(value.id) {
+            // A stale checkpoint must never clear protection learned by a tool.
+            if previous.containsLocalOnlyContext != false { value.containsLocalOnlyContext = true }
+            if previous.containsHealthData == true { value.containsHealthData = true }
+        }
         guard value.goal.utf8.count <= 1600, (0...100_000).contains(value.rounds), (0...10_000).contains(value.resumes),
               (0...3).contains(value.automaticResumes ?? 0), try value.configuration.jsonString().utf8.count <= 16_384 else { throw AssistantError.invalidTool("The saved task exceeds its supported limits.") }
         try database.execute("INSERT INTO work_turns(id,conversation_id,updated_at,payload) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET updated_at=excluded.updated_at,payload=excluded.payload", [.text(value.id.uuidString), .text(value.conversationID.uuidString), .real(value.updatedAt.timeIntervalSince1970), .blob(try Self.encode(value))])
@@ -132,7 +141,14 @@ extension LocalStore {
             "notice": .string("A finished reply does not prove every external action succeeded. Only recorded outcomes are evidence. Personal content is excluded from this report.")
         ])
     }
-    func updateWorkPlan(_ turnID: UUID, steps: [JSONValue]) throws {
+    public func classifyWork(_ turnID: UUID, localOnly: Bool, health: Bool) throws {
+        guard var work = try workTurn(turnID) else { return }
+        work.containsLocalOnlyContext = work.containsLocalOnlyContext != false || localOnly
+        work.containsHealthData = work.containsHealthData == true || health
+        try saveWorkTurn(work)
+    }
+    func updateWorkPlan(_ turnID: UUID, steps: [JSONValue], localOnly: Bool = false, health: Bool = false) throws {
+        try classifyWork(turnID, localOnly: localOnly, health: health)
         guard var work = try workTurn(turnID) else { return }
         work.plan = steps; try saveWorkTurn(work)
     }
@@ -151,7 +167,7 @@ extension LocalStore {
     }
     func toolOperations(_ id: UUID) throws -> [ToolOperation] {
         try ensureWorkJournal()
-        return try database.execute("SELECT payload FROM tool_operations WHERE turn_id=? ORDER BY rowid LIMIT 24", [.text(id.uuidString)])
+        return try database.execute("SELECT payload FROM tool_operations WHERE turn_id=? ORDER BY rowid", [.text(id.uuidString)])
             .map { try Self.decode(ToolOperation.self, $0[0].data!) }
     }
     func finishToolOperation(_ call: ToolCall, turnID: UUID, result: ToolResult) throws {
@@ -172,6 +188,9 @@ extension LocalStore {
     }
     public func workEvidence(_ id: UUID, conversationID: UUID, remote: Bool, workspaceEnabled: Bool) throws -> JSONValue {
         guard let work = try workTurn(id) else { throw AssistantError.invalidTool("That task is unavailable.") }
+        guard !remote || (work.containsLocalOnlyContext == false && work.containsHealthData == false) else {
+            throw AssistantError.invalidTool("This saved task has protected or unclassified derived context and is available only on this device.")
+        }
         if work.conversationID == conversationID {
             let source = try message(work.userMessageID, in: conversationID)
             guard !remote || (!source.containsLocalOnlyContext && !source.containsHealthData) else { throw AssistantError.invalidTool("This saved task contains protected context.") }
@@ -179,8 +198,7 @@ extension LocalStore {
             guard workspaceEnabled else { throw AssistantError.invalidTool("Workspace access is disabled.") }
             _ = try sharedHistoryMessage(work.userMessageID, conversationID: work.conversationID, folderID: nil, remote: remote)
         }
-        let operations = try database.execute("SELECT payload FROM tool_operations WHERE turn_id=? LIMIT 24", [.text(id.uuidString)])
-            .map { try Self.decode(ToolOperation.self, $0[0].data!) }
+        let operations = try toolOperations(id)
         return .object(["task_id": .string(work.id.uuidString), "goal": .string(work.goal), "phase": .string(work.phase.rawValue), "plan": .array(work.plan),
             "reason": work.reason.map(JSONValue.string) ?? .null, "updated_at": .string(ISO8601DateFormatter().string(from: work.updatedAt)),
             "actions": .array(operations.map { op in .object(["tool": .string(op.name), "started_at": .string(ISO8601DateFormatter().string(from: op.startedAt)),

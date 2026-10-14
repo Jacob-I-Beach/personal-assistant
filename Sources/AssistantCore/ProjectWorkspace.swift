@@ -13,6 +13,9 @@ public struct ProjectWorkspace: Codable, Sendable, Identifiable, Equatable {
     public var updatedAt: Date
     public var containsLocalOnlyContext: Bool
     public var containsHealthData: Bool
+    public var lastMutationConversationID: UUID?
+    public var lastMutationCallID: String?
+    public var needsContextRebuild: Bool?
     public var summary: JSONValue {
         .object(["project_id": .string(id.uuidString), "title": .string(title), "goal": .string(goal), "status": .string(status), "decisions": .array(decisions.map(JSONValue.string)), "open_questions": .array(questions.map(JSONValue.string)), "authoritative_output_ids": .array(outputIDs.map { .string($0.uuidString) }), "revision": .number(Double(revision)), "updated_at": .string(ISO8601DateFormatter().string(from: updatedAt)), "notice": .string("This is the maintained project record. Status and decisions are recorded context; individual action receipts establish external outcomes.")])
     }
@@ -24,8 +27,12 @@ extension LocalStore {
     }
     public func projectWorkspace(conversationID: UUID, remote: Bool) throws -> ProjectWorkspace? {
         let chat = try loadConversation(conversationID), scope = chat.folderID ?? chat.id
-        guard let project = try projectWorkspaces().first(where: { $0.id == scope }) else { return nil }
+        guard var project = try projectWorkspaces().first(where: { $0.id == scope }) else { return nil }
         guard !remote || (!project.containsLocalOnlyContext && (!project.containsHealthData || (project.sourceConversationID == conversationID && chat.containsHealthData))) else { return nil }
+        if (chat.invalidatedProjectRevisions[project.id.uuidString] ?? 0) >= project.revision {
+            project.title = "Project context needs rebuilding"; project.goal = "An edited request removed the context used for this revision. Rebuild the summary from the current chat before using it. Saved outputs and external actions remain unchanged."
+            project.decisions = []; project.questions = []; project.outputIDs = []; project.status = "waiting"; project.needsContextRebuild = true
+        }
         return project
     }
     public func saveProjectWorkspace(_ project: ProjectWorkspace, expectedRevision: Int) throws {
@@ -57,9 +64,10 @@ public enum ProjectTools {
             let files = try await store.readableFiles(attached: chat.attachedFileIDs, workspace: workspace, remote: remote, conversationID: conversationID)
             let allowed = Set(artifacts.map(\.id) + files.map(\.id))
             guard ids.count == rawIDs.count, Set(ids).isSubset(of: allowed) else { throw AssistantError.invalidTool("Use output IDs already available in this project.") }
-            let revision = Int(call.arguments["expected_revision"]?.numberValue ?? 0)
+            let revision = try ToolArguments.integer(call.arguments["expected_revision"], field: "expected_revision")
             var project = ProjectWorkspace(id: chat.folderID ?? chat.id, sourceConversationID: current?.sourceConversationID ?? chat.id, title: call.arguments["title"]?.stringValue ?? "Project", goal: call.arguments["goal"]?.stringValue ?? "", status: call.arguments["status"]?.stringValue ?? "active", decisions: call.arguments["decisions"]?.arrayValue?.compactMap(\.stringValue) ?? [], questions: call.arguments["open_questions"]?.arrayValue?.compactMap(\.stringValue) ?? [], outputIDs: ids, revision: revision + 1, updatedAt: Date(), containsLocalOnlyContext: localOnly || current?.containsLocalOnlyContext == true, containsHealthData: health || current?.containsHealthData == true)
             project.containsLocalOnlyContext = project.containsLocalOnlyContext || artifacts.contains { ids.contains($0.id) && $0.containsLocalOnlyContext }
+            project.lastMutationConversationID = chat.id; project.lastMutationCallID = call.id
             project.containsHealthData = project.containsHealthData || artifacts.contains { ids.contains($0.id) && $0.containsHealthData } || files.contains { ids.contains($0.id) && $0.containsHealthData }
             try await store.saveProjectWorkspace(project, expectedRevision: revision)
             result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: project.summary)

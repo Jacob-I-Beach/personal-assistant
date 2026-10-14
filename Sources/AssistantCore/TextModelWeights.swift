@@ -99,8 +99,16 @@ public enum TextModelWeights {
             var remaining = tensor.size
             while remaining > 0 {
                 try checkCancellation()
-                let part = try read(reader, count: Int(min(2 * 1024 * 1024, remaining)))
-                try writer.write(contentsOf: part); remaining -= Int64(part.count)
+                let count = Int(min(2 * 1024 * 1024, remaining))
+                #if canImport(ObjectiveC)
+                // FileHandle bridges Foundation objects on Apple platforms.
+                // Drain each chunk rather than retaining temporary objects for
+                // the full multi-gigabyte copy on this dispatch work item.
+                try autoreleasepool { try writer.write(contentsOf: read(reader, count: count)) }
+                #else
+                try writer.write(contentsOf: read(reader, count: count))
+                #endif
+                remaining -= Int64(count)
             }
         }
         try writer.synchronize(); try writer.close()

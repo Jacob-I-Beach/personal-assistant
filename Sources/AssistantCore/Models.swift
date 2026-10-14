@@ -144,6 +144,8 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     /// Library originals survive editing, but removed-turn outputs must not leak into the new context.
     public var excludedArtifactIDs: Set<UUID> = []
     public var excludedFileIDs: Set<UUID> = []
+    public var excludedSurfaceIDs: Set<UUID> = []
+    public var invalidatedProjectRevisions: [String: Int] = [:]
 
     public init(id: UUID = UUID(), title: String = "New conversation") {
         self.id = id; self.title = title; self.createdAt = Date(); self.updatedAt = Date()
@@ -153,7 +155,7 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
     public var attachedCaptureIDs: Set<UUID> { Set(messages.flatMap(\.captureIDs)) }
     public var attachedFileIDs: Set<UUID> { Set(messages.flatMap(\.fileIDs)) }
     public var containsHealthData: Bool { messages.contains(where: \.containsHealthData) }
-    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, requiresNetworkReview, folderID, archivedAt, needsAutomaticTitle, titleWasGenerated, modelTitleOverride, workspaceIDs, excludedArtifactIDs, excludedFileIDs }
+    enum CodingKeys: String, CodingKey { case schemaVersion, id, title, createdAt, updatedAt, messages, allowedNetworkDestinations, allowedHealthDestinations, networkDisabled, requiresNetworkReview, folderID, archivedAt, needsAutomaticTitle, titleWasGenerated, modelTitleOverride, workspaceIDs, excludedArtifactIDs, excludedFileIDs, excludedSurfaceIDs, invalidatedProjectRevisions }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion); id = try c.decode(UUID.self, forKey: .id)
@@ -171,6 +173,8 @@ public struct Conversation: Codable, Equatable, Sendable, Identifiable {
         workspaceIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .workspaceIDs) ?? []
         excludedArtifactIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedArtifactIDs) ?? []
         excludedFileIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedFileIDs) ?? []
+        excludedSurfaceIDs = try c.decodeIfPresent(Set<UUID>.self, forKey: .excludedSurfaceIDs) ?? []
+        invalidatedProjectRevisions = try c.decodeIfPresent([String: Int].self, forKey: .invalidatedProjectRevisions) ?? [:]
     }
     public mutating func recoverInterruptedMessages(preserving messageIDs: Set<UUID> = []) {
         for i in messages.indices where messages[i].state == .streaming && !messageIDs.contains(messages[i].id) { messages[i].state = .interrupted }

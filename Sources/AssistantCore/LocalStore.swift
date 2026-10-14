@@ -16,6 +16,14 @@ public actor LocalStore {
         }
         let database = try SQLiteDatabase(url: root.appendingPathComponent("assistant.sqlite"))
         try Self.prepare(database, root: root)
+        // Earlier versions could leave live revision rows after their parent
+        // was deleted. These are app-owned chat histories, not exported files.
+        try database.transaction {
+            for (history, parent) in [("artifact_history", "artifacts"), ("surface_history", "work_surfaces")] {
+                let present = try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?)", [.text(history), .text(parent)])
+                if present.count == 2 { try database.execute("DELETE FROM \(history) WHERE NOT EXISTS(SELECT 1 FROM \(parent) p WHERE p.id=\(history).id)") }
+            }
+        }
         self.database = database
         let healthMessages = try database.execute("SELECT 1 FROM messages WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
         let healthArtifacts = try database.execute("SELECT 1 FROM artifacts WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
@@ -40,9 +48,21 @@ public actor LocalStore {
         let retainedFiles = Set(original.messages[..<index].flatMap(\.fileIDs))
         let threshold = original.messages[index].createdAt
         for artifact in try artifacts() where artifact.conversationID == original.id {
-            if artifact.createdAt >= threshold || artifact.sourceCallID.map(calls.contains) == true {
+            if artifact.createdAt >= threshold || artifact.sourceCallID.map(calls.contains) == true
+                || artifact.lastMutationCallID.map(calls.contains) == true || artifact.updatedAt.map({ $0 >= threshold }) == true
+                || (artifact.revision > 1 && artifact.updatedAt == nil) {
                 revised.excludedArtifactIDs.insert(artifact.id)
             }
+        }
+        for surface in try surfaces(conversationID: original.id) {
+            if surface.updatedAt >= threshold || calls.contains(surface.sourceCallID) || surface.lastMutationCallID.map(calls.contains) == true {
+                revised.excludedSurfaceIDs.insert(surface.id)
+            }
+        }
+        if let project = try projectWorkspaces().first(where: { $0.id == (original.folderID ?? original.id) }),
+           (project.lastMutationConversationID ?? project.sourceConversationID) == original.id,
+           project.updatedAt >= threshold || project.lastMutationCallID.map(calls.contains) == true {
+            revised.invalidatedProjectRevisions[project.id.uuidString] = project.revision
         }
         for file in try workspaceFiles() where file.conversationID == original.id && !retainedFiles.contains(file.id) {
             revised.excludedFileIDs.insert(file.id)
@@ -172,6 +192,10 @@ public actor LocalStore {
         }
         try database.transaction {
             for artifact in generated { try database.execute("DELETE FROM metadata WHERE key = ?", [.text("artifact-draft:" + artifact.id.uuidString)]) }
+            for (history, parent) in [("artifact_history", "artifacts"), ("surface_history", "work_surfaces")] {
+                let present = try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?)", [.text(history), .text(parent)])
+                if present.count == 2 { try database.execute("DELETE FROM \(history) WHERE id IN (SELECT id FROM \(parent) WHERE conversation_id=?)", [.text(id.uuidString)]) }
+            }
             // Optional tables may not exist in an older installation until their feature is used.
             for table in ["work_turns", "tool_operations", "prepared_routes", "task_questions"] {
                 if !(try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [.text(table)])).isEmpty {

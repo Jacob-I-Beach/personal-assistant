@@ -105,7 +105,7 @@ public struct AssistantTools: Sendable {
                 return result
             } catch {
                 if error is CancellationError || Task.isCancelled { throw CancellationError() }
-                return ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object(["error": .string(error.localizedDescription)]))
+                return try await classify(ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object(["error": .string(error.localizedDescription)])))
             }
         }
         return try await executeDirect(call)
@@ -137,7 +137,7 @@ public struct AssistantTools: Sendable {
             if let result = prior.result {
                 guard !remote || (result.containsLocalOnlyContext != true && (result.containsHealthData != true || healthData)) else { throw AssistantError.invalidTool("The saved result is outside the current model's data permissions.") }
                 if call.name == "run_javascript" { let attempt = await execution.beginScript(); await execution.finishScript(attempt, succeeded: result.succeeded) }
-                return await classify(result)
+                return try await classify(result)
             }
             guard !remote || (!prior.localOnly && (!prior.health || healthData)) else { throw AssistantError.invalidTool("This unfinished operation contains protected context.") }
             if prior.awaitingReview == true {
@@ -146,7 +146,7 @@ public struct AssistantTools: Sendable {
                 return result
             }
             if call.name == "run_javascript" { await restoreCalculationStatus(succeeded: false) }
-            return await classify(ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object([
+            return try await classify(ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object([
                 "status": .string("outcome_unknown"), "error": .string("An earlier attempt started, but no final receipt was saved. Inspect its outcome before proposing another action; this operation was not repeated.")
             ])))
         }
@@ -162,7 +162,7 @@ public struct AssistantTools: Sendable {
         if [CaptureToolBroker.definition.name, DepthInspection.tool.name].contains(call.name) {
             let messages = try await store.loadConversation(conversationID).messages
             let provided = messages.filter { operationScope != nil && $0.replyToTaskID == operationScope && (!remote || !$0.containsLocalOnlyContext) }.flatMap(\.captureIDs)
-            return await classify(CaptureToolBroker(store: store, allowedCaptureIDs: captureIDs.union(provided)).execute(call))
+            return try await classify(CaptureToolBroker(store: store, allowedCaptureIDs: captureIDs.union(provided)).execute(call))
         }
         let scriptAttempt = call.name == "run_javascript" ? await execution.beginScript() : nil
         do {
@@ -209,12 +209,17 @@ public struct AssistantTools: Sendable {
                       }), steps.filter({ $0["status"]?.stringValue == "in_progress" }).count <= 1 else {
                     throw AssistantError.invalidTool("Use 1–8 short steps with valid statuses and at most one in-progress step.")
                 }
-                if let scope = operationScope { try await store.updateWorkPlan(scope, steps: steps) }
+                let flags = await classification.values()
+                if let scope = operationScope { try await store.updateWorkPlan(scope, steps: steps, localOnly: flags.localOnly, health: flags.health) }
                 output = .object(["steps": .array(steps)])
             case "read_task":
                 let raw = arguments["task_id"]!.stringValue!
                 guard let id = raw.isEmpty ? operationScope : UUID(uuidString: raw) else { throw AssistantError.invalidTool("There is no active task record.") }
                 output = try await store.workEvidence(id, conversationID: conversationID, remote: remote, workspaceEnabled: workspaceEnabled)
+                if let saved = try await store.workTurn(id) {
+                    if saved.containsLocalOnlyContext != false { await classification.includeLocalOnly() }
+                    if saved.containsHealthData == true { await classification.includeHealth() }
+                }
             case "search_workspace":
                 let query = arguments["query"]!.stringValue!
                 let terms = query.lowercased().split { !$0.isLetter && !$0.isNumber }
@@ -368,17 +373,17 @@ public struct AssistantTools: Sendable {
                         else { sections[source] = value }
                     }
                     output = .object(["sources": .object(sections), "workspace_enabled": .bool(workspaceEnabled), "truncated_sources": .array(truncated), "excluded": .array([.string("Unpermitted, archived and protected sources"), .string("Connected folders: search_files requires a selected folder"), .string("Other apps and external mailboxes")])])
-                    return await classify(ToolResult(callID: call.id, name: call.name, succeeded: true, output: output))
+                    return try await classify(ToolResult(callID: call.id, name: call.name, succeeded: true, output: output))
                 }
                 if ProjectTools.definitions.contains(where: { $0.name == call.name }) {
                     let flags = await classification.values()
-                    return await classify(try await ProjectTools.execute(call, store: store, conversationID: conversationID, workspace: workspaceEnabled, remote: remote, localOnly: flags.localOnly, health: flags.health))
+                    return try await classify(try await ProjectTools.execute(call, store: store, conversationID: conversationID, workspace: workspaceEnabled, remote: remote, localOnly: flags.localOnly, health: flags.health))
                 }
                 if ArtifactRevisionTools.definitions.contains(where: { $0.name == call.name }) {
                     let canWrite = await execution.canAuthorArtifact
                     guard call.name != "update_artifact" || canWrite else { throw AssistantError.invalidTool("Repair the failed calculation before revising its document.") }
                     let flags = await classification.values()
-                    return await classify(try await ArtifactRevisionTools.execute(call, store: store, conversationID: conversationID, remote: remote, localOnly: flags.localOnly, health: flags.health))
+                    return try await classify(try await ArtifactRevisionTools.execute(call, store: store, conversationID: conversationID, remote: remote, localOnly: flags.localOnly, health: flags.health))
                 }
                 if SurfaceTools.definitions.contains(where: { $0.name == call.name }) {
                     if ["present_surface", "update_surface"].contains(call.name), !(await execution.canAuthorArtifact) { throw AssistantError.invalidTool("Repair the failed calculation before presenting its results.") }
@@ -386,7 +391,7 @@ public struct AssistantTools: Sendable {
                     let result = try await SurfaceTools.execute(call, store: store, conversationID: conversationID, remote: remote, localOnly: flags.localOnly, health: flags.health)
                     if result.containsLocalOnlyContext == true { await classification.includeLocalOnly() }
                     if result.containsHealthData == true { await classification.includeHealth() }
-                    return await classify(result)
+                    return try await classify(result)
                 }
                 if ["create_pdf", "create_file", "propose_file_edit", "apply_file_edit"].contains(call.name), !(await execution.canAuthorArtifact) {
                     throw AssistantError.invalidTool("Repair and rerun the failed or unfinished calculation before creating a document. Do not invent a replacement result.")
@@ -399,14 +404,14 @@ public struct AssistantTools: Sendable {
                     let flags = await classification.values()
                     try await store.protectGeneratedFile(fileID, conversationID: conversationID, health: flags.health)
                 }
-                return await classify(result)
+                return try await classify(result)
             }
             if let scriptAttempt { await execution.finishScript(scriptAttempt, succeeded: true) }
-            return await classify(ToolResult(callID: call.id, name: call.name, succeeded: true, output: output))
+            return try await classify(ToolResult(callID: call.id, name: call.name, succeeded: true, output: output))
         } catch {
             if let scriptAttempt { await execution.finishScript(scriptAttempt, succeeded: false) }
             if Task.isCancelled || error is CancellationError { throw CancellationError() }
-            return ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object(["error": .string(error.localizedDescription)]))
+            return try await classify(ToolResult(callID: call.id, name: call.name, succeeded: false, output: .object(["error": .string(error.localizedDescription)])))
         }
     }
     private func saveArtifact(name: String, content: String, callID: String) async throws -> JSONValue {
@@ -427,12 +432,18 @@ public struct AssistantTools: Sendable {
                         "verification": .string(copy?.status ?? "stored_in_library"),
                         "warning": copy?.warning.map(JSONValue.string) ?? .null])
     }
-    public func protectLocalContext() async { await classification.includeLocalOnly() }
-    private func classify(_ result: ToolResult) async -> ToolResult {
+    public func protectLocalContext() async throws {
+        await classification.includeLocalOnly()
+        if let scope = operationScope { try await store.classifyWork(scope, localOnly: true, health: false) }
+    }
+    private func classify(_ result: ToolResult) async throws -> ToolResult {
         let flags = await classification.values()
         var result = result
         result.containsHealthData = result.containsHealthData == true || flags.health
         result.containsLocalOnlyContext = result.containsLocalOnlyContext == true || flags.localOnly
+        if let scope = operationScope {
+            try await store.classifyWork(scope, localOnly: result.containsLocalOnlyContext == true, health: result.containsHealthData == true)
+        }
         return result
     }
     private static func json<T: Encodable>(_ value: T) throws -> JSONValue {

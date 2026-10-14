@@ -33,7 +33,7 @@ extension AppModel {
         guard let first = ISO8601DateFormatter().date(from: args["first_run"]?.stringValue ?? ""), first > Date(),
               let zone = TimeZone(identifier: args["time_zone"]?.stringValue ?? ""), let task = args["task"]?.stringValue, (1...6000).contains(task.count),
               let title = args["title"]?.stringValue, (1...120).contains(title.count) else { throw AssistantError.invalidTool("Provide a future first_run with time-zone offset, an IANA time_zone, a short title and a specific task.") }
-        let count = Int(args["occurrences"]?.numberValue ?? 1), cadence = args["cadence"]?.stringValue ?? "once"
+        let count = try ToolArguments.integer(args["occurrences"], default: 1, field: "occurrences"), cadence = args["cadence"]?.stringValue ?? "once"
         guard (1...30).contains(count), ["once", "daily", "weekly"].contains(cadence), cadence != "once" || count == 1 else { throw AssistantError.invalidTool("Use one run for once, or 1–30 daily/weekly occurrences.") }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
         let times = try (0..<count).map { offset -> Date in

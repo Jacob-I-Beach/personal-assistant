@@ -18,7 +18,10 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["On this iPhone"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Reconnecting to ChatGPT")).firstMatch.exists)
         saveScreenshot(app, name: "Local-message-with-saved-GPT-task")
-        app.buttons["History"].tap(); app.buttons["Settings & access"].tap()
+        app.buttons["History"].tap()
+        let settings = app.buttons["Settings & access"]
+        for _ in 0..<8 { if settings.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(settings.isHittable); settings.tap()
         let paused = app.staticTexts["Notifications and Live Activities are paused in this build. Questions and task status remain available in chat."]
         for _ in 0..<6 { if paused.exists { break }; app.swipeUp() }
         XCTAssertTrue(paused.waitForExistence(timeout: 5))
@@ -91,8 +94,10 @@ final class AssistantUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
         app.buttons["Response settings"].tap()
-        XCTAssertTrue(app.staticTexts["Estimated working context"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["32,768 tokens"].firstMatch.exists)
+        let context = app.descendants(matching: .any).matching(identifier: "local-working-context").firstMatch
+        for _ in 0..<5 { if context.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(context.waitForExistence(timeout: 5))
+        XCTAssertEqual(context.value as? String, "32,768 tokens")
         XCTAssertFalse(app.staticTexts["0 tokens"].exists)
         let memory = app.buttons["Memory settings"]
         for _ in 0..<4 { if memory.isHittable { break }; app.swipeUp() }
@@ -115,8 +120,9 @@ final class AssistantUITests: XCTestCase {
         XCTAssertFalse(app.switches["Allow cellular downloads"].exists)
         saveScreenshot(app, name: "Downloaded-model-compact-chooser")
         app.buttons["Details for Qwen 3.5 4B"].tap()
-        XCTAssertTrue(app.staticTexts["local-context-estimate"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["32,768 tokens"].exists)
+        let estimate = app.descendants(matching: .any).matching(identifier: "local-context-estimate").firstMatch
+        XCTAssertTrue(estimate.waitForExistence(timeout: 5))
+        XCTAssertEqual(estimate.value as? String, "32,768 tokens")
         saveScreenshot(app, name: "Qwen-model-details")
         app.navigationBars["Model details"].buttons["Done"].tap()
         let downloads = app.buttons["Browse downloads"]

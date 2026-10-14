@@ -42,6 +42,7 @@ struct ModelDownloadProgress: View {
         VStack(alignment: .leading, spacing: 9) {
             Text(entry.name).font(.subheadline.weight(.medium))
             ProgressView(value: model.downloadProgress)
+            Text(model.modelStatus).font(.caption).foregroundStyle(.secondary)
             HStack {
                 Text(ByteCountFormatter.string(fromByteCount: Int64(Double(entry.downloadBytes) * model.downloadProgress), countStyle: .file) + " of " + entry.downloadSize)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -83,6 +84,8 @@ struct LocalModelDetailsView: View {
                 }
                 Section("Working context") {
                     LabeledContent("Estimated text context", value: plan.fits ? plan.selectedContextTokens.formatted() + " tokens" : "More memory needed")
+                        .accessibilityElement(children: .ignore).accessibilityLabel("Estimated text context")
+                        .accessibilityValue(plan.fits ? plan.selectedContextTokens.formatted() + " tokens" : "More memory needed")
                         .accessibilityIdentifier("local-context-estimate")
                     Text(plan.fits ? "The runtime checks again after loading and adapts to actual memory headroom. Your full chat remains saved." : "The current allowance cannot fit this runtime. The download stays on the phone; this is a memory-readiness issue.")
                         .font(.caption).foregroundStyle(.secondary)

@@ -21,8 +21,8 @@ import Foundation
     static func description(_ args: JSONValue) -> String? {
         guard let recurrence = args["recurrence"], recurrence != .null, let frequency = recurrence["frequency"]?.stringValue else { return nil }
         if frequency == "none" { return "Does not repeat" }
-        let interval = Int(recurrence["interval"]?.numberValue ?? 1)
-        let ending = recurrence["count"]?.numberValue.map { " · \(Int($0)) occurrences" } ?? recurrence["until"]?.stringValue.map { " · until \($0)" } ?? " · no end date"
+        guard let interval = recurrence["interval"]?.numberValue.flatMap(Int.init(exactly:)), (1...30).contains(interval) else { return "Recurrence needs review" }
+        let ending = recurrence["count"]?.numberValue.flatMap(Int.init(exactly:)).map { " · \($0) occurrences" } ?? recurrence["until"]?.stringValue.map { " · until \($0)" } ?? " · no end date"
         return "Repeats \(frequency), every \(interval) interval(s)" + ending
     }
     static func span(_ args: JSONValue) -> EKSpan { args["scope"] == .string("this_and_future") ? .futureEvents : .thisEvent }

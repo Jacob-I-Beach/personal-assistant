@@ -45,10 +45,11 @@ export async function startCompanion(options={}) {
   const store=new JobStore(join(root,'work.db'),vault),pairing=new Pairing(store,vault);
   const runtime=options.runtime??new HostRuntime({root:join(root,'workspaces'),store,compute:new ComputeRuntime({root:join(root,'temporary-executions'),store})});
   const provider=options.provider??createChatGPT({appName:'Personal Assistant Computer',appId:'personal-assistant-companion',redirectPort:0,storageDir:join(root,'chatgpt'),credentialEncryption,sendHostId:true,openBrowser});
-  const toolSessions=new ToolSessions(store,runtime);
+  const mayRun=job=>!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(job.owner);
+  const toolSessions=new ToolSessions(store,runtime,{mayRun});
   const modelCatalog=new ModelCatalog(store,provider);
   const computation=new ServiceReadiness(signal=>runtime.available(signal));
-  const runner=new JobRunner(store,provider,runtime,job=>toolSessions.prepareHandoff(job));
+  const runner=new JobRunner(store,provider,runtime,(job,signal)=>toolSessions.prepareHandoff(job,signal),{mayRun});
   if(runtime instanceof HostRuntime)runtime.approve=(job,call,review,signal)=>runner.reviewComputer(job,call,review,signal);
   const push=new PushDelivery(store,options.pushOptions);
   runner.on('event',(id,event)=>{const owner=store.db.prepare('SELECT owner FROM jobs WHERE id=?').get(id)?.owner;if(!bridge.enabled(owner))push.queue(id,event);});
@@ -73,6 +74,7 @@ export async function startCompanion(options={}) {
     if(!record||record.expires<Date.now()||request.headers.origin!==setupOrigin||request.headers['x-assistant-csrf']!==record.csrf)throw Object.assign(new Error('Reload the computer setup page.'),{status:403});
   }
   async function startJob(job) {
+    if(!mayRun(job))throw Object.assign(new Error('This device is no longer connected.'),{status:403});
     const files=new Set(store.files(job.id,job.owner).map(file=>file.id));
     if(!(job.payload.expected_file_ids??[]).every(id=>files.has(id)))throw Object.assign(new Error('The selected input files are still uploading.'),{status:409});
     const connection=await provider.getSession();
@@ -90,7 +92,7 @@ export async function startCompanion(options={}) {
   const api=https.createServer({cert:tls.cert,key:tls.key},async(request,response)=>{
     try {
       const url=new URL(request.url,'https://computer.invalid');
-      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.4',server_id:serverId,name:'Personal Assistant Computer'});
+      if(url.pathname==='/v1/info'&&request.method==='GET')return jsonReply(response,200,{version:'1.1.5',server_id:serverId,name:'Personal Assistant Computer'});
       if(url.pathname==='/v1/pair'&&request.method==='POST'){
         if(session.status!=='connected'||!session.sharing)throw new Error('Sign in to ChatGPT on the computer before connecting a phone.');
         const body=await jsonBody(request,4096),device=pairing.redeem(body.pairing_code,body.device_name);
@@ -108,7 +110,7 @@ export async function startCompanion(options={}) {
       }
       if(url.pathname==='/v1/capabilities'&&request.method==='GET'){
         const readiness=computation.snapshot();
-        return jsonReply(response,200,{version:'1.1.4',profile:session,computer_tools:runtime.definitions,computation_ready:readiness.available,computation:readiness,push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
+        return jsonReply(response,200,{version:'1.1.5',profile:session,computer_tools:runtime.definitions,computation_ready:readiness.available,computation:readiness,push:push.status(),presentation:{provider:bridge.enabled(owner)?'pushward':'native'},background_work:'Owned by this computer from Send; phone operations wait for the phone.'});
       }
       if(url.pathname==='/v1/models'&&request.method==='GET'){
         const catalog=await modelCatalog.load({force:url.searchParams.get('refresh')==='1'});
@@ -224,7 +226,7 @@ export async function startCompanion(options={}) {
       requireSetup(request);const body=await jsonBody(request,16384);
       if(url.pathname==='/api/status'){
         const readiness=computation.snapshot();
-        return jsonReply(response,200,{version:'1.1.4',package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,model_catalog:modelCatalog.snapshot(session.profileId).catalog,computation_ready:readiness.available,computation:readiness,push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
+        return jsonReply(response,200,{version:'1.1.5',active_work_count:runner.active.size+toolSessions.active.size,package_path:fileURLToPath(new URL('../',import.meta.url)),data_path:root,session,model_catalog:modelCatalog.snapshot(session.profileId).catalog,computation_ready:readiness.available,computation:readiness,push:push.status(),pushward:bridge.status(),addresses:addresses(apiPort),devices:pairing.devices(),jobs:store.list().filter(job=>!job.payload.execution_only).map(publicJob),error:lastError});
       }
       if(url.pathname==='/api/check-connection'){
         const connection=await provider.getSession();
@@ -238,15 +240,15 @@ export async function startCompanion(options={}) {
       if(url.pathname==='/api/pushward-refresh')return jsonReply(response,200,await bridge.refreshQuota());
       if(url.pathname==='/api/pushward-disconnect')return jsonReply(response,200,await bridge.disconnect());
       if(url.pathname==='/api/task'){
-        const entry=store.list().find(job=>job.id===body.job_id);if(!entry)throw new Error('Task not found.');
+        const entry=store.controlled(body.job_id);
         return jsonReply(response,200,{job:publicJob(entry),events:store.events(entry.id,entry.owner,Number(body.after)||0),files:store.files(entry.id,entry.owner)});
       }
       if(url.pathname==='/api/file'){
-        const job=store.list().find(job=>job.id===body.job_id);if(!job)throw new Error('Task not found.');
+        const job=store.controlled(body.job_id);
         const file=store.file(job.id,job.owner,body.file_id);return jsonReply(response,200,{filename:file.metadata.filename,data_base64:file.data.toString('base64')});
       }
       if(url.pathname==='/api/review'){
-        const job=store.list().find(job=>job.id===body.job_id);if(!job)throw new Error('Task not found.');
+        const job=store.controlled(body.job_id);
         const operation=store.operation(job.id,body.operation_id);
         if(operation.request.name!=='review_computer_action'||operation.status!=='waiting_for_phone'||typeof body.approved!=='boolean')throw new Error('This review is no longer available.');
         runner.answer(job.id,job.owner,body.operation_id,{callID:body.operation_id,name:'review_computer_action',succeeded:true,output:{status:body.approved?'approved':'cancelled'},completedAt:new Date().toISOString()});return jsonReply(response,200,{recorded:true});
@@ -262,10 +264,10 @@ export async function startCompanion(options={}) {
         return jsonReply(response,200,{payload:pairingPayload,qr:await QRCode.toDataURL(JSON.stringify(pairingPayload),{width:300,margin:2})});
       }
       if(url.pathname==='/api/cancel'){
-        const job=store.list().find(job=>job.id===body.job_id);if(!job)throw new Error('Task not found.');runner.cancel(job.id,job.owner);return jsonReply(response,200,{stopped:true});
+        const job=store.controlled(body.job_id);runner.cancel(job.id,job.owner);return jsonReply(response,200,{stopped:true});
       }
       if(url.pathname==='/api/revoke'){
-        pairing.revoke(body.device_id);scheduler.stopOwner(body.device_id);for(const job of store.incomplete(body.device_id))runner.cancel(job.id,job.owner);
+        pairing.revoke(body.device_id);scheduler.stopOwner(body.device_id);for(const job of store.incomplete(body.device_id)){if(job.payload.execution_only)toolSessions.cancel(job.id,job.owner);else runner.cancel(job.id,job.owner);}
         return jsonReply(response,200,{disconnected:true});
       }
       if(url.pathname==='/api/quit'){
@@ -275,7 +277,8 @@ export async function startCompanion(options={}) {
     }catch(error){if(!response.headersSent)jsonReply(response,error.status??400,{error:String(error.message??'Setup could not finish.').slice(0,500)});else response.destroy();}
   });
   await listen(setup,options.setupPort??48680,'127.0.0.1');setupOrigin=`http://127.0.0.1:${setup.address().port}`;
-  const recover=store.incomplete().filter(job=>!job.payload.execution_only);
+  const recover=store.incomplete().filter(job=>!job.payload.execution_only&&job.status!=='queued');
+  let recoveryCursor=0;
   for(const job of recover)store.status(job.id,'interrupted','Reconnecting the saved task after the computer restarted.');
   async function recoverWork(){
     if(closing)return;
@@ -284,7 +287,14 @@ export async function startCompanion(options={}) {
       if(!device||device.revoked)continue;
       try{await startJob(store.get(entry.id,entry.owner));}catch{recover.push(entry);}
     }
-    for(const entry of store.list().filter(job=>job.status==='queued'&&!job.payload.execution_only))await startWhenReady(store.get(entry.id,entry.owner));
+    const page=store.queued(recoveryCursor);
+    for(const entry of page){
+      if(closing||runner.active.size>=4)return;
+      recoveryCursor=entry.queueCursor;
+      if(!mayRun(entry)){if(entry.payload.execution_only)toolSessions.cancel(entry.id,entry.owner);else runner.cancel(entry.id,entry.owner);continue;}
+      if(!entry.payload.execution_only)await startWhenReady(store.get(entry.id,entry.owner));
+    }
+    if(page.length<100)recoveryCursor=0;
   }
   await recoverWork();
   const scheduleTimer=setInterval(()=>Promise.all([scheduler.tick(),recoverWork()]).catch(()=>{lastError='A saved task needs attention. Its record is kept.';}),15000);scheduleTimer.unref();
