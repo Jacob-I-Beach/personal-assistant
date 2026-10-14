@@ -16,6 +16,11 @@ on:
           - testPublishedComputerImageRendersInlineAndOpensOriginal
           - testLocalMessageStaysLocalWithSavedComputerWork
           - testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable
+          - testLocalQwenContextAndMemoryControlsAreReachable
+          - testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads
+          - testComputerAccountIdentityAppearsAcrossHomeModelsAndSettings
+          - testWelcomeCatalogAndSettings
+          - testDarkAndLargeTextControlsRemainUsable
 permissions:
   contents: read
   actions: read

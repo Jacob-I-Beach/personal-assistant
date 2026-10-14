@@ -64,11 +64,15 @@ public protocol ModelBackend: Sendable {
     /// Nil means inference is on this device. Otherwise this exact destination must be authorized.
     var networkDestination: String? { get }
     var supportsFileInputs: Bool { get }
+    /// Establish the runtime's real resource budget before request assembly.
+    /// Preparation loads local assets only; it does not perform inference.
+    func prepareForResponse(containsImages: Bool) async throws
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error>
 }
 public extension ModelBackend {
     var contextLimits: ContextLimits { ContextLimits() }
     var supportsFileInputs: Bool { false }
+    func prepareForResponse(containsImages: Bool) async throws { }
 }
 
 public enum AssistantInstructions {

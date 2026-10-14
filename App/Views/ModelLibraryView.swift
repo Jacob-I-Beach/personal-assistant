@@ -1,153 +1,121 @@
+import AssistantCore
 import SwiftUI
-import UniformTypeIdentifiers
-import os
 
+/// The daily chooser owns selection. Connection diagnostics and package
+/// management live on their own surfaces, so they cannot crowd out choices.
 struct ModelLibraryView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var importEntry: LocalModelCatalogEntry?
-    @State private var showImport = false
-    @State private var availableMemory: UInt64 = 0
+    @State private var detail: LocalModelCatalogEntry?
+    @State private var showAccount = false
+    @State private var size: PresentationDetent = .medium
+    private var localFirst: Bool { [.appleOnDevice, .localMLX].contains(model.settings.choice) }
     var body: some View {
         NavigationStack {
             List {
-                Section("ChatGPT") {
-                    if model.settings.useComputer, let connection = model.settings.companion {
-                        Label(model.chatGPTAccountLabel, systemImage: "person.crop.circle")
-                            .accessibilityIdentifier("connected-chatgpt-account")
-                        Text(model.computerAccountDetail).font(.subheadline).foregroundStyle(.secondary)
-                        Text("The account connected on \(connection.name) runs these models. Your task continues there when this app closes.").font(.caption).foregroundStyle(.secondary)
-                        ForEach(model.chatGPTModels) { entry in
-                            Button { model.chooseChatGPTModel(entry) } label: {
-                                HStack { Text(entry.displayName).foregroundStyle(.primary); Spacer(); if model.settings.choice == .chatGPT && model.settings.chatGPTModel == entry.id { Image(systemName: "checkmark") } }
-                            }.disabled(model.isRunning)
+                if localFirst { phoneModels; chatGPTModels } else { chatGPTModels; phoneModels }
+                if model.appleCloud.isAvailable || model.settings.choice == .appleCloud {
+                    Section("Apple cloud") {
+                        ModelChoiceRow(title: model.appleCloud.title, subtitle: model.appleCloud.isAvailable ? "Private Cloud Compute" : "Not available in this installation", symbol: "cloud",
+                            selected: model.settings.choice == .appleCloud, enabled: model.appleCloud.isAvailable && !model.isRunning) {
+                            model.chooseApple(.privateCloud); dismiss()
                         }
-                        catalogStatus
-                        NavigationLink("Account & connection") { ComputerConnectionView() }
-                    } else if model.accounts.contains(where: \.isConnected) {
-                        Menu {
-                            ForEach(model.accounts.filter(\.isConnected)) { account in
-                                Button(account.label) { Task { await model.switchAccount(account) } }
-                            }
-                            Button("Add another account") { model.connectChatGPT() }
-                            if let id = model.settings.chatGPTAccountID { Button("Reconnect selected account") { model.connectChatGPT(clientID: id) } }
-                        } label: {
-                            Label(model.accounts.first { $0.id == model.settings.chatGPTAccountID }?.label ?? "Choose an account", systemImage: "person.crop.circle")
-                                .font(.subheadline)
-                        }.disabled(model.isRunning)
-                        ForEach(model.chatGPTModels) { entry in
-                            Button { model.chooseChatGPTModel(entry) } label: {
-                                HStack { Text(entry.displayName).foregroundStyle(.primary); Spacer(); if model.settings.choice == .chatGPT && model.settings.chatGPTModel == entry.id { Image(systemName: "checkmark").fontWeight(.semibold) } }
-                            }.disabled(model.isRunning)
-                        }
-                        catalogStatus
-                        Text("Uses your ChatGPT plan and its app usage limits.").font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Button { model.connectChatGPT() } label: {
-                            HStack { Text("Continue with ChatGPT").fontWeight(.semibold); Spacer(); if model.isConnecting { ProgressView() } else { Image(systemName: "arrow.right") } }
-                        }.disabled(model.isConnecting || model.isRunning)
-                        Text("Sign in through OpenAI. Your password stays in the authentication browser.").font(.caption).foregroundStyle(.secondary)
                     }
-                    if model.isConnecting { Button("Cancel sign-in", role: .cancel) { model.cancelConnection() } }
-                    ForEach(model.usesComputerChatGPT ? [] : model.accounts.filter { !$0.isConnected }) { account in
-                        Button(account.label) { model.connectChatGPT(clientID: account.id) }.disabled(model.isConnecting || model.isRunning)
-                    }
-                }
-                Section("Apple intelligence") {
-                    appleRow(model.appleDevice, location: .device)
-                    appleRow(model.appleCloud, location: .privateCloud)
                 }
                 Section {
-                    Toggle("Allow cellular downloads", isOn: Binding(get: { model.settings.allowCellularDownloads }, set: { enabled in
-                        var settings = model.settings; settings.allowCellularDownloads = enabled
-                        do { try model.saveSettings(settings) } catch { model.errorMessage = error.localizedDescription }
-                    })).disabled(model.isDownloading || model.isRunning)
-                    Text("Downloads use Wi-Fi unless enabled here. Tap Download again after an interruption to reuse completed files and resume supported transfers.").font(.caption).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("This iPhone").font(.headline)
-                        Text("\(ByteCountFormatter.string(fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory), countStyle: .memory)) physical memory · " + (availableMemory == 0 ? "Available memory not reported" : "\(ByteCountFormatter.string(fromByteCount: Int64(availableMemory), countStyle: .memory)) currently available to this app")).font(.caption).foregroundStyle(.secondary)
-                        Text("Memory availability changes as iOS manages other work. Estimates below include working overhead, but context and images can increase it.").font(.caption2).foregroundStyle(.secondary)
-                    }.padding(.vertical, 5)
-                    ForEach(model.catalog) { entry in
-                        VStack(alignment: .leading, spacing: 11) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(entry.name).font(.headline)
-                                Spacer()
-                                if model.settings.choice == .localMLX && model.settings.localRepository == entry.id && model.downloadedModelIDs.contains(entry.id) { Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint) }
-                            }
-                            Text(entry.summary).font(.subheadline).foregroundStyle(.secondary)
-                            HStack(spacing: 12) {
-                                Label(entry.downloadSize, systemImage: "arrow.down.circle")
-                                if entry.supportsVision { Label("Images", systemImage: "photo") }
-                                Text(entry.format)
-                            }.font(.caption).foregroundStyle(.secondary)
-                            Label("Estimated working memory: \(entry.memoryEstimate)", systemImage: "memorychip").font(.caption).foregroundStyle(.secondary)
-                            if let low = entry.estimatedMemoryLowBytes, availableMemory > 0 {
-                                Text(UInt64(low) > availableMemory ? "Above current memory headroom · experimental fit" : "Within the estimate at this moment · speed unmeasured").font(.caption2).foregroundStyle(.secondary)
-                            }
-                            if let moe = entry.mixtureOfExperts { Text("MoE · \(moe). All expert weights count toward memory.").font(.caption2).foregroundStyle(.secondary) }
-                            if let source = entry.sourceURL { Link("Model card & pinned package", destination: source).font(.caption) }
-                            if model.downloadingModelID == entry.id {
-                                ProgressView(value: model.downloadProgress)
-                                Text(ByteCountFormatter.string(fromByteCount: Int64(Double(entry.downloadBytes) * model.downloadProgress), countStyle: .file) + " of " + entry.downloadSize)
-                                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                                HStack { Text(model.modelStatus).font(.caption); Spacer(); Button("Stop", role: .cancel) { model.stopDownload() }.font(.subheadline) }
-                            } else if model.downloadedModelIDs.contains(entry.id) {
-                                Button { model.chooseLocal(entry) } label: { Text("Use \(entry.name)").foregroundStyle(Color(uiColor: .systemBackground)) }.buttonStyle(.borderedProminent).tint(Color.primary).disabled(model.isRunning)
-                            } else {
-                                HStack {
-                                    Button("Download") { model.downloadModel(entry) }.buttonStyle(.bordered).disabled(model.settings.localOnly)
-                                    Button("Import from Files") { importEntry = entry; showImport = true }.font(.subheadline).buttonStyle(.borderless)
-                                }.disabled(model.isDownloading || (model.isRunning && model.settings.choice == .localMLX))
-                            }
-                            Text(entry.validation).font(.caption2).foregroundStyle(.secondary)
-                        }.padding(.vertical, 9)
-                    }
-                } header: { Text("Download to this iPhone") } footer: {
-                    Text("Download size is storage, not working memory. Larger models will be measured on your phone before we label them recommended. You can keep using ChatGPT during a download.")
+                    NavigationLink {
+                        ModelDownloadsView().onAppear { size = .large }
+                    } label: { Label("Browse downloads", systemImage: "arrow.down.circle") }
+                }
+                if let entry = model.catalog.first(where: { $0.id == model.downloadingModelID }) {
+                    Section { ModelDownloadProgress(entry: entry) }
                 }
             }
-            .navigationTitle("Models")
+            .navigationTitle("Models").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .task { availableMemory = UInt64(os_proc_available_memory()); await model.refreshDownloads(); await model.refreshAccounts() }
-            .fileImporter(isPresented: $showImport, allowedContentTypes: [.folder]) { result in
-                guard let entry = importEntry else { return }
-                switch result {
-                case .success(let folder): model.importModel(entry, folder: folder)
-                case .failure(let error): model.errorMessage = error.localizedDescription
+            .task { await model.refreshDownloads(); await model.refreshAccounts() }
+            .sheet(item: $detail) { LocalModelDetailsView(entry: $0) }
+            .sheet(isPresented: $showAccount) { ModelAccountDetailsView() }
+        }
+        .presentationDetents([.medium, .large], selection: $size).presentationDragIndicator(.visible)
+    }
+    private var phoneModels: some View {
+        Section("On this iPhone") {
+            ModelChoiceRow(title: model.appleDevice.title, subtitle: model.appleDevice.isAvailable ? "Built in" : "Not available on this device", symbol: "sparkles",
+                selected: model.settings.choice == .appleOnDevice, enabled: model.appleDevice.isAvailable && !model.isRunning) {
+                model.chooseApple(.device); dismiss()
+            }
+            ForEach(model.catalog.filter { model.downloadedModelIDs.contains($0.id) }) { entry in
+                HStack(spacing: 4) {
+                    ModelChoiceRow(title: entry.name, subtitle: "Downloaded", symbol: "cpu",
+                        selected: model.settings.choice == .localMLX && model.settings.localRepository == entry.id, enabled: !model.isRunning) {
+                        model.chooseLocal(entry); dismiss()
+                    }
+                    Button { detail = entry } label: { Image(systemName: "info.circle").frame(width: 44, height: 44) }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Details for " + entry.name)
                 }
             }
-        }.presentationDragIndicator(.visible)
-    }
-    private var catalogStatus: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .top, spacing: 8) {
-                if model.modelCatalog.phase == .refreshing { ProgressView().controlSize(.small) }
-                Text(model.modelCatalog.detail).font(.caption).foregroundStyle(.secondary)
-                    .accessibilityIdentifier("model-catalog-status")
-            }
-            if !model.settings.chatGPTModel.isEmpty, !model.chatGPTModels.contains(where: { $0.id == model.settings.chatGPTModel }) {
-                Button { model.chooseSavedChatGPTModel() } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(model.settings.chatGPTModel).font(.subheadline)
-                        Text("Last chosen model · availability unconfirmed").font(.caption).foregroundStyle(.secondary)
-                    }
-                }.disabled(model.isRunning || model.settings.localOnly)
-            }
-            Button("Refresh models") { Task { await model.refreshAccounts(force: true) } }
-                .disabled(model.modelCatalog.phase == .refreshing || model.settings.localOnly)
         }
     }
-    private func appleRow(_ readiness: AppleModelReadiness, location: AppleModelBackend.Location) -> some View {
-        Button { model.chooseApple(location) } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(readiness.title).foregroundStyle(.primary)
-                    Text(readiness.detail).font(.caption).foregroundStyle(.secondary)
+    private var chatGPTModels: some View {
+        Section {
+            if model.usesComputerChatGPT || model.accounts.contains(where: \.isConnected) {
+                ForEach(model.chatGPTModels) { entry in
+                    ModelChoiceRow(title: entry.displayName, subtitle: model.modelCatalog.phase == .ready ? "ChatGPT plan" : "Saved model", symbol: "sparkles",
+                        selected: model.settings.choice == .chatGPT && model.settings.chatGPTModel == entry.id, enabled: !model.isRunning && !model.settings.localOnly) {
+                        model.chooseChatGPTModel(entry); dismiss()
+                    }
                 }
-                Spacer()
-                if (location == .device && model.settings.choice == .appleOnDevice) || (location == .privateCloud && model.settings.choice == .appleCloud) { Image(systemName: "checkmark") }
+                if !model.settings.chatGPTModel.isEmpty, !model.chatGPTModels.contains(where: { $0.id == model.settings.chatGPTModel }) {
+                    ModelChoiceRow(title: ChatGPTModel.displayTitle(for: model.settings.chatGPTModel, catalog: []), subtitle: "Last used", symbol: "sparkles",
+                        selected: model.settings.choice == .chatGPT, enabled: !model.isRunning && !model.settings.localOnly) {
+                        model.chooseSavedChatGPTModel(); dismiss()
+                    }
+                }
+                if model.chatGPTModels.isEmpty && model.settings.chatGPTModel.isEmpty {
+                    Label(model.modelCatalog.phase == .refreshing ? "Loading models…" : "Models unavailable", systemImage: "cloud")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Button { model.connectChatGPT() } label: { Label("Continue with ChatGPT", systemImage: "person.crop.circle") }
+                    .disabled(model.isConnecting || model.isRunning || model.settings.localOnly)
             }
-        }.disabled(!readiness.isAvailable || model.isRunning)
+        } header: {
+            HStack {
+                Text("ChatGPT")
+                Spacer()
+                Button("Manage") { showAccount = true }.textCase(nil).font(.caption)
+                    .accessibilityIdentifier("model-account-details")
+            }
+        } footer: {
+            if model.settings.localOnly { Text("On-device mode is enabled.") }
+            else if model.modelCatalog.phase == .unavailable || model.modelCatalog.phase == .stale {
+                Text("Connection needs attention. Manage your account for details.")
+                    .accessibilityIdentifier("model-connection-summary")
+            }
+        }
+    }
+}
+
+struct ModelChoiceRow: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let selected: Bool
+    var enabled = true
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol).font(.system(size: 18, weight: .medium))
+                    .frame(width: 36, height: 36).background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.body.weight(.medium))
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                if selected { Image(systemName: "checkmark").font(.body.weight(.semibold)) }
+            }.foregroundStyle(.primary).padding(.vertical, 4).contentShape(Rectangle())
+        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.5)
+            .accessibilityLabel(title).accessibilityValue(selected ? "Selected" : subtitle)
     }
 }

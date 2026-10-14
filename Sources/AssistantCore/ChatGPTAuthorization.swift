@@ -103,6 +103,12 @@ public enum OAuthForm {
 }
 
 public struct ChatGPTModel: Codable, Identifiable, Equatable, Sendable {
+    public static func displayTitle(for id: String, catalog: [Self]) -> String {
+        if let known = catalog.first(where: { $0.id == id }) { return known.displayName }
+        guard !id.isEmpty else { return "ChatGPT" }
+        guard id.hasPrefix("gpt-") else { return id }
+        return "GPT-" + id.dropFirst(4).split(separator: "-").map { String($0).capitalized }.joined(separator: "-")
+    }
     public var slug: String
     public var displayName: String
     public var visibility: String

@@ -31,11 +31,15 @@ final class AssistantUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         app.buttons["Choose model"].tap()
+        XCTAssertTrue(app.buttons["Limited context model"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["model-catalog-status"].exists)
+        saveScreenshot(app, name: "Compact-model-chooser")
+        app.buttons["model-account-details"].tap()
         XCTAssertTrue(app.staticTexts["connected-chatgpt-account"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["model-catalog-status"].label.contains("HTTP 520"))
-        XCTAssertTrue(app.buttons["Limited context model"].exists)
         XCTAssertTrue(app.buttons["Refresh models"].exists)
-        saveScreenshot(app, name: "Model-catalog-stale-choices-and-explanation")
+        saveScreenshot(app, name: "Connection-diagnostics-separate-from-chooser")
+        app.navigationBars["Account & connection"].buttons["Done"].tap()
         app.buttons["Limited context model"].tap()
         XCTAssertTrue(app.staticTexts["Limited context model"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Model availability needs a refresh"].exists)
@@ -68,9 +72,11 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["home-chatgpt-sign-in"].exists)
         app.buttons["Choose model"].tap()
+        app.buttons["model-account-details"].tap()
         XCTAssertTrue(app.staticTexts["fixture@example.test"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Continue with ChatGPT"].exists)
         saveScreenshot(app, name: "Connected-account-models")
+        app.navigationBars["Account & connection"].buttons["Done"].tap()
         app.navigationBars["Models"].buttons["Done"].tap()
         app.buttons["History"].tap()
         app.buttons["Settings & access"].tap()
@@ -81,17 +87,47 @@ final class AssistantUITests: XCTestCase {
     func testLocalQwenContextAndMemoryControlsAreReachable() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
         app.buttons["Response settings"].tap()
-        let budget = app.staticTexts["Current working budget"]
-        for _ in 0..<4 { if budget.isHittable { break }; app.swipeUp() }
-        XCTAssertTrue(budget.exists)
-        XCTAssertTrue(app.staticTexts["Context at this budget"].exists)
+        XCTAssertTrue(app.staticTexts["Estimated working context"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["32,768 tokens"].firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["0 tokens"].exists)
+        let memory = app.buttons["Memory settings"]
+        for _ in 0..<4 { if memory.isHittable { break }; app.swipeUp() }
+        memory.tap()
+        XCTAssertTrue(app.staticTexts["iOS headroom"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Qwen-local-context-and-memory-budget")
         app.navigationBars["Response settings"].buttons["Done"].tap()
         XCTAssertTrue(app.buttons["Choose model"].exists)
+    }
+    func testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-local-controls", "--ui-qwen-memory", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        app.buttons["Choose model"].tap()
+        let qwen = app.buttons["Qwen 3.5 4B"]
+        XCTAssertTrue(qwen.waitForExistence(timeout: 5))
+        XCTAssertEqual(qwen.value as? String, "Selected")
+        XCTAssertFalse(app.switches["Allow cellular downloads"].exists)
+        saveScreenshot(app, name: "Downloaded-model-compact-chooser")
+        app.buttons["Details for Qwen 3.5 4B"].tap()
+        XCTAssertTrue(app.staticTexts["local-context-estimate"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["32,768 tokens"].exists)
+        saveScreenshot(app, name: "Qwen-model-details")
+        app.navigationBars["Model details"].buttons["Done"].tap()
+        let downloads = app.buttons["Browse downloads"]
+        for _ in 0..<5 { if downloads.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(downloads.isHittable); downloads.tap()
+        XCTAssertTrue(app.buttons["Qwen 3.5 4B details"].waitForExistence(timeout: 5))
+        saveScreenshot(app, name: "Model-downloads-separate-from-chooser")
+        app.navigationBars["Downloads"].buttons["Models"].tap()
+        app.navigationBars["Models"].buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Choose model"].exists)
+        XCTAssertFalse(app.alerts["Could not finish"].exists)
     }
     func testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable() {
         continueAfterFailure = false
@@ -564,9 +600,10 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Welcome-light")
         app.buttons["Choose model"].tap()
         XCTAssertTrue(app.navigationBars["Models"].waitForExistence(timeout: 5))
-        app.swipeUp()
-        XCTAssertTrue(app.staticTexts["Qwen 3.5 4B"].waitForExistence(timeout: 5))
+        app.buttons["Browse downloads"].tap()
+        XCTAssertTrue(app.buttons["Qwen 3.5 4B details"].waitForExistence(timeout: 5))
         saveScreenshot(app, name: "Model-library")
+        app.navigationBars["Downloads"].buttons["Models"].tap()
         app.buttons["Done"].tap()
         app.buttons["History"].tap()
         app.buttons["Settings & access"].tap()

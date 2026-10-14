@@ -20,7 +20,7 @@ struct ReasoningEffortView: View {
                 List {
                     Section {
                         Text(model.modelTitle).font(.headline)
-                        Text("Your choices are remembered for this model.").font(.subheadline).foregroundStyle(.secondary)
+                        Text(model.settings.choice == .localMLX ? "Context adapts to the memory this iPhone makes available." : "Your choices are remembered for this model.").font(.subheadline).foregroundStyle(.secondary)
                     }
                     if !model.supportedReasoningEfforts.isEmpty {
                         Section("Thinking") {
@@ -55,17 +55,25 @@ struct ReasoningEffortView: View {
                         let local = model.localContextBudget(memoryGiB: memoryGiB, tokens: context)
                         Section {
                             choice("Automatic", tokens: nil)
-                            ForEach(local.presets, id: \.self) { value in choice(value.formatted() + " tokens", tokens: value) }
+                            if local.fits {
+                                ForEach(local.presets, id: \.self) { value in choice(value.formatted() + " tokens", tokens: value) }
+                                LabeledContent("Estimated working context", value: local.selectedContextTokens.formatted() + " tokens")
+                            } else {
+                                Label("More memory headroom needed", systemImage: "memorychip")
+                                Text("The runtime cannot fit at this moment. Your download is kept; this is separate from the size of your message.").font(.caption).foregroundStyle(.secondary)
+                            }
                         } header: { Text("Working context").id("context") } footer: {
                             Text("Uses the model's compressed attention cache. These are estimated fitting sizes; actual speed and sustained memory use need measurement on this iPhone.")
                         }
-                        Section("Local memory") {
-                            Picker("Use up to", selection: $memoryGiB) {
-                                Text("4 GB").tag(4); Text("6 GB").tag(6); Text("8 GB").tag(8)
+                        Section {
+                            DisclosureGroup("Memory settings") {
+                                Picker("Usage ceiling", selection: $memoryGiB) {
+                                    Text("4 GB").tag(4); Text("6 GB").tag(6); Text("8 GB").tag(8)
+                                }
+                                LabeledContent("iOS headroom", value: ByteCountFormatter.string(fromByteCount: model.localMemoryHeadroom, countStyle: .memory))
+                                LabeledContent("Planned working budget", value: ByteCountFormatter.string(fromByteCount: local.workingBytes, countStyle: .memory))
+                                Text("This ceiling does not reserve memory or change iOS's allowance. The runtime adapts again after loading; a larger signing allowance must be granted by the system.").font(.caption).foregroundStyle(.secondary)
                             }
-                            LabeledContent("Current working budget", value: ByteCountFormatter.string(fromByteCount: local.workingBytes, countStyle: .memory))
-                            LabeledContent("Context at this budget", value: local.selectedContextTokens.formatted() + " tokens")
-                            Text("This is a ceiling, not a reservation. iOS decides the available memory; the app keeps headroom for the interface, images and generation. Development entitlements may increase the allowance on supported installations.").font(.caption).foregroundStyle(.secondary)
                         }
                     } else {
                         Section("Working context") {

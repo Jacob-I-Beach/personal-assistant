@@ -19,11 +19,26 @@ extension ModelSettings {
 }
 
 extension AppModel {
-    func localContextBudget(memoryGiB: Int? = nil, tokens: Int? = nil) -> LocalInferenceBudget {
-        LocalInferenceBudget(weightBytes: catalog.first { $0.id == settings.localRepository }?.weightBytes ?? 0,
-            availableBytes: Int64(os_proc_available_memory()), residentBytes: localBackendResidentBytes,
-            requestedMemoryGiB: memoryGiB ?? settings.localMemoryGiB, requestedContextTokens: tokens ?? settings.localContextTokens,
-            responseTokens: settings.localResponseTokens, supportsEfficientKV: settings.localRepository.contains("Qwen3.5-4B"))
+    var localMemoryHeadroom: Int64 {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-qwen-memory") { return Int64(3.05 * 1_073_741_824) }
+        #endif
+        return Int64(os_proc_available_memory())
+    }
+    func localContextBudget() -> LocalInferenceBudget { localContextBudget(memoryGiB: settings.localMemoryGiB, tokens: settings.localContextTokens) }
+    func localContextBudget(memoryGiB: Int, tokens: Int?) -> LocalInferenceBudget {
+        if let prepared = localRuntimeBudget(memoryGiB: memoryGiB, contextTokens: tokens, availableBytes: localMemoryHeadroom) { return prepared }
+        let entry = catalog.first { $0.id == settings.localRepository }
+        return LocalInferenceBudget(weightBytes: entry?.textWeightBytes ?? entry?.weightBytes ?? 0,
+            availableBytes: localMemoryHeadroom, residentBytes: localBackendResidentBytes,
+            requestedMemoryGiB: memoryGiB, requestedContextTokens: tokens,
+            responseTokens: settings.localResponseTokens, supportsEfficientKV: settings.localRepository.contains("Qwen3.5-4B"), optimizedTextRuntime: entry?.textWeightBytes != nil)
+    }
+    func localBudget(for entry: LocalModelCatalogEntry) -> LocalInferenceBudget {
+        if entry.id == settings.localRepository { return localContextBudget() }
+        return LocalInferenceBudget(weightBytes: entry.textWeightBytes ?? entry.weightBytes ?? 0,
+            availableBytes: localMemoryHeadroom + localBackendResidentBytes, requestedMemoryGiB: settings.localMemoryGiB,
+            responseTokens: settings.localResponseTokens, supportsEfficientKV: entry.id.contains("Qwen3.5-4B"), optimizedTextRuntime: entry.textWeightBytes != nil)
     }
     func contextBudget(for selection: ModelSettings) -> ModelContextBudget? {
         guard [.chatGPT, .openAI, .compatibleServer].contains(selection.choice) else { return nil }

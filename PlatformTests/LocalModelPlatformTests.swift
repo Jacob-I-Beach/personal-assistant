@@ -1,8 +1,20 @@
 import XCTest
 import Network
+import AssistantCore
 @testable import PersonalAssistant
 
 final class LocalModelPlatformTests: XCTestCase {
+    func testQwenTextPlanUsesTheReportedHeadroomAndAutomaticDoesNotReuseOldManualContext() {
+        let backend = MLXLocalBackend(repository: "mlx-community/Qwen3.5-4B-4bit", revision: "fixture", root: FileManager.default.temporaryDirectory,
+            responseTokens: 2048, supportsVision: true, weightBytes: 3_034_300_695, textWeightBytes: 2_367_118_848, requestedContextTokens: 131_072)
+        let reported = backend.planningBudget(memoryGiB: 8, contextTokens: nil, availableBytes: Int64(3.05 * 1_073_741_824))
+        XCTAssertTrue(reported.fits); XCTAssertEqual(reported.selectedContextTokens, 32_768)
+        let automatic = backend.planningBudget(memoryGiB: 8, contextTokens: nil, availableBytes: 10_000_000_000)
+        XCTAssertEqual(automatic.selectedContextTokens, 32_768)
+        let manual = backend.planningBudget(memoryGiB: 8, contextTokens: 131_072, availableBytes: 10_000_000_000)
+        XCTAssertEqual(manual.selectedContextTokens, 131_072)
+        XCTAssertEqual(backend.residentBytes, 0, "Planning alone must not initialize Metal or load weights.")
+    }
     func testPinnedDownloadReportsBytesAndReusesCompletedFileWithoutAnotherRequest() async throws {
         let bytes = Data(repeating: 42, count: 512 * 1024), server = try ModelFileFixture(bytes: Data(repeating: 42, count: 512 * 1024))
         let address = try await server.start()

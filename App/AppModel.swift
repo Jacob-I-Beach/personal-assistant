@@ -78,6 +78,7 @@ final class AppModel: ObservableObject {
     private(set) var store: LocalStore?
     private var engine: AssistantEngine?
     private var localBackend: MLXLocalBackend?
+    private var localBackendTransition: Task<Void, Never>?
     private var responseTask: Task<Void, Never>?
     private let completionWindow = ResponseCompletionWindow.shared
     private let replyActivity = ReplyLiveActivity()
@@ -144,7 +145,7 @@ final class AppModel: ObservableObject {
     var modelTitle: String {
         switch settings.choice {
         case .localMLX: catalog.first { $0.id == settings.localRepository }?.name ?? "Downloaded model"
-        case .chatGPT: chatGPTModels.first { $0.id == settings.chatGPTModel }?.displayName ?? (settings.chatGPTModel.isEmpty ? "ChatGPT" : settings.chatGPTModel)
+        case .chatGPT: ChatGPTModel.displayTitle(for: settings.chatGPTModel, catalog: chatGPTModels)
         case .appleOnDevice: appleDevice.title
         case .appleCloud: appleCloud.title
         case .openAI: settings.openAIModel.isEmpty ? "OpenAI API" : settings.openAIModel
@@ -796,6 +797,8 @@ final class AppModel: ObservableObject {
         #endif
         switch selection.choice {
         case .localMLX:
+            await localBackendTransition?.value
+            try Task.checkCancellation()
             guard let localBackend else { throw AccountConnectionError.unavailable }; return localBackend
         case .appleOnDevice: return AppleModelBackend(location: .device)
         case .appleCloud: return AppleModelBackend(location: .privateCloud)
@@ -835,6 +838,7 @@ final class AppModel: ObservableObject {
         if !credential.isEmpty, let account = value.credentialAccount { try CredentialStore.save(credential, account: account) }
         guard let settingsURL else { throw AssistantError.provider("App storage is unavailable.") }
         try JSONEncoder().encode(value).write(to: settingsURL, options: .atomic)
+        let leavingLocal = settings.choice == .localMLX && value.choice != .localMLX
         let changedLocal = value.localRepository != settings.localRepository || value.localRevision != settings.localRevision || value.localResponseTokens != settings.localResponseTokens
             || value.localContextTokens != settings.localContextTokens || value.localMemoryGiB != settings.localMemoryGiB
         settings = value
@@ -849,6 +853,7 @@ final class AppModel: ObservableObject {
         }
         if value.localOnly { cancelConnection(); stopDownload() }
         if changedLocal { rebuildLocalBackend() }
+        else if leavingLocal { releaseLocalBackend(localBackend) }
         if let root { try PrivatePaths.configureBackup(root: root, includeUserData: value.includeInDeviceBackup) }
     }
     func setPlanningAccess(calendars: [String], reminders: [String], connected: Bool) throws {
@@ -876,14 +881,29 @@ final class AppModel: ObservableObject {
     }
     func clearCredential() throws { if let account = settings.credentialAccount { try CredentialStore.remove(account: account) } }
     var localBackendResidentBytes: Int64 { localBackend?.residentBytes ?? 0 }
+    func localRuntimeBudget(memoryGiB: Int, contextTokens: Int?, availableBytes: Int64) -> LocalInferenceBudget? {
+        localBackend?.planningBudget(memoryGiB: memoryGiB, contextTokens: contextTokens, availableBytes: availableBytes)
+    }
     private func rebuildLocalBackend() {
         guard let modelRoot else { return }
         let previous = localBackend
-        localBackend = MLXLocalBackend(repository: settings.localRepository, revision: settings.localRevision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: catalog.first { $0.id == settings.localRepository }?.supportsVision ?? true, weightBytes: catalog.first { $0.id == settings.localRepository }?.weightBytes ?? 0,
+        localBackend = MLXLocalBackend(repository: settings.localRepository, revision: settings.localRevision, root: modelRoot, responseTokens: settings.localResponseTokens, supportsVision: catalog.first { $0.id == settings.localRepository }?.supportsVision ?? true, weightBytes: catalog.first { $0.id == settings.localRepository }?.weightBytes ?? 0, textWeightBytes: catalog.first { $0.id == settings.localRepository }?.textWeightBytes,
             requestedContextTokens: settings.localContextTokens, requestedMemoryGiB: settings.localMemoryGiB)
-        if let previous { Task { try? await previous.unload() } }
+        releaseLocalBackend(previous)
+    }
+    private func releaseLocalBackend(_ backend: MLXLocalBackend?) {
+        let pending = localBackendTransition
+        localBackendTransition = Task {
+            await pending?.value
+            try? await backend?.unload()
+        }
     }
     func refreshDownloads() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-qwen-memory") {
+            downloadedModelIDs = ["mlx-community/Qwen3.5-4B-4bit"]; return
+        }
+        #endif
         guard let modelRoot else { return }
         var ready = Set<String>()
         for entry in catalog {
@@ -905,7 +925,7 @@ final class AppModel: ObservableObject {
                 try await backend.download(allowCellular: allowCellular, expectedFiles: entry.files) { [weak self] value in
                     Task { @MainActor in self?.downloadProgress = value; if value >= 1 { self?.modelStatus = "Verifying model files" } }
                 }
-                modelStatus = "\(entry.name) is ready to use"; await refreshDownloads()
+                modelStatus = "\(entry.name) downloaded"; await refreshDownloads()
             } catch {
                 modelStatus = Task.isCancelled ? "Download stopped" : "Download needs attention"
                 if !Task.isCancelled { errorMessage = error.localizedDescription }
@@ -924,7 +944,7 @@ final class AppModel: ObservableObject {
                 try await backend.importFolder(folder, expectedFiles: entry.files) { [weak self] progress in
                     Task { @MainActor in self?.downloadProgress = progress; if progress >= 1 { self?.modelStatus = "Verifying imported files" } }
                 }
-                modelStatus = "\(entry.name) is ready to use"; await refreshDownloads()
+                modelStatus = "\(entry.name) imported"; await refreshDownloads()
             } catch {
                 modelStatus = Task.isCancelled ? "Import stopped" : "Import needs attention"
                 if !Task.isCancelled { errorMessage = error.localizedDescription }

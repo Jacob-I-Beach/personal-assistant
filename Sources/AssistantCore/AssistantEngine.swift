@@ -181,6 +181,10 @@ public actor AssistantEngine {
         let availableMemories = MemoryContext.eligible(try await store.memories(), conversationID: conversation.id, remote: backend.networkDestination != nil)
         var localOnlyContext = backend.networkDestination == nil && (availableMemories.contains { !$0.allowsConnectedModels } || conversation.messages.contains(where: \.containsLocalOnlyContext))
         let eligibleAttachments = conversation.messages.filter { backend.networkDestination == nil || !$0.containsLocalOnlyContext }
+        try await backend.prepareForResponse(containsImages: eligibleAttachments.contains { !$0.captureIDs.isEmpty })
+        contextConfiguration["context_text_bytes"] = .number(Double(backend.contextLimits.maximumTextBytes))
+        work.configuration = .object(contextConfiguration)
+        try await store.saveWorkTurn(work)
         let broker = AssistantTools(store: store, conversationID: conversation.id, captureIDs: Set(eligibleAttachments.flatMap(\.captureIDs)), sandbox: sandbox,
                                     memoryEnabled: !availableMemories.isEmpty, remote: backend.networkDestination != nil,
                                     artifactLocalOnly: localOnlyContext, healthData: conversation.containsHealthData,
@@ -261,6 +265,10 @@ public actor AssistantEngine {
             try Task.checkCancellation()
             work = try await store.workTurn(turnID) ?? work
             work.rounds += 1; try await store.saveWorkTurn(work)
+            // A native question can add a photo between rounds. Re-evaluate
+            // resources before assembling that next input, never drop the image
+            // silently into a text-only runtime.
+            try await backend.prepareForResponse(containsImages: conversation.messages.contains { (backend.networkDestination == nil || !$0.containsLocalOnlyContext) && !$0.captureIDs.isEmpty })
             var request = try await request(for: conversation, tools: broker.definitions, limits: backend.contextLimits, remote: backend.networkDestination != nil, nativeFiles: backend.supportsFileInputs, appContext: appContext, turnInstructions: turnInstructions)
             localOnlyContext = localOnlyContext || request.containsLocalOnlyContext
             if localOnlyContext { await broker.protectLocalContext() }

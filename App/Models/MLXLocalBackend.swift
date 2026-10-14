@@ -2,6 +2,7 @@ import AssistantCore
 import CoreImage
 import CryptoKit
 import Foundation
+import Darwin
 import HuggingFace
 import MLX
 import MLXHuggingFace
@@ -21,28 +22,34 @@ actor MLXLocalBackend: ModelBackend {
     private let responseTokens: Int
     nonisolated let supportsVision: Bool
     private let weightBytes: Int64
+    private nonisolated let textWeightBytes: Int64?
     private nonisolated let requestedContextTokens: Int?
     private nonisolated let requestedMemoryGiB: Int
     private nonisolated let footprint = LocalModelFootprint()
     nonisolated var residentBytes: Int64 { footprint.value }
-    nonisolated var memoryBudget: LocalInferenceBudget {
-        LocalInferenceBudget(weightBytes: weightBytes, availableBytes: Int64(os_proc_available_memory()), residentBytes: residentBytes,
-            requestedMemoryGiB: requestedMemoryGiB, requestedContextTokens: requestedContextTokens,
-            responseTokens: responseTokens, supportsEfficientKV: repository.contains("Qwen3.5-4B"))
+    nonisolated var memoryBudget: LocalInferenceBudget { planningBudget(memoryGiB: requestedMemoryGiB, contextTokens: requestedContextTokens, availableBytes: Int64(os_proc_available_memory())) }
+    nonisolated func planningBudget(memoryGiB: Int, contextTokens: Int?, availableBytes: Int64) -> LocalInferenceBudget {
+        let vision = footprint.vision ?? (supportsVision && textWeightBytes == nil)
+        return LocalInferenceBudget(weightBytes: vision ? weightBytes : (textWeightBytes ?? weightBytes), availableBytes: availableBytes, residentBytes: residentBytes,
+            requestedMemoryGiB: memoryGiB, requestedContextTokens: contextTokens,
+            responseTokens: responseTokens, supportsEfficientKV: repository.contains("Qwen3.5-4B"), optimizedTextRuntime: !vision && textWeightBytes != nil)
     }
     nonisolated var contextLimits: ContextLimits {
-        ContextLimits(maximumTextBytes: max(4_096, memoryBudget.inputTokens * 3), maximumImages: supportsVision ? 1 : 0)
+        ContextLimits(maximumTextBytes: max(4_096, memoryBudget.inputTokens * 3), maximumImages: footprint.vision == true ? 1 : 0)
     }
     private var container: ModelContainer?
     private var busy = false
     private var downloadBusy = false
     private var runtimeInitialized = false
+    private var preparing = false
+    private var idleWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(repository: String, revision: String, root: URL, responseTokens: Int, supportsVision: Bool = true, weightBytes: Int64 = 0,
+    init(repository: String, revision: String, root: URL, responseTokens: Int, supportsVision: Bool = true, weightBytes: Int64 = 0, textWeightBytes: Int64? = nil,
          requestedContextTokens: Int? = nil, requestedMemoryGiB: Int = 8) {
         self.repository = repository; self.revision = revision; self.root = root
         self.responseTokens = responseTokens; self.id = "mlx:\(repository)@\(revision)"
         self.supportsVision = supportsVision; self.weightBytes = weightBytes
+        self.textWeightBytes = textWeightBytes
         self.requestedContextTokens = requestedContextTokens; self.requestedMemoryGiB = requestedMemoryGiB
     }
 
@@ -76,10 +83,17 @@ actor MLXLocalBackend: ModelBackend {
         progress(1)
     }
 
-    func unload() throws {
-        guard !busy else { throw AssistantError.busy }
+    private func waitUntilIdle() async {
+        while busy || preparing { await withCheckedContinuation { idleWaiters.append($0) } }
+    }
+    private func notifyIdle() {
+        guard !busy, !preparing else { return }
+        let waiting = idleWaiters; idleWaiters = []; waiting.forEach { $0.resume() }
+    }
+    func unload() async throws {
+        await waitUntilIdle()
         container = nil
-        footprint.set(0)
+        footprint.set(0, vision: nil)
         // An unused backend must never initialize Metal merely to clear an empty cache,
         // especially after the app has already moved into the background.
         if runtimeInitialized { MLX.Memory.clearCache() }
@@ -132,30 +146,75 @@ actor MLXLocalBackend: ModelBackend {
         committed = true; progress(1)
     }
 
-    private func loadFromDisk() async throws {
-        if container != nil { return }
+    func prepareForResponse(containsImages: Bool) async throws {
+        await waitUntilIdle()
+        try Task.checkCancellation()
+        try await loadFromDisk(containsImages: containsImages)
+        guard memoryBudget.fits else {
+            try await unload()
+            throw AssistantError.provider("iOS did not leave enough working memory after the local model loaded. The model has been released and your request is saved. Check its memory details and retry when more headroom is available.")
+        }
+    }
+    private func loadFromDisk(containsImages: Bool) async throws {
+        let vision = supportsVision && (containsImages || textWeightBytes == nil)
+        if container != nil, footprint.vision == vision { return }
+        guard !preparing else { throw AssistantError.busy }
+        preparing = true
+        defer { preparing = false; notifyIdle() }
+        // Only one representation is resident. Exclude vision tensors before
+        // the upstream loader's parallel materialization, not just sanitation.
+        if container != nil {
+            container = nil; footprint.set(0, vision: nil)
+            if runtimeInitialized { MLX.Memory.clearCache() }
+        }
         let directory = try savedDirectory()
         guard ProcessInfo.processInfo.thermalState != .critical else { throw AssistantError.provider("The iPhone is too warm to load a model. Let it cool, or use ChatGPT for now.") }
-        let plan = memoryBudget
-        guard plan.fits else { throw AssistantError.provider("There is not enough memory available for this model and its working context right now. Release another loaded model or choose a smaller model. The download is kept.") }
+        let plan = LocalInferenceBudget(weightBytes: vision ? weightBytes : (textWeightBytes ?? weightBytes), availableBytes: Int64(os_proc_available_memory()),
+            requestedMemoryGiB: requestedMemoryGiB, requestedContextTokens: requestedContextTokens, responseTokens: responseTokens,
+            supportsEfficientKV: repository.contains("Qwen3.5-4B"), optimizedTextRuntime: !vision && textWeightBytes != nil)
+        guard plan.fits else {
+            throw AssistantError.provider(vision && textWeightBytes != nil
+                ? "This image request needs Qwen's larger vision runtime, which does not fit the iPhone's current memory headroom. The same downloaded model can run text chats with less memory. Your image and request are saved."
+                : "The selected local runtime needs more memory headroom before it can load. Your request and download are saved. Check this model's details or release another loaded model, then retry.")
+        }
+        var loadDirectory = directory
+        if !vision, let textWeightBytes {
+            let identity = SHA256.hash(data: Data((repository + "@" + revision).utf8)).map { String(format: "%02x", $0) }.joined()
+            loadDirectory = root.appendingPathComponent("text-runtime").appendingPathComponent(identity)
+            _ = try await TextModelWeights.prepareAsync(source: directory.appendingPathComponent("model.safetensors"),
+                destination: loadDirectory.appendingPathComponent("model.safetensors"), expectedPayloadBytes: textWeightBytes)
+            for name in ["config.json", "generation_config.json"] {
+                let original = directory.appendingPathComponent(name)
+                if FileManager.default.fileExists(atPath: original.path) {
+                    try Data(contentsOf: original).write(to: loadDirectory.appendingPathComponent(name), options: .atomic)
+                }
+            }
+        }
+        try Task.checkCancellation()
         runtimeInitialized = true
-        MLX.Memory.cacheLimit = 32 * 1024 * 1024
+        MLX.Memory.cacheLimit = 8 * 1024 * 1024
+        MLX.Memory.clearCache()
         MLX.Memory.memoryLimit = Int(plan.workingBytes)
+        let before = LocalProcessMemory.footprint
         // Preserve upstream EOS tokens, tool format and reasoning parser when resolving a local package.
-        if supportsVision {
+        if vision {
             let factory = VLMModelFactory.shared
-            let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: directory)
+            let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: loadDirectory, tokenizerDirectory: directory)
             container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
         } else {
             let factory = LLMModelFactory.shared
-            let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: directory)
+            let configuration = Self.diskConfiguration(factory.configuration(id: repository), directory: loadDirectory, tokenizerDirectory: directory)
             container = try await factory.loadContainer(from: DiskOnlyDownloader(), using: #huggingFaceTokenizerLoader(), configuration: configuration)
         }
-        footprint.set(Int64(MLX.Memory.activeMemory))
+        do { try Task.checkCancellation() } catch {
+            container = nil; MLX.Memory.clearCache(); throw error
+        }
+        let processGrowth = max(0, LocalProcessMemory.footprint - before)
+        footprint.set(max(Int64(MLX.Memory.activeMemory), processGrowth), vision: vision)
     }
 
-    private static func diskConfiguration(_ source: ModelConfiguration, directory: URL) -> ModelConfiguration {
-        var result = ModelConfiguration(directory: directory, tokenizerSource: .directory(directory),
+    private static func diskConfiguration(_ source: ModelConfiguration, directory: URL, tokenizerDirectory: URL) -> ModelConfiguration {
+        var result = ModelConfiguration(directory: directory, tokenizerSource: .directory(tokenizerDirectory),
             defaultPrompt: source.defaultPrompt, extraEOSTokens: source.extraEOSTokens,
             stopStrings: source.stopStrings, eosTokenIds: source.eosTokenIds,
             toolCallFormat: source.toolCallFormat, reasoningConfig: source.reasoningConfig,
@@ -217,16 +276,20 @@ actor MLXLocalBackend: ModelBackend {
     }
 
     private func generate(_ request: ModelRequest, output: AsyncThrowingStream<ModelEvent, any Error>.Continuation) async throws {
-        guard !busy else { throw AssistantError.busy }
-        busy = true; defer { busy = false }
-        try await loadFromDisk()
+        guard !busy, !preparing else { throw AssistantError.busy }
+        busy = true; defer { busy = false; notifyIdle() }
+        if !request.isMetadata || container == nil { try await loadFromDisk(containsImages: request.messages.contains { !$0.images.isEmpty }) }
         guard let container else { throw AssistantError.provider("The local model did not load.") }
         var messages: [Chat.Message] = [.system(request.instructions)]
         for entry in request.messages {
             let m = entry.message
             let images: [UserInput.Image] = try entry.images.map { image in
                 guard let value = CIImage(data: image.jpeg) else { throw AssistantError.invalidCapture("The attached image cannot be decoded.") }
-                return .ciImage(value, label: image.captureID.uuidString)
+                // Bound vision preprocessing independently from context tokens.
+                let dimension = max(value.extent.width, value.extent.height)
+                guard dimension.isFinite, dimension > 0 else { throw AssistantError.invalidCapture("This image has invalid dimensions.") }
+                let scale = min(1, 1024 / dimension)
+                return .ciImage(value.transformed(by: CGAffineTransform(scaleX: scale, y: scale)), label: image.captureID.uuidString)
             }
             switch m.role {
             case .user: messages.append(.user(m.text, images: images))
@@ -253,7 +316,7 @@ actor MLXLocalBackend: ModelBackend {
         guard tokenCount <= budget.inputTokens else { throw AssistantError.contextCapacity }
         let parameters = GenerateParameters(maxTokens: budget.responseTokens, kvBits: repository.contains("Qwen3.5-4B") ? 4 : nil,
             kvGroupSize: 64, quantizedKVStart: 0, temperature: 0.4,
-            prefill: .init(stepSize: ProcessInfo.processInfo.thermalState == .serious ? 64 : 128))
+            prefill: .init(stepSize: ProcessInfo.processInfo.thermalState == .serious ? 16 : 32))
         let session = ChatSession(container, generateParameters: parameters,
                                   additionalContext: ["enable_thinking": false], tools: specs.isEmpty ? nil : specs)
         var calls: [AssistantCore.ToolCall] = []
@@ -288,8 +351,25 @@ actor MLXLocalBackend: ModelBackend {
 private final class LocalModelFootprint: @unchecked Sendable {
     private let lock = NSLock()
     private var bytes: Int64 = 0
+    private var includesVision: Bool?
     var value: Int64 { lock.withLock { bytes } }
-    func set(_ value: Int64) { lock.withLock { bytes = value } }
+    var vision: Bool? { lock.withLock { includesVision } }
+    func set(_ value: Int64, vision: Bool?) { lock.withLock { bytes = value; includesVision = vision } }
+}
+
+/// Includes CPU tokenizer and model-loading allocations that MLX's GPU-only
+/// activeMemory counter cannot see. No elevated memory grant is assumed.
+private enum LocalProcessMemory {
+    static var footprint: Int64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? Int64(info.phys_footprint) : 0
+    }
 }
 
 private struct DiskOnlyDownloader: Downloader {

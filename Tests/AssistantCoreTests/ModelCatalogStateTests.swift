@@ -2,6 +2,11 @@ import XCTest
 @testable import AssistantCore
 
 final class ModelCatalogStateTests: XCTestCase {
+    func testSavedModelNamesAreReadableWithoutInventingModelAvailability() {
+        XCTAssertEqual(ChatGPTModel.displayTitle(for: "gpt-6.1-sol", catalog: []), "GPT-6.1-Sol")
+        XCTAssertEqual(ChatGPTModel.displayTitle(for: "custom-model-id", catalog: []), "custom-model-id")
+        XCTAssertEqual(ChatGPTModel.displayTitle(for: "", catalog: []), "ChatGPT")
+    }
     func testSameAccountChoicesSurviveFailureAndPersistence() throws {
         let models = try ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"fixture","display_name":"Fixture","visibility":"list","max_context_window":1000000}]}"#.utf8))
         let saved = AccountModelCatalog(owner: "one", models: models)

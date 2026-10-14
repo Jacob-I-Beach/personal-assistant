@@ -13,6 +13,9 @@ struct LocalModelCatalogEntry: Codable, Identifiable, Equatable, Sendable {
     var files: [File]
     var architecture: String?
     var weightBytes: Int64?
+    /// Exact language tensor payload in the pinned multimodal checkpoint.
+    /// Present only for packages supported by the LLM factory without vision.
+    var textWeightBytes: Int64?
     var estimatedMemoryLowBytes: Int64?
     var estimatedMemoryHighBytes: Int64?
     var mixtureOfExperts: String?

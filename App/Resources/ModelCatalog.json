@@ -5,9 +5,9 @@
     "summary": "A lighter option for short questions, rewriting, and simple visual tasks.",
     "revision": "674aaa7240b91e8012fcad5d791b7dfe5ba90207",
     "downloadBytes": 1749080357,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": true,
-    "validation": "Candidate · device testing required",
+    "validation": "Candidate \u00b7 device testing required",
     "files": [
       {
         "name": "README.md",
@@ -74,12 +74,12 @@
   {
     "id": "mlx-community/Qwen3.5-4B-4bit",
     "name": "Qwen 3.5 4B",
-    "summary": "Our baseline for general conversation, images, and everyday tool use.",
+    "summary": "Capable local conversation and tool use. Uses its language model for text; loads vision only for image requests.",
     "revision": "0e7ffd5c629ef7719d4cbc04069232580bfa9d9c",
     "downloadBytes": 3061129077,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": true,
-    "validation": "Baseline · phone testing pending",
+    "validation": "Text runtime optimized for constrained memory; physical acceptance pending.",
     "files": [
       {
         "name": "chat_template.jinja",
@@ -136,7 +136,8 @@
     "estimatedMemoryLowBytes": 4187377984,
     "estimatedMemoryHighBytes": 6582214269,
     "architecture": "qwen3_5",
-    "sourceURL": "https://huggingface.co/mlx-community/Qwen3.5-4B-4bit/tree/0e7ffd5c629ef7719d4cbc04069232580bfa9d9c"
+    "sourceURL": "https://huggingface.co/mlx-community/Qwen3.5-4B-4bit/tree/0e7ffd5c629ef7719d4cbc04069232580bfa9d9c",
+    "textWeightBytes": 2367118848
   },
   {
     "id": "mlx-community/Qwen3.5-9B-4bit",
@@ -144,9 +145,9 @@
     "summary": "A larger candidate for more demanding work, with higher memory and thermal demands.",
     "revision": "8b2b98c00a6b4d291155e4890773ca8f769aee53",
     "downloadBytes": 5977071733,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": true,
-    "validation": "Candidate · device testing required",
+    "validation": "Candidate \u00b7 device testing required",
     "files": [
       {
         "name": "README.md",
@@ -218,12 +219,12 @@
   {
     "id": "mlx-community/granite-3.3-2b-instruct-4bit",
     "name": "IBM Granite 3.3 2B",
-    "summary": "IBM’s compact text assistant for grounded document work and structured responses.",
+    "summary": "IBM\u2019s compact text assistant for grounded document work and structured responses.",
     "revision": "58246c5498495c14599525c852cfadb66c9f3084",
     "downloadBytes": 1430231606,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": false,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",
@@ -289,9 +290,9 @@
     "summary": "A hybrid mixture-of-experts text model. Experimental on this phone; all expert weights count toward memory.",
     "revision": "a892ded1552d6d4089fa644bbff6ccbc54dddc67",
     "downloadBytes": 3916357612,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": false,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",
@@ -362,9 +363,9 @@
     "summary": "A compact multilingual text model for everyday drafting and document questions.",
     "revision": "d3a7e0594d6642dbcfb7d149bed8b0bdf49f95ce",
     "downloadBytes": 1747379242,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": false,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",
@@ -425,9 +426,9 @@
     "summary": "A lighter hybrid text model for short tasks and tool-oriented offline workflows.",
     "revision": "3843e4ad0fcb8b7ed8a050908ac8f0bb5320d1bf",
     "downloadBytes": 663390551,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": false,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",
@@ -488,9 +489,9 @@
     "summary": "A larger hybrid MoE: 8.3B total parameters, about 1.5B active. Experimental 3-bit package; total weights remain resident.",
     "revision": "0b05ca1d3fe12b7c9b9b57df674752eb63a46e5f",
     "downloadBytes": 4176558356,
-    "format": "MLX · 3-bit",
+    "format": "MLX \u00b7 3-bit",
     "supportsVision": false,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",
@@ -542,7 +543,7 @@
     "weightBytes": 4171677477,
     "estimatedMemoryLowBytes": 5495361284,
     "estimatedMemoryHighBytes": 8345148281,
-    "mixtureOfExperts": "8.3B total · 1.5B active",
+    "mixtureOfExperts": "8.3B total \u00b7 1.5B active",
     "sourceURL": "https://huggingface.co/mlx-community/LFM2-8B-A1B-3bit-MLX/tree/0b05ca1d3fe12b7c9b9b57df674752eb63a46e5f"
   },
   {
@@ -551,9 +552,9 @@
     "summary": "A multimodal Gemma option for text and image tasks. Effective parameter size is not total weight memory.",
     "revision": "238767527555cb75a05732a84dff5d6ba0dd6809",
     "downloadBytes": 3583087091,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": true,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",
@@ -614,9 +615,9 @@
     "summary": "A larger multimodal Gemma option. More memory headroom is needed for images and long context.",
     "revision": "475b9088d29754a3379866cf5aeb6b41acd313c2",
     "downloadBytes": 5179239942,
-    "format": "MLX · 4-bit",
+    "format": "MLX \u00b7 4-bit",
     "supportsVision": true,
-    "validation": "Runtime architecture and package verified · phone performance unmeasured",
+    "validation": "Runtime architecture and package verified \u00b7 phone performance unmeasured",
     "files": [
       {
         "name": "README.md",

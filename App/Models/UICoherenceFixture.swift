@@ -9,6 +9,9 @@ extension AppModel {
         settings.choice = .chatGPT; settings.chatGPTAccountID = "synthetic-account"; settings.chatGPTModel = "gpt-6.1-sol"
         settings.automaticChatTitles = false; settings.confirmNewConnectedChats = false; settings.localOnly = false
         settings.continueInBackground = false; settings.taskNotifications = false
+        if ProcessInfo.processInfo.arguments.contains("--ui-qwen-memory") {
+            settings.localMemoryGiB = 8; settings.localContextTokens = nil; settings.localResponseTokens = 2048
+        }
         accounts = [.init(id: "synthetic-account", label: "Synthetic test account", isConnected: true)]
         chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":272000,"max_context_window":1050000},{"slug":"limited-context-fixture","display_name":"Limited context model","visibility":"list","context_window":128000,"max_context_window":268384}]}"#.utf8))) ?? []
         modelCatalog.phase = .ready
