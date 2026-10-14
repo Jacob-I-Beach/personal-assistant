@@ -12,6 +12,7 @@ on:
         type: choice
         default: testToolExpansionAndLatestButtonPreserveIntentionalPosition
         options:
+          - testProduct117DictationDoesNotCancelAnActiveResponse
           - models-memory-116
           - testToolExpansionAndLatestButtonPreserveIntentionalPosition
           - testPublishedComputerImageRendersInlineAndOpensOriginal

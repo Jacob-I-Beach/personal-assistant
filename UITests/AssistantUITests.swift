@@ -1055,12 +1055,19 @@ final class AssistantUITests: XCTestCase {
         let app = XCUIApplication(); app.launchArguments = ["--ui-streaming", "--ui-dark"]
         app.launch(); XCTAssertTrue(app.buttons["Send message"].waitForExistence(timeout: 15)); app.buttons["Send message"].tap()
         XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 10))
+        // Wait for accepted input and actual stream content before entering the
+        // next draft; Stop appears as soon as the request starts preparing.
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Line 1. More of the example.")).firstMatch.waitForExistence(timeout: 12))
         let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
-        composer.tap(); composer.typeText("My next draft")
+        composer.tap(); XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        composer.typeText("My next draft")
+        let beforeDictation = composer.value as? String
+        print("Synthetic draft before microphone tap: " + (beforeDictation ?? "<missing>"))
+        XCTAssertEqual(beforeDictation, "My next draft", "Establish the typed draft before testing the microphone action.")
         app.buttons["Dictate message"].tap()
         XCTAssertTrue(app.staticTexts["Finish or stop the response before dictating. Your draft and current work are kept."].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Stop response"].exists)
-        XCTAssertEqual(composer.value as? String, "My next draft")
+        XCTAssertEqual(composer.value as? String, beforeDictation)
         saveScreenshot(app, name: "Product117-dictation-does-not-stop-work")
         app.buttons["Stop response"].tap()
     }
