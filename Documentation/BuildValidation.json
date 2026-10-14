@@ -2687,11 +2687,47 @@
         "xcode-27"
       ],
       "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38529887062,
+      "attempt": 1,
+      "job_id": 115738975064,
+      "source_revision": "7fccde8d26a983bd7b5b6f96a97339b56aa13680",
+      "completed_at": "2026-10-14T07:41:06Z",
+      "conclusion": "success",
+      "name": "standard-package",
+      "started_at": "2026-10-14T07:40:48Z",
+      "status": "completed",
+      "rounded_minutes": 1,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
+    },
+    {
+      "run_id": 38529702553,
+      "attempt": 1,
+      "job_id": 115738364231,
+      "source_revision": "cb4dbe36653eaece0e40e1b5affffd4fbb80eab0",
+      "completed_at": "2026-10-14T07:48:53Z",
+      "conclusion": "success",
+      "name": "ui-check",
+      "started_at": "2026-10-14T07:39:10Z",
+      "status": "completed",
+      "rounded_minutes": 10,
+      "compute_charge_policy": "public_repository_standard_runner",
+      "estimated_net_compute_usd": 0,
+      "runner_labels": [
+        "xcode-27"
+      ],
+      "note": "Public visibility and standard xcode-27 runner verified. Gross list-price estimate is not a charge; artifact storage is separate."
     }
   ],
-  "rounded_runner_minutes": 1509,
+  "rounded_runner_minutes": 1520,
   "standard_rate_usd_per_minute": 0.062,
-  "estimated_compute_usd_if_fully_billable": 93.558,
+  "estimated_compute_usd_if_fully_billable": 94.24,
   "note": "Estimate from completed job runtimes, not an account invoice. Included allowance and taxes are unknown; artifact storage is separate.",
   "authorized_compute_budget_usd": 32.582,
   "authorization_note": "Jacob authorized continuation of expanded 0.7 and reported USD 12.68 remaining. This is an incremental allowance from the recorded USD 19.902 estimate, yielding a bookkeeping ceiling of USD 32.582; not a claim of actual GitHub account spend or budget settings.",
@@ -2719,5 +2755,5 @@
       "https://docs.github.com/en/actions/reference/runners/github-hosted-runners"
     ]
   },
-  "verified_free_public_runner_minutes": 921
+  "verified_free_public_runner_minutes": 932
 }

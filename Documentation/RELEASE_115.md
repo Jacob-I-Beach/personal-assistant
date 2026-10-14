@@ -1,6 +1,6 @@
 # 1.1.5 — local runtime readiness and model selection
 
-Version 1.1.5, build 20 is a source candidate. Native compilation, screen review, archive verification and physical-phone acceptance must be recorded separately before calling it delivered.
+Version 1.1.5, build 20 is packaged and native-verified from `7ec76985f9075376f9673879c53ea3452e5b7945`, run `38527740736`. Computer 1.1.5 release r2 is installed with the account, phone pairing, 25 tasks, certificate and actual Windows startup preserved. Phone installation and physical acceptance remain user-operated.
 
 ## Added
 
@@ -37,8 +37,8 @@ The user confirms AFM now works and the Qwen download completed. Authenticated G
 
 ## Validation
 
-- Shared-core and companion regression counts will be recorded in the final validation receipt. Cases cover bounded exact-byte weight projection, cache reuse, invalid/truncated inputs, cancellation, measured memory budgets, preparation before context assembly and the audit repairs above.
-- The first native run compiled and archived successfully, passed 11 platform tests and four of seven UI scenarios. Three UI locator/scroll assumptions were corrected after inspecting actual screenshots. Final native validation and packages are pending.
+- 225 shared-core tests pass on Windows and macOS; 60 companion checks and seven Windows updater checks pass. Real synthetic Windows files exercise conflict detection, complete replacement and cancelled-writer serialization.
+- Final production source passes 225 Mac core tests, 11 platform tests and seven UI scenarios in 38527740736. The remaining interaction/edit scenario passes in 38529702553 against the unchanged app after correcting a native-slider endpoint assumption in the test. The first run and all follow-up attempts remain in the ledger. Memory signing-input export is verified in 38529887062.
 - Health and task notifications/Live Activities remain deferred. No live model inference, new API billing, account reset or pairing reset was performed for validation.
 
 ## Primary implementation references
@@ -47,3 +47,5 @@ The user confirms AFM now works and the Qwen download completed. Authenticated G
 - [Qwen 3.5 text implementation](https://github.com/ml-explore/mlx-swift-lm/blob/3.32.3/Libraries/MLXLLM/Models/Qwen35.swift)
 - [MLX loader materialization](https://github.com/ml-explore/mlx-swift-lm/blob/3.32.3/Libraries/MLXLMCommon/Load.swift)
 - [Apple increased memory limit](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.kernel.increased-memory-limit)
+
+Both signing inputs have verified ARM64 device binaries and Metal libraries, preserved Activity extension, disabled Health/push, and verified ad-hoc signatures. The Standard input requests no entitlements; Memory requests only the regular increased-memory key. Compiled sections are unchanged by signing-input preparation. A Memory archive is not evidence of an Apple profile grant.

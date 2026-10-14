@@ -1,0 +1,129 @@
+{
+  "version": "1.1.5",
+  "build": 20,
+  "source": "7ec76985f9075376f9673879c53ea3452e5b7945",
+  "native_run": 38527740736,
+  "state": "Packaged and native-verified; PC update installed; physical phone signing and acceptance pending",
+  "tests": {
+    "windows_core": 225,
+    "mac_core": 225,
+    "native_platform": 11,
+    "native_ui": 8,
+    "companion": 60,
+    "windows_updater": 7
+  },
+  "attempts": [
+    {
+      "run": 38522731471,
+      "source": "18b911cecdc3107902fe6eafcab53cda8f12f237",
+      "result": "Compiled/archive passed; 11 platform and 4 UI passed; 3 locator/scroll assumptions corrected"
+    },
+    {
+      "run": 38527740736,
+      "source": "7ec76985f9075376f9673879c53ea3452e5b7945",
+      "result": "225 core, 11 platform and 7 UI passed; slider endpoint assumption corrected in test only"
+    },
+    {
+      "run": 38529702553,
+      "source": "cb4dbe36653eaece0e40e1b5affffd4fbb80eab0",
+      "production_source": "7ec76985f9075376f9673879c53ea3452e5b7945",
+      "result": "Focused interaction/edit UI passed against unchanged app"
+    },
+    {
+      "run": 38529887062,
+      "result": "Memory signing input exported from the exact verified Standard archive; compiled sections unchanged"
+    }
+  ],
+  "phone_packages": {
+    "Standard": {
+      "file": "PersonalAssistant-Standard.ipa",
+      "sha256": "09078b7807eed57a4679c96a6c82f93de015e0fe123917d8aa2e37275c00d748",
+      "bytes": 22014389,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.1.5",
+      "build": "20",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.1.5",
+          "build": "20"
+        }
+      ],
+      "requested_entitlements": {},
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "Memory": {
+      "file": "PersonalAssistant-Memory.ipa",
+      "sha256": "90d63bd808ec863e64ddcbc6d42c6832664004cda0d60fd43eb596cd13ad6036",
+      "bytes": 22014474,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.1.5",
+      "build": "20",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.1.5",
+          "build": "20"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.kernel.increased-memory-limit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "computer": {
+    "source": "62e5d8ae0343e38c1548d607f16dd9e17308dab4",
+    "package": "1.1.5-release-r2",
+    "installed": true,
+    "account_pairing_tasks_certificate_preserved": true,
+    "paired_phones": 1,
+    "saved_tasks": 25,
+    "actual_windows_startup_verified": true,
+    "pinned_tailscale_https_verified": true,
+    "python_ready": true
+  },
+  "gpt": {
+    "account_connected": true,
+    "sharing": true,
+    "last_authenticated_catalog_http_status": 520,
+    "user_reconnected": true,
+    "restored_generation": false,
+    "live_inference_tested": false
+  },
+  "qwen": {
+    "reported_headroom_gib": 3.05,
+    "language_tensor_bytes": 2367118848,
+    "vision_tensor_bytes": 667028480,
+    "planned_text_context_at_reported_headroom": 32768,
+    "physical_inference_verified": false,
+    "memory_entitlement_granted": false
+  },
+  "audit": "See AUDIT_115.md for all 18 findings and qualified filesystem race limits.",
+  "pending": [
+    "In-place phone signing and installation",
+    "Physical Qwen initialization, sustained context and performance",
+    "Matching increased-memory provisioning profile and actual higher allowance",
+    "Resolution of authenticated GPT HTTP520"
+  ],
+  "health_and_external_task_presentation": "Deferred; unchanged",
+  "screenshots_inspected": [
+    "Compact GPT and downloaded-model chooser with synthetic data",
+    "Qwen details and 32768-token estimate at simulated 3.05 GiB headroom",
+    "Working memory settings and 2.86 GiB planned budget",
+    "Separate downloads list",
+    "Interactive recalculation and actual message edit"
+  ]
+}
