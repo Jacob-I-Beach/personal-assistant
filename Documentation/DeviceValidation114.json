@@ -1,0 +1,29 @@
+{
+  "version": "1.1.4",
+  "build": 19,
+  "installation_status": "Pending user-operated in-place update",
+  "last_explicitly_confirmed_install": "1.1.0 build15; later package installation has not been explicitly confirmed",
+  "preserve_bundle_identifier": "dev.jacob.personalassistant.2932Q6J456",
+  "checks": [
+    {
+      "check": "About shows 1.1.4 Build19 and chats remain",
+      "status": "pending"
+    },
+    {
+      "check": "Fresh AFM message starts without app tool-fit rejection or GPT reconnection",
+      "status": "pending"
+    },
+    {
+      "check": "AFM uses a simple relevant native tool and retains its receipt",
+      "status": "pending"
+    },
+    {
+      "check": "Picker distinguishes saved sign-in from unavailable model service",
+      "status": "native fixture passed; physical pending"
+    },
+    {
+      "check": "Local model stays selected with older saved GPT work",
+      "status": "native fixture passed; physical pending"
+    }
+  ]
+}

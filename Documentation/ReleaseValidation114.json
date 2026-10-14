@@ -1,0 +1,145 @@
+{
+  "version": "1.1.4",
+  "build": 19,
+  "state": "Packaged and native-verified; PC installed; physical iPhone update and inference acceptance pending",
+  "archive_source": "acd2d353c3e2707a3f5657e3a7ed3ebf14c40a8c",
+  "archive_run": 38507610419,
+  "full_audit_source": "e312fc6197bb9b7c9c18cb6f0d601b6987ac15d2",
+  "full_audit_run": 38505606747,
+  "final_native_changes_since_full_audit": [
+    "App/Views/ModelLibraryView.swift",
+    "App/Views/SettingsView.swift"
+  ],
+  "shared_core_windows": 209,
+  "shared_core_mac": 209,
+  "native_platform_tests": 18,
+  "native_ui_scenarios": 4,
+  "final_ui_recheck": {
+    "run": 38507610419,
+    "source": "acd2d353c3e2707a3f5657e3a7ed3ebf14c40a8c",
+    "scenarios": 2,
+    "result": "passed"
+  },
+  "companion_tests": 46,
+  "updater_checks": 7,
+  "edge_ui": "passed; saved catalog with HTTP520 and deferred presentation visually inspected",
+  "afm_request_regression": {
+    "before": "Fresh Hello with app context and automatic memory failed before inference: selected model cannot fit tools",
+    "after_windows_bytes": {
+      "instructions": 1964,
+      "tools": 1715,
+      "input": 105,
+      "reply_reserve": 2048,
+      "limit": 10000
+    },
+    "uses_production_engine": true,
+    "uses_shared_real_backend_budget": true,
+    "actual_apple_model_inference": false
+  },
+  "screenshots_inspected": [
+    "Compact question with selected option and empty custom response",
+    "Question followed by user answer inline",
+    "Live research during partial response after returning",
+    "Activity summary and nested receipts",
+    "Interactive checklist and follow-up action",
+    "New local message after saved GPT work",
+    "Deferred task presentation in Settings",
+    "Saved model choices with HTTP520 explanation; final layout pending",
+    "Final picker: choices before download controls",
+    "Final background-setting description"
+  ],
+  "pc": {
+    "package": "1.1.4-release-r2",
+    "source": "3906864",
+    "installed": true,
+    "account_preserved": true,
+    "sharing_enabled": true,
+    "paired_devices": 1,
+    "saved_tasks": 23,
+    "active_tasks_at_update": 0,
+    "startup_verified_with_windows_cim": true,
+    "package_manifest_files_verified": 4567,
+    "computation": "ready",
+    "external_push_configured": false,
+    "pushward_enabled": false
+  },
+  "provider_failure": {
+    "authenticated_model_discovery_http": 520,
+    "transport_comparison": [
+      "SDK fetch",
+      "Node HTTPS"
+    ],
+    "same_documented_endpoint": true,
+    "persists_after_normal_sdk_credential_renewal": true,
+    "generation_restored": false,
+    "global_outage_established": false,
+    "no_agent_inference_request": true,
+    "account_credentials_not_reset": true,
+    "decoded_token_time_claims_in_window_at_latest_check": true
+  },
+  "attempts": [
+    {
+      "run": 38504609252,
+      "result": "compile failure",
+      "reason": "New modelLocation getter mixed expression cases and explicit returns. Corrected before delivery."
+    },
+    {
+      "run": 38505606747,
+      "result": "success",
+      "scope": "209 Mac core, 18 native platform, four UI flows and device archive"
+    },
+    {
+      "run": 38507280204,
+      "result": "cancelled",
+      "reason": "Fold both picker and background-setting visual review corrections into one final native package."
+    },
+    {
+      "run": 38507610419,
+      "result": "success",
+      "scope": "Final presentation compile, archive and two affected UI flows"
+    }
+  ],
+  "health": "deferred",
+  "external_task_presentation": "deferred",
+  "no_new_api_billing": true,
+  "pending": [
+    "User-operated in-place phone update; preserve chats",
+    "Physical AFM inference and native tool use",
+    "Restored authenticated GPT catalog and generation; HTTP520 remains the latest observed failure"
+  ],
+  "phone_package": {
+    "file": "PersonalAssistant-Standard.ipa",
+    "sha256": "6e494a93c10ff9ba3364b3775302be4bf6da53cdefca56561ac60b582ed7d6e6",
+    "bytes": 21919559,
+    "bundle_identifier": "dev.jacob.personalassistant",
+    "version": "1.1.4",
+    "build": "19",
+    "minimum_ios": "27.0",
+    "executable_architecture": "arm64",
+    "executable_platform": "iOS device",
+    "metal_library_count": 1,
+    "watch_bundles": [
+      {
+        "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+        "version": "1.1.4",
+        "build": "19"
+      }
+    ],
+    "requested_entitlements": {},
+    "health_enabled_in_app": false,
+    "has_embedded_provisioning_profile": false,
+    "installation_status": "Requires personal signing and physical-device testing"
+  },
+  "external_presentation": {
+    "push_environment": "disabled",
+    "activity_extension_preserved": true,
+    "health_deferred": true
+  },
+  "real_compute_integration": {
+    "passed": true,
+    "assistant_publish_available": true,
+    "saved_state_continued": true,
+    "checked_workbook_and_rendered_pdf": true,
+    "network_and_host_write_boundaries_verified": true
+  }
+}
