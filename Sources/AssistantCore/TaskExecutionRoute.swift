@@ -8,7 +8,7 @@ public enum TaskRoutePolicy {
         if local { return .onDevice }
         if computerEnabled && computerReady { return .computer }
         if mobileReady { return .mobile }
-        throw AssistantError.provider(computerEnabled ? "Your computer is unavailable and mobile ChatGPT is not connected. Connect ChatGPT on this iPhone; your draft is saved." : "Connect ChatGPT on this iPhone to use mobile mode. Your draft is saved.")
+        throw AssistantError.provider(computerEnabled ? "The computer's ChatGPT connection is not ready, and mobile ChatGPT is not connected. Connect ChatGPT on this iPhone or check the computer sign-in; your draft is saved." : "Connect ChatGPT on this iPhone to use mobile mode. Your draft is saved.")
     }
     public static func savedOwner(backendID: String, destination: String?) -> TaskExecutionRoute {
         if backendID.hasPrefix("companion:") { return .computer }

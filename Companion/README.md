@@ -1,23 +1,23 @@
 # Personal Assistant Companion
 
-Computer assistant service for Personal Assistant 1.1. The iPhone remains the primary interface. This PC process owns long-running work, saves progress independently of the phone connection, and runs supported computation against explicitly supplied files.
+Computer assistant service for Personal Assistant 1.3. The iPhone remains the primary interface. This PC process owns long-running work, saves progress independently of the phone connection, and runs supported computation against explicitly supplied files.
 
 The companion uses a separate, user-authorized ChatGPT plan connection on this PC. It does not copy credentials from Codex or the phone and does not configure API billing. Credentials and saved work use an OS-protected key. Phone pairing uses TLS certificate verification and revocable device credentials. Setup stays on the computer's loopback interface.
 
-Computational jobs run with selected inputs, bounded time/memory/output and no task network access. Contacts, Health, location and native communication/planning reviews remain phone operations. A job waiting for the phone or approval keeps that explicit state.
+Computational jobs run with selected inputs, bounded time/memory/output and no task network access. Contacts, Health, location and native communication/planning reviews remain phone operations. Questions and reviewed actions become saved dependencies. The worker continues independent steps and ends with a clear pending-items summary when only dependent work remains. A later answer resumes the same job.
 
 ## Open and connect
 
 1. Keep the complete companion package together and open `PersonalAssistant-Computer.exe`. The launcher opens the local setup page after the service is ready.
 2. Choose **Continue with ChatGPT** and complete authorization yourself in your browser. This is a separate authorization for this companion, not a copy of the phone or Codex credential.
 3. In the setup page choose your Ethernet/Wi-Fi connection and **Show pairing code**. On the iPhone open **Connections → Computer → Scan computer code**.
-4. Enable **Keep connected tasks on this computer**. Each accepted ChatGPT task belongs to this service from Send. Simple messages go through its lightweight provider connection; computation and computer tools run only when useful. Leaving the app disconnects the viewer without transferring or cancelling the task. A request must finish reaching the PC before it can run independently of the phone.
+4. Enable **Use computer for new ChatGPT tasks**. Each accepted ChatGPT task belongs to this service from Send. Simple messages go through its lightweight provider connection; computation and computer tools run only when useful. Leaving the app disconnects the viewer without transferring or cancelling the task. A request must finish reaching the PC before it can run independently of the phone.
 
 The package includes Node. Docker Desktop and Git for Windows/OpenSSL are required on this PC; Docker and the computation image were prepared during development. If the native app cannot reach the PC on private Wi-Fi, the included `scripts/allow-private-wifi.ps1` can be run by the user as administrator. It opens only TCP 48681 for this package's Node executable, on Private networks, from the local subnet. It does not open a public Internet service. Keep setup port 48680 on loopback.
 
 Away-from-home access requires a private route such as Tailscale on both devices. The app connection alone does not configure a VPN. Account sign-in, iPhone pairing and any system access prompts remain user-operated.
 
-The companion requests a temporary Windows system-awake lease while running; it does not keep the display on or alter permanent power settings. Shutting down the PC still stops work. Reopen the companion to retrieve interrupted tasks. Explicit task Stop cancels the saved job; merely closing the phone app disconnects the viewer. Closing the setup browser tab keeps the service running.
+The companion requests a temporary Windows system-awake lease while running; it does not keep the display on or alter permanent power settings. Shutting down the PC pauses execution. At the next Windows sign-in, the service recovers saved jobs; unknown external outcomes are inspected rather than replayed. Explicit task Stop cancels the saved job; merely closing the phone app disconnects the viewer. Closing the setup browser tab keeps the service running.
 
 ## Schedules and files
 
@@ -54,3 +54,13 @@ Opening an active task preserves its activity; the updated iPhone app acknowledg
 Updates may reuse a byte-identical Node executable that already has the private Tailscale firewall rule. The launcher checks its hash before use; retain prior packages. This avoids changing an existing firewall rule when only app code changes.
 
 The companion's persistent data lives at `%USERPROFILE%\.personal-assistant\computer`, independently of Windows AppData virtualization. On upgrade it preserves an existing legacy store, including one redirected into Codex's MSIX cache, by copying its opaque account/certificate files and taking a consistent SQLite backup. Original files remain untouched. Multiple different populated stores require an explicit recovery choice; the app never silently merges them. Operational launch/update reports are in `%USERPROFILE%\.personal-assistant\logs`.
+
+## Continuation and context
+
+When the PC is ready, new ChatGPT work uses this account and owner. When the PC is unavailable or the switch is off, a separately authorized mobile ChatGPT account can handle new requests. Accepted jobs are never silently copied between owners. Local models run on the iPhone. Closing Chrome does not stop this service.
+
+Interactive PC work rolls into further sessions without the old reasoning/action allowance requiring Continue. Temporary provider failures back off and retry; real account limits, revoked access and explicit Stop remain meaningful. Scheduled runs retain their explicitly approved limits.
+
+Thirty percent of the selected working allowance is reserved for compaction. The PC tries the native OpenAI compact endpoint through the same authorized account when supported, preserving its canonical output unchanged. It falls back to a factual checkpoint and then saved evidence if necessary. Full inputs, images and receipts remain encrypted and retrievable. Native endpoint acceptance and live answer quality are distinct from mock protocol tests.
+
+Use list_skills/read_skill for the five bundled workflow guides. They organize existing tools and do not grant access or run code. Bounded search and exact, version-checked patches operate inside the same connected-folder grants.

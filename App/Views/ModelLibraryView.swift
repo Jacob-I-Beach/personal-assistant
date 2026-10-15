@@ -79,7 +79,7 @@ struct ModelLibraryView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Button { model.connectChatGPT() } label: { Label("Continue with ChatGPT", systemImage: "person.crop.circle") }
+                Button { model.connectChatGPT() } label: { Label(model.chatGPTSignInTitle, systemImage: "person.crop.circle") }
                     .disabled(model.isConnecting || model.isRunning || model.settings.localOnly)
             }
         } header: {

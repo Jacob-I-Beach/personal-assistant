@@ -18,6 +18,18 @@ import XCTest
         let different = try await ChatGPTRouting.select(preference, mobileReady: true) { _ in .object(["profile": .object(["status": .string("connected"), "sharing": .bool(true), "profileId": .string("different-profile")])]) }
         XCTAssertFalse(different.selection.useComputer)
     }
+    func testMobileFallbackIdentityAndFirstSignInKeepTheContextChoice() async throws {
+        let model = AppModel(); try await model.waitUntilReady()
+        var preference = ModelSettings(); preference.choice = .chatGPT; preference.useComputer = true; preference.companion = connection; preference.chatGPTModel = "gpt-6.1-sol"
+        preference.contextTokensByModel[preference.contextPreferenceKey] = 1_000_000
+        model.settings = preference; model.adoptMobileAccount("mobile-fixture")
+        XCTAssertEqual(model.settings.contextTokensByModel[model.settings.contextPreferenceKey], 1_000_000)
+        model.accounts = [.init(id: "mobile-fixture", label: "mobile@example.test", isConnected: true)]
+        try model.applyComputerAccount(.object(["status": .string("disconnected"), "sharing": .bool(false), "profileId": .string(connection.profileID)]), connection: connection)
+        XCTAssertTrue(model.prefersComputerChatGPT); XCTAssertFalse(model.usesComputerChatGPT)
+        XCTAssertEqual(model.chatGPTAccountLabel, "mobile@example.test"); XCTAssertFalse(model.shouldOfferChatGPTSignIn)
+        XCTAssertEqual(model.modelCatalog.owner, "account:mobile-fixture")
+    }
     func testDisabledPCIsNotProbedAndMissingMobileAccountDoesNotFabricateLogin() async throws {
         var preference = ModelSettings(); preference.choice = .chatGPT; preference.useComputer = false; preference.companion = connection
         let mobile = try await ChatGPTRouting.select(preference, mobileReady: true) { _ in XCTFail("Disabled PC must not be probed"); return .null }

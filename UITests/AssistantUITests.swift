@@ -1222,6 +1222,19 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Later answer 65 stays saved."].waitForExistence(timeout: 8))
         saveScreenshot(app, name: "Continuity130-later-messages-kept")
     }
+    func testContinuity130MobileIdentityDoesNotDisplayTheUnavailableComputerAccount() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-computer-account", "--ui-mobile-fallback", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["ChatGPT · mobile connection"].exists)
+        XCTAssertFalse(app.buttons["home-chatgpt-sign-in"].exists)
+        app.buttons["Choose model"].tap(); app.buttons["model-account-details"].tap()
+        XCTAssertTrue(app.staticTexts["mobile@example.test"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["fixture@example.test"].exists)
+        saveScreenshot(app, name: "Continuity130-mobile-route-identity")
+    }
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

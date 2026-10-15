@@ -51,4 +51,4 @@ struct ComputerAccountRecord: Codable, Equatable, Sendable {
     }
 }
 
-enum ComputerAccountReachability: Equatable { case unchecked, checking, reachable, unavailable }
+enum ComputerAccountReachability: Equatable { case unchecked, checking, reachable, unavailable, unready }

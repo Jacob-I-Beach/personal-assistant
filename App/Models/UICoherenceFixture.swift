@@ -21,12 +21,22 @@ extension AppModel {
         conversation = Conversation(title: "Coherent interaction fixture")
         conversation.messages = [Message(role: .user, text: "An earlier synthetic question"), Message(role: .assistant, text: "An earlier synthetic answer.")]
         if ProcessInfo.processInfo.arguments.contains("--ui-computer-account") {
+            let fixtureModels = chatGPTModels, fixtureIssue = modelCatalog.issue
             let connection = CompanionConnection(baseURL: URL(string: "https://127.0.0.1:1")!, certificateSHA256: String(repeating: "a", count: 64),
                 serverID: "synthetic-server", deviceID: "synthetic-phone", profileID: "synthetic-profile", name: "Test computer")
             settings.companion = connection; settings.useComputer = true; settings.chatGPTAccountID = nil; accounts = []
             try? applyComputerAccount(.object(["status": .string("connected"), "sharing": .bool(true), "profileId": .string(connection.profileID),
                 "identity": .object(["email": .string("fixture@example.test")])]), connection: connection)
+            let owner = "computer:\(connection.serverID):\(connection.profileID)"
+            let snapshot = AccountModelCatalog(owner: owner, models: fixtureModels)
+            modelCatalog.begin(owner: owner, saved: snapshot); modelCatalog.receive(snapshot, staleReason: fixtureIssue)
             conversation.messages = []
+            if ProcessInfo.processInfo.arguments.contains("--ui-mobile-fallback") {
+                settings.chatGPTAccountID = "synthetic-mobile"; accounts = [.init(id: "synthetic-mobile", label: "mobile@example.test", isConnected: true)]
+                try? applyComputerAccount(.object(["status": .string("disconnected"), "sharing": .bool(false), "profileId": .string(connection.profileID)]), connection: connection)
+                let mobile = AccountModelCatalog(owner: "account:synthetic-mobile", models: fixtureModels)
+                modelCatalog.begin(owner: mobile.owner, saved: mobile); modelCatalog.receive(mobile)
+            }
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-published-file") {
             let id = UUID(uuidString: "00000000-0000-4000-8000-000000000112")!

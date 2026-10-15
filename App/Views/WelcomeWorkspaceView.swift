@@ -58,7 +58,7 @@ struct WelcomeWorkspaceView: View {
             if !setupDismissed || model.selectedAvailability.state != .needsSetup {
                 ReadinessRow()
                 if model.shouldOfferChatGPTSignIn && model.settings.choice == .chatGPT {
-                    Button("Continue with ChatGPT") { model.connectChatGPT() }.buttonStyle(.bordered).disabled(model.isConnecting || model.settings.localOnly).frame(minHeight: 44)
+                    Button(model.chatGPTSignInTitle) { model.connectChatGPT() }.buttonStyle(.bordered).disabled(model.isConnecting || model.settings.localOnly).frame(minHeight: 44)
                 }
                 if model.selectedAvailability.state == .needsSetup {
                     Button("Set up later") { setupDismissed = true }.font(.caption).frame(minHeight: 44)
