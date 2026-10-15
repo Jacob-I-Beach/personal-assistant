@@ -30,7 +30,7 @@ extension AppModel {
             }
             let document = WorkspaceFile(id: UUID(uuidString: "00000000-0117-4000-8000-000000000004")!, filename: "journey-preview.pdf", mediaType: "application/pdf", byteCount: pdf.count, text: "Synthetic preview of the original PDF.", conversationID: chat.id)
             if (try? await store.workspaceFile(document.id)) == nil { try await store.saveWorkspaceFile(document, data: pdf) }
-            if ProcessInfo.processInfo.arguments.contains("--ui-product117-surfaces") {
+            if ProcessInfo.processInfo.arguments.contains("--ui-product117-surfaces") || ProcessInfo.processInfo.arguments.contains("--ui-product117-surface-conflict") {
                 let call = ToolCall(id: "product-surface", name: "present_surface", arguments: .object([:]))
                 let spec = try JSONValue.parse(#"{"kind":"scenario","title":"Plan a short session","inputs":[{"id":"count","label":"Minutes","value":20,"min":5,"max":90,"step":5}],"expression":{"op":"multiply","args":[2,{"input":"count"}]},"result_label":"Points"}"#)
                 let surface = try WorkSurface(conversationID: chat.id, sourceCallID: call.id, spec: spec, localOnly: false, health: false)
@@ -56,6 +56,16 @@ extension AppModel {
             conversation = try await store.loadConversation(chat.id); draft = ""; draftContextReferences = []
         } catch { errorMessage = error.localizedDescription }
     }
+    func reviseSurfaceForUIConflict() async {
+        guard let store else { return }
+        do {
+            guard let saved = try await store.surfaces(conversationID: conversation.id).first else { return }
+            var inputs = saved.inputValues; inputs["count"] = 35
+            _ = try await store.interactWithSurface(id: saved.id, conversationID: conversation.id, expectedRevision: saved.revision, selected: saved.selectedIDs, inputs: inputs)
+            noticeMessage = "Synthetic surface revision saved"
+        } catch { errorMessage = error.localizedDescription }
+    }
+
 }
 struct UIProductBackend: ModelBackend {
     var id: String { "synthetic-product-journey" }

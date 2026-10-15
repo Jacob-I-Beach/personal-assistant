@@ -5,7 +5,8 @@ final class AuditCompletionTests: XCTestCase, @unchecked Sendable {
     func testBranchPreservesPriorMessagesOutputsAndRestoresWithoutResuming() async throws {
         let store = try makeTestStore(); var chat = Conversation(title: "Original")
         chat.messages = [Message(role: .user, text: "Original request"), Message(role: .assistant, text: "Original answer")]
-        chat.allowedNetworkDestinations = ["old-service"]
+        chat.allowedNetworkDestinations = ["old-service", "another-service"]
+        chat.workspaceIDs = [UUID(), UUID()]; chat.excludedFileIDs = [UUID(), UUID()]
         try await store.save(chat)
         let artifact = ArtifactRecord(conversationID: chat.id, filename: "report.md", content: "Prior version")
         try await store.saveArtifact(artifact)
@@ -14,11 +15,11 @@ final class AuditCompletionTests: XCTestCase, @unchecked Sendable {
         let branches = try await store.conversationRevisions(chat.id)
         XCTAssertEqual(branches.count, 1); XCTAssertEqual(try LocalStore.encode(branches[0].conversation.messages), try LocalStore.encode(chat.messages))
         XCTAssertEqual(branches[0].artifacts.first?.content, "Prior version")
-        var edited = revised; edited.allowedNetworkDestinations = []; edited.networkDisabled = true
+        var edited = revised; edited.allowedNetworkDestinations = []; edited.workspaceIDs = []; edited.networkDisabled = true
         edited.messages = [Message(role: .user, text: "Replacement request")]; try await store.save(edited)
         let expected = try await store.loadConversation(chat.id, preservingStreaming: true)
         let restored = try await store.restoreConversationRevision(branches[0].id, expected: expected)
-        XCTAssertEqual(try LocalStore.encode(restored.messages), try LocalStore.encode(chat.messages)); XCTAssertTrue(restored.allowedNetworkDestinations.isEmpty); XCTAssertTrue(restored.networkDisabled)
+        XCTAssertEqual(try LocalStore.encode(restored.messages), try LocalStore.encode(chat.messages)); XCTAssertTrue(restored.allowedNetworkDestinations.isEmpty); XCTAssertTrue(restored.networkDisabled); XCTAssertTrue(restored.workspaceIDs.isEmpty)
         XCTAssertTrue(restored.excludedArtifactIDs.contains(artifact.id))
         let remaining = try await store.unfinishedWork(); XCTAssertTrue(remaining.isEmpty)
         let history = try await store.conversationRevisions(chat.id); XCTAssertEqual(history.count, 2)
@@ -55,7 +56,7 @@ final class AuditCompletionTests: XCTestCase, @unchecked Sendable {
     func testArchiveRoundTripPreservesIdentityHistoryAndExcludesCredentialsAndExecution() async throws {
         let store = try makeTestStore(); var chat = Conversation(title: "Archive canary")
         chat.messages = [Message(role: .user, text: "Keep my notes"), Message(role: .assistant, text: "Saved answer")]
-        chat.allowedNetworkDestinations = ["old-account"]
+        chat.allowedNetworkDestinations = ["old-account"]; chat.workspaceIDs = [UUID()]
         try await store.save(chat)
         let artifact = ArtifactRecord(conversationID: chat.id, filename: "notes.md", content: "Revision one")
         try await store.saveArtifact(artifact); _ = try await store.reviseArtifact(id: artifact.id, expectedRevision: 1, content: "Revision two")
@@ -68,7 +69,7 @@ final class AuditCompletionTests: XCTestCase, @unchecked Sendable {
         let destination = try await PersonalArchive.stageRestore(url, in: store.root.appendingPathComponent("restores"))
         let restored = try LocalStore(root: destination)
         let restoredChat = try await restored.loadConversation(chat.id)
-        XCTAssertEqual(try LocalStore.encode(restoredChat.messages), try LocalStore.encode(chat.messages)); XCTAssertTrue(restoredChat.allowedNetworkDestinations.isEmpty); XCTAssertTrue(restoredChat.requiresNetworkReview)
+        XCTAssertEqual(try LocalStore.encode(restoredChat.messages), try LocalStore.encode(chat.messages)); XCTAssertTrue(restoredChat.allowedNetworkDestinations.isEmpty); XCTAssertTrue(restoredChat.requiresNetworkReview); XCTAssertTrue(restoredChat.workspaceIDs.isEmpty)
         let docs = try await restored.artifacts(); XCTAssertEqual(docs.first?.id, artifact.id); XCTAssertEqual(docs.first?.revision, 2)
         let history = try await restored.artifactHistory(artifact.id); XCTAssertEqual(history.first?.content, "Revision one")
         let original = try await restored.workspaceFile(file.id); XCTAssertFalse(original.allowsConnectedModels); XCTAssertFalse(original.allowsWorkspaceSearch)
@@ -120,6 +121,19 @@ final class AuditCompletionTests: XCTestCase, @unchecked Sendable {
         let input = OutputPresentation(sameName)
         XCTAssertNotEqual(input.id, current.id); XCTAssertTrue(input.isInput); XCTAssertTrue(input.restrictedDiscovery)
         XCTAssertEqual(current.preview, .textAvailable); XCTAssertEqual(input.preview, .originalNeedsCheck)
+    }
+    func testRetainedHealthRevisionStillBlocksOrdinaryDeviceBackupAfterEditAndReopen() async throws {
+        let store = try makeTestStore(); var chat = Conversation()
+        var source = Message(role: .user, text: "Synthetic Health-derived summary"); source.containsHealthData = true
+        chat.messages = [source, Message(role: .assistant, text: "Saved summary")]; try await store.save(chat)
+        let edited = try await store.prepareMessageEdit(in: chat, messageID: source.id)
+        XCTAssertFalse(edited.containsHealthData)
+        let retained = try await store.hasRetainedHealthData(); XCTAssertTrue(retained)
+        let reopened = try LocalStore(root: store.root); XCTAssertTrue(reopened.initiallyContainsHealthData)
+        let exported = try await reopened.exportPersonalArchive(to: store.root.appendingPathComponent("without-health.paarchive"), includePrivate: true, includeHealth: false)
+        XCTAssertTrue(exported.manifest.revisions.isEmpty)
+        try await reopened.removeConversation(chat.id)
+        let removed = try await reopened.hasRetainedHealthData(); XCTAssertFalse(removed)
     }
     func testCheckpointCacheInvalidatesAfterEditAndExternalStoreMutation() async throws {
         let store = try makeTestStore(); var chat = Conversation(); chat.messages = (0..<1000).map { Message(role: .assistant, text: "Saved message \($0)") }

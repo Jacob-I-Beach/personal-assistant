@@ -24,17 +24,33 @@ final class AuditCompletionPlatformTests: XCTestCase {
         try PrivatePaths.activateData(staged, at: root)
         XCTAssertEqual(try PrivatePaths.activeData(root: root), root.appendingPathComponent("data"))
         try PrivatePaths.applyPendingLibrary(root: root)
-        XCTAssertEqual(try PrivatePaths.activeData(root: root), staged)
+        XCTAssertEqual(try PrivatePaths.activeData(root: root).resolvingSymlinksInPath().path, staged.resolvingSymlinksInPath().path)
         try PrivatePaths.activateData(nil, at: root)
-        XCTAssertEqual(try PrivatePaths.activeData(root: root), staged)
+        XCTAssertEqual(try PrivatePaths.activeData(root: root).resolvingSymlinksInPath().path, staged.resolvingSymlinksInPath().path)
         try PrivatePaths.applyPendingLibrary(root: root)
         XCTAssertEqual(try PrivatePaths.activeData(root: root), root.appendingPathComponent("data"))
         let chats = try await store.conversationSummaries(); XCTAssertTrue(chats.isEmpty)
+    }
+    func testTranscriptRestoreUsesSemanticSnapshotEqualityAndKeepsDraft() async throws {
+        let model = AppModel(); try await model.waitUntilReady(); let store = try XCTUnwrap(model.store)
+        var chat = Conversation(title: "Restore fixture")
+        chat.messages = [Message(role: .user, text: "Earlier request"), Message(role: .assistant, text: "Earlier answer")]
+        chat.excludedFileIDs = [UUID(), UUID(), UUID()]; chat.workspaceIDs = [UUID(), UUID()]
+        try await store.save(chat)
+        var edited = try await store.prepareMessageEdit(in: chat, messageID: chat.messages[0].id)
+        edited.workspaceIDs = []; edited.messages = [Message(role: .user, text: "Replacement")]; try await store.save(edited)
+        let revisions = try await store.conversationRevisions(chat.id)
+        model.conversation = edited; model.draft = "Keep this unsent draft"
+        try await model.restoreTranscriptRevision(revisions[0].id, conversationID: chat.id)
+        XCTAssertEqual(model.conversation.messages.last?.text, "Earlier answer"); XCTAssertTrue(model.conversation.workspaceIDs.isEmpty)
+        XCTAssertEqual(model.draft, "Keep this unsent draft"); XCTAssertFalse(model.isRunning); XCTAssertFalse(model.isApplyingTranscriptRevision)
     }
     func testReadinessDoesNotTurnSavedAuthenticationIntoReadyModelService() async throws {
         let model = AppModel(); try await model.waitUntilReady()
         model.settings.choice = .chatGPT; model.settings.localOnly = true
         XCTAssertEqual(model.selectedAvailability.state, .blocked)
+        model.accounts = [ChatGPTAccountSummary(id: "fixture", label: "Fixture account", isConnected: true)]
+        model.settings.chatGPTAccountID = "fixture"
         model.settings.localOnly = false; model.modelCatalog.phase = .unavailable
         XCTAssertNotEqual(model.selectedAvailability.state, .ready)
         model.modelCatalog.phase = .ready; model.chatGPTModels = []; model.settings.chatGPTModel = "model-not-in-catalog"

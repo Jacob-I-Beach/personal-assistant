@@ -34,6 +34,12 @@ final class CompanionTLS: NSObject, URLSessionDelegate, URLSessionTaskDelegate, 
         guard actual == fingerprint else { completionHandler(.cancelAuthenticationChallenge, nil); return }
         completionHandler(.useCredential, URLCredential(trust: trust))
     }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        // The async bytes API delivers authentication through its task delegate.
+        // Both paths use the same exact host/certificate check above.
+        urlSession(session, didReceive: challenge, completionHandler: completionHandler)
+    }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) { completionHandler(nil) }
 }

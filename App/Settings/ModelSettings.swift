@@ -152,7 +152,7 @@ enum PrivatePaths {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-empty") { folder = "PersonalAssistant-UITests-Empty" }
         if ProcessInfo.processInfo.arguments.contains("--ui-product117") {
-            let modes = ["editor", "attachments", "search", "surfaces", "settings", "browse", "branches", "projects", "recovery", "inbox", "charts"]
+            let modes = ["editor", "attachments", "search", "surfaces", "settings", "browse", "branches", "projects", "recovery", "inbox", "charts", "export", "surface-conflict"]
             let mode = modes.first(where: { ProcessInfo.processInfo.arguments.contains("--ui-product117-" + $0) }) ?? "default"
             folder = "PersonalAssistant-UITests-Product117-" + mode
         }

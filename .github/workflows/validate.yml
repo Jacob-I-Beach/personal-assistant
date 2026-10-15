@@ -233,7 +233,7 @@ jobs:
           case "${{ matrix.suite }}" in
             audit-drafts120)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/ProductJourneyPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AuditCompletionPlatformTests")
-              scenarios="testProduct117DraftRestoresWithoutChangingSavedRevision testProduct117PreferenceSavesWithoutGlobalSaveModal testAudit120CreateProjectAndContinueWithoutSending testAudit120ConversationRestoreKeepsPriorVersionAndDoesNotExecute testAudit120ArchiveInspectionAndIsolatedRestore"
+              scenarios="testProduct117DraftRestoresWithoutChangingSavedRevision testProduct117PreferenceSavesWithoutGlobalSaveModal testAudit120CreateProjectAndContinueWithoutSending testAudit120ConversationRestoreKeepsPriorVersionAndDoesNotExecute testAudit120ArchiveInspectionAndIsolatedRestore testAudit120ArchiveExportShowsCoverageBeforeSaving"
               ;;
             audit-navigation120)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests")
@@ -241,7 +241,7 @@ jobs:
               ;;
             audit-interactions120)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests")
-              scenarios="testProduct117AttachmentsPreviewCancelAndAddPreserveDraft testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly testProduct117DictationDoesNotCancelAnActiveResponse testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testAudit120InboxFiltersAndRemovedNoteRecovery testAudit120ChartCategoryShowsEverySeriesAndDataTable"
+              scenarios="testProduct117AttachmentsPreviewCancelAndAddPreserveDraft testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly testProduct117DictationDoesNotCancelAnActiveResponse testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testAudit120InboxFiltersAndRemovedNoteRecovery testAudit120ChartCategoryShowsEverySeriesAndDataTable testAudit120ScenarioSaveConflictKeepsPreviewAndRevertsExplicitly"
               ;;
             product-drafts117)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/ProductJourneyPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests")

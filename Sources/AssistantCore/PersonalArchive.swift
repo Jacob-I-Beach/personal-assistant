@@ -213,7 +213,7 @@ extension LocalStore {
         try database.execute("CREATE TABLE IF NOT EXISTS work_surfaces(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,payload BLOB NOT NULL)")
         try database.transaction {
             for folder in manifest.folders { try saveFolder(folder) }
-            for var chat in manifest.conversations { chat.allowedNetworkDestinations = []; chat.allowedHealthDestinations = []; chat.requiresNetworkReview = true; for index in chat.messages.indices { chat.messages[index].continuation = nil }; chat.recoverInterruptedMessages(); try Self.persist(chat, in: database) }
+            for var chat in manifest.conversations { chat.allowedNetworkDestinations = []; chat.allowedHealthDestinations = []; chat.workspaceIDs = []; chat.requiresNetworkReview = true; for index in chat.messages.indices { chat.messages[index].continuation = nil }; chat.recoverInterruptedMessages(); try Self.persist(chat, in: database) }
             for artifact in manifest.artifacts { try saveArtifact(artifact) }
             for item in manifest.artifactHistory { try database.execute("INSERT INTO artifact_history VALUES(?,?,?)", [.text(item.id.uuidString), .integer(Int64(item.revision)), .blob(try Self.encode(item))]) }
             for var file in manifest.files { file.allowsConnectedModels = false; file.allowsWorkspaceSearch = false; try database.execute("INSERT INTO workspace_files VALUES(?,?,?)", [.text(file.id.uuidString), .real(file.createdAt.timeIntervalSince1970), .blob(try Self.encode(file))]) }

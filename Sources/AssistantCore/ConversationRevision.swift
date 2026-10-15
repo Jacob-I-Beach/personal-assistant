@@ -12,9 +12,22 @@ public struct ConversationRevision: Codable, Identifiable, Equatable, Sendable {
 }
 
 extension LocalStore {
-    func prepareConversationRevisions() throws {
-        try database.execute("CREATE TABLE IF NOT EXISTS conversation_revisions(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,created_at REAL NOT NULL,payload BLOB NOT NULL)")
+    func prepareConversationRevisions() throws { try Self.prepareRevisionStorage(database) }
+    static func prepareRevisionStorage(_ database: SQLiteDatabase) throws {
+        try database.execute("CREATE TABLE IF NOT EXISTS conversation_revisions(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,created_at REAL NOT NULL,payload BLOB NOT NULL,contains_health INTEGER NOT NULL DEFAULT 0)")
+        let columns = try database.execute("PRAGMA table_info(conversation_revisions)").compactMap { $0[1].text }
+        if !columns.contains("contains_health") {
+            try database.transaction {
+                try database.execute("ALTER TABLE conversation_revisions ADD COLUMN contains_health INTEGER NOT NULL DEFAULT 0")
+                try database.execute("UPDATE conversation_revisions SET contains_health=EXISTS(SELECT 1 FROM json_tree(CAST(payload AS TEXT)) WHERE key='containsHealthData' AND type='true')")
+            }
+        }
         try database.execute("CREATE INDEX IF NOT EXISTS conversation_revision_order ON conversation_revisions(conversation_id,created_at)")
+        try database.execute("CREATE INDEX IF NOT EXISTS conversation_revision_health ON conversation_revisions(contains_health)")
+        for action in ["INSERT", "UPDATE OF payload"] {
+            let name = action == "INSERT" ? "insert" : "update"
+            try database.execute("CREATE TRIGGER IF NOT EXISTS revision_health_\(name) AFTER \(action) ON conversation_revisions BEGIN UPDATE conversation_revisions SET contains_health=EXISTS(SELECT 1 FROM json_tree(CAST(new.payload AS TEXT)) WHERE key='containsHealthData' AND type='true') WHERE id=new.id; END")
+        }
     }
     func makeConversationRevision(_ chat: Conversation, reason: String) throws -> ConversationRevision {
         ConversationRevision(id: UUID(), createdAt: Date(), reason: reason, conversation: chat,
@@ -32,7 +45,7 @@ extension LocalStore {
     public func restoreConversationRevision(_ revisionID: UUID, expected: Conversation) throws -> Conversation {
         try prepareConversationRevisions()
         let current = try loadConversation(expected.id, preservingStreaming: true)
-        guard try Self.encode(current) == Self.encode(expected),
+        guard current == expected,
               let revision = try conversationRevisions(current.id).first(where: { $0.id == revisionID }) else {
             throw AssistantError.invalidTool("The conversation changed. Reopen its history before restoring it.")
         }
@@ -48,6 +61,9 @@ extension LocalStore {
         restored.allowedHealthDestinations = current.allowedHealthDestinations
         restored.requiresNetworkReview = current.requiresNetworkReview
         restored.folderID = current.folderID
+        restored.workspaceIDs = current.workspaceIDs
+        restored.archivedAt = current.archivedAt
+        if !current.titleWasGenerated { restored.title = current.title; restored.titleWasGenerated = false; restored.needsAutomaticTitle = current.needsAutomaticTitle }
         restored.excludedArtifactIDs.formUnion(current.excludedArtifactIDs)
         restored.excludedSurfaceIDs.formUnion(current.excludedSurfaceIDs)
         restored.excludedFileIDs.formUnion(current.excludedFileIDs)

@@ -17,6 +17,7 @@ public actor LocalStore {
         }
         let database = try SQLiteDatabase(url: root.appendingPathComponent("assistant.sqlite"))
         try Self.prepare(database, root: root)
+        try Self.prepareRevisionStorage(database)
         // Earlier versions could leave live revision rows after their parent
         // was deleted. These are app-owned chat histories, not exported files.
         try database.transaction {
@@ -26,11 +27,19 @@ public actor LocalStore {
             }
         }
         self.database = database
-        let healthMessages = try database.execute("SELECT 1 FROM messages WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
-        let healthArtifacts = try database.execute("SELECT 1 FROM artifacts WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
-        let healthFiles = try database.execute("SELECT 1 FROM workspace_files WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData') = 1 LIMIT 1")
-        self.initiallyContainsHealthData = !healthMessages.isEmpty || !healthArtifacts.isEmpty || !healthFiles.isEmpty
+        self.initiallyContainsHealthData = try Self.hasRetainedHealthData(database)
     }
+    public func hasRetainedHealthData() throws -> Bool { try Self.hasRetainedHealthData(database) }
+    private static func hasRetainedHealthData(_ database: SQLiteDatabase) throws -> Bool {
+        let tables = Set(try database.execute("SELECT name FROM sqlite_master WHERE type='table'").compactMap { $0[0].text })
+        for table in ["messages", "artifacts", "workspace_files", "artifact_history", "work_surfaces", "surface_history", "project_workspaces", "work_turns"] where tables.contains(table) {
+            if try !database.execute("SELECT 1 FROM \(table) WHERE json_extract(CAST(payload AS TEXT),'$.containsHealthData')=1 LIMIT 1").isEmpty { return true }
+        }
+        if try !database.execute("SELECT 1 FROM conversation_revisions WHERE contains_health=1 LIMIT 1").isEmpty { return true }
+        if tables.contains("tool_operations"), try !database.execute("SELECT 1 FROM tool_operations WHERE json_extract(CAST(payload AS TEXT),'$.health')=1 OR json_extract(CAST(payload AS TEXT),'$.result.containsHealthData')=1 LIMIT 1").isEmpty { return true }
+        return false
+    }
+
     public func save(_ conversation: Conversation) throws {
         var updated = conversation
         updated.updatedAt = Date()

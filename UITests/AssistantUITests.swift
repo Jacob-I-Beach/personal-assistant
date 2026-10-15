@@ -1111,6 +1111,7 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Assistant menu"].tap(); app.buttons["Conversation history"].tap()
         XCTAssertTrue(app.buttons["Restore this transcript"].waitForExistence(timeout: 5)); saveScreenshot(app, name: "Audit120-conversation-revisions")
         app.buttons["Restore this transcript"].firstMatch.tap(); app.buttons["Restore transcript"].tap()
+        XCTAssertTrue(app.staticTexts["transcript-restore-status"].waitForExistence(timeout: 10))
         app.buttons["Done"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Original branch answer"].waitForExistence(timeout: 8)); XCTAssertFalse(app.buttons["Stop response"].exists)
         saveScreenshot(app, name: "Audit120-restored-transcript")
@@ -1156,6 +1157,36 @@ final class AssistantUITests: XCTestCase {
         let table = app.buttons["Data table"]; for _ in 0..<4 { if table.isHittable { break }; app.swipeUp() }; table.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Shared · Second")).firstMatch.exists)
         saveScreenshot(app, name: "Audit120-chart-all-series")
+    }
+    func testAudit120ArchiveExportShowsCoverageBeforeSaving() {
+        let app = productApp("export")
+        app.buttons["History"].tap(); app.buttons["sidebar-settings"].tap(); app.buttons["Privacy & recovery"].tap(); app.buttons["Data & recovery"].tap()
+        let create = app.buttons["Create archive"]
+        for _ in 0..<6 { if create.isHittable { break }; app.swipeUp() }
+        create.tap()
+        let review = app.staticTexts["archive-export-review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 10)); XCTAssertTrue(review.label.contains("0 conversations"))
+        let privateToggle = app.switches["Include on-device-only work and drafts"]
+        for _ in 0..<5 { if privateToggle.isHittable { break }; app.swipeDown() }
+        privateToggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertFalse(app.buttons["Save prepared archive to Files"].exists)
+        for _ in 0..<6 { if create.isHittable { break }; app.swipeUp() }; create.tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 10)); XCTAssertTrue(review.label.contains("1 conversations"))
+        saveScreenshot(app, name: "Audit120-archive-export-coverage")
+    }
+    func testAudit120ScenarioSaveConflictKeepsPreviewAndRevertsExplicitly() {
+        let app = productApp("surface-conflict")
+        XCTAssertTrue(app.buttons["Set exact Minutes"].waitForExistence(timeout: 8))
+        app.buttons["Assistant menu"].tap(); app.buttons["Update synthetic surface"].tap()
+        XCTAssertTrue(app.staticTexts["Synthetic surface revision saved"].waitForExistence(timeout: 8))
+        app.buttons["Set exact Minutes"].tap()
+        let field = app.textFields["scenario-exact-value"]; XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "30")
+        app.buttons["Apply value"].tap()
+        let revert = app.buttons["Revert to saved"]
+        for _ in 0..<5 { if revert.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(revert.waitForExistence(timeout: 8)); XCTAssertTrue(app.staticTexts["Unsaved changes · displayed result is a preview"].exists)
+        saveScreenshot(app, name: "Audit120-surface-save-conflict")
+        revert.tap(); XCTAssertTrue(app.staticTexts["Points, 70"].waitForExistence(timeout: 8)); XCTAssertFalse(app.buttons["Stop response"].exists)
     }
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())

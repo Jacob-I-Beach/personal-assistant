@@ -95,6 +95,7 @@ struct ConversationRevisionsView: View {
     @State private var restoring: ConversationRevision?
     @State private var showRestoreConfirmation = false
     @State private var failure: String?
+    @State private var restoreNotice: String?
     var body: some View {
         NavigationStack {
             List {
@@ -102,32 +103,29 @@ struct ConversationRevisionsView: View {
                 ForEach(revisions) { revision in
                     Section {
                         NavigationLink { SavedConversationView(id: conversationID, revision: revision) } label: { VStack(alignment: .leading) { Text(revision.reason); Text(revision.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary) } }
-                        Button("Restore this transcript") { restoring = revision; showRestoreConfirmation = true }.buttonStyle(.borderless).disabled(model.isRunning).frame(minHeight: 44)
+                        Button("Restore this transcript") { restoring = revision; showRestoreConfirmation = true }.buttonStyle(.borderless).disabled(model.isRunning || model.isApplyingTranscriptRevision).frame(minHeight: 44)
                     }
                 }
                 if revisions.isEmpty { Text("Earlier versions appear here after you edit a request.").foregroundStyle(.secondary) }
-                if let failure { Text(failure).foregroundStyle(.secondary) }
+                if let restoreNotice { Text(restoreNotice).font(.subheadline).accessibilityIdentifier("transcript-restore-status") }
+                if let failure { Text(failure).foregroundStyle(.secondary); Button("Reload history") { Task { await reload() } } }
             }.navigationTitle("Conversation history")
                 .task { await reload() }
                 .confirmationDialog("Restore this transcript?", isPresented: $showRestoreConfirmation, presenting: restoring) { revision in
                     Button("Restore transcript") { Task { await restore(revision) } }
                     Button("Cancel", role: .cancel) { restoring = nil }
                 } message: { _ in Text("Your current version will also be saved. No model request or external action will run.") }
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.dismissPresentation(.revisions(conversationID)) } } }
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.dismissPresentation(.revisions(conversationID)) }.disabled(model.isApplyingTranscriptRevision) } }
         }
     }
     private func reload() async { do { revisions = try await model.store?.conversationRevisions(conversationID) ?? [] } catch { failure = error.localizedDescription } }
     private func restore(_ revision: ConversationRevision) async {
-        guard !model.isRunning, let store = model.store else { return }
         do {
-            let expected = try await store.loadConversation(conversationID, preservingStreaming: true)
-            guard !model.isRunning else { return }
-            _ = try await store.restoreConversationRevision(revision.id, expected: expected)
-            await model.refresh()
-            if let summary = model.histories.first(where: { $0.id == conversationID }) { await model.selectConversation(summary) }
-            restoring = nil; await reload()
+            try await model.restoreTranscriptRevision(revision.id, conversationID: conversationID)
+            restoring = nil; failure = nil; restoreNotice = "Transcript restored. No actions were rerun."; await reload()
         } catch { failure = error.localizedDescription }
     }
+
 }
 
 private struct SavedOutputDestination: View {

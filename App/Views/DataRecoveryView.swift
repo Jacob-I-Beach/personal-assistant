@@ -9,6 +9,7 @@ struct DataRecoveryView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var exportURL: URL?
+    @State private var exportInspection: ArchiveInspection?
     @State private var exporting = false
     @State private var importing = false
     @State private var inspected: ArchiveInspection?
@@ -31,6 +32,12 @@ struct DataRecoveryView: View {
                 Toggle("Include Health-derived work", isOn: $includeHealth).disabled(busy)
                 Text("The archive contains readable personal data. Choose where to save it. Account credentials, pairing keys, model weights and pending actions are excluded. Connected-folder originals remain in their own folders.").font(.caption).foregroundStyle(.secondary)
                 Button("Create archive", systemImage: "square.and.arrow.up") { Task { await export() } }.disabled(busy || model.isRunning)
+                if let prepared = exportInspection {
+                    Text("\(prepared.manifest.conversations.count) conversations · \(prepared.manifest.artifacts.count) documents · \(prepared.manifest.files.count) files in this prepared archive").font(.subheadline).accessibilityIdentifier("archive-export-review")
+                    if prepared.manifest.conversations.isEmpty && !model.histories.isEmpty { Text("No conversations are included with these choices. Include on-device-only or Health-derived work if you intend to keep those records.").font(.caption).foregroundStyle(.secondary) }
+                    DisclosureGroup("What is excluded") { ForEach(prepared.manifest.exclusions, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) } }
+                    Button("Save prepared archive to Files") { exporting = true }.disabled(busy || exportURL == nil)
+                }
                 if let lastExport { Text("Last exported: " + lastExport).font(.caption).foregroundStyle(.secondary) }
             }
             Section("Restore an archive") {
@@ -65,6 +72,8 @@ struct DataRecoveryView: View {
             if busy { ProgressView("Checking and preserving your work") }
             if let error { Section { Text(error).foregroundStyle(.secondary); Button("Dismiss") { self.error = nil } } }
         }.navigationTitle("Data & recovery").navigationBarTitleDisplayMode(.inline)
+            .onChange(of: includePrivate) { _, _ in exportInspection = nil; exportURL = nil }
+            .onChange(of: includeHealth) { _, _ in exportInspection = nil; exportURL = nil }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.data]) { result in
                 switch result { case .success(let url): Task { await inspect(url) }; case .failure(let error): self.error = error.localizedDescription }
             }
@@ -88,8 +97,8 @@ struct DataRecoveryView: View {
         busy = true; error = nil; defer { busy = false }
         do {
             let target = FileManager.default.temporaryDirectory.appendingPathComponent("PersonalAssistant-\(UUID().uuidString).paarchive")
-            _ = try await store.exportPersonalArchive(to: target, includePrivate: includePrivate, includeHealth: includeHealth)
-            exportURL = target; exporting = true
+            exportInspection = try await store.exportPersonalArchive(to: target, includePrivate: includePrivate, includeHealth: includeHealth)
+            exportURL = target
         } catch { self.error = error.localizedDescription }
     }
     private func inspect(_ url: URL) async {

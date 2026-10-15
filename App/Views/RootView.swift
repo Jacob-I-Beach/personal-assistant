@@ -52,6 +52,7 @@ struct RootView: View {
                             .labelStyle(.iconOnly).disabled(model.isRunning).accessibilityHint(model.isRunning ? "Available after the current response finishes or you stop it." : "Keeps the current draft and opens a fresh chat.")
                         Menu {
                             #if DEBUG
+                            if ProcessInfo.processInfo.arguments.contains("--ui-product117-surface-conflict") { Button("Update synthetic surface") { Task { await model.reviseSurfaceForUIConflict() } } }
                             if ProcessInfo.processInfo.arguments.contains("--ui-activity103") {
                                 Button("Activity preview") { showActivityPreview = true }
                                 Button("Finish sample reply") { Task { await model.finishActivityFixture() } }
@@ -67,7 +68,7 @@ struct RootView: View {
                     }
                 }
         }
-        .disabled(!model.isInitialized || model.isRestoringBackgroundRoute)
+        .disabled(!model.isInitialized || model.isRestoringBackgroundRoute || model.isApplyingTranscriptRevision)
         .allowsHitTesting(!showHistory)
         .accessibilityHidden(showHistory)
         .overlay {
@@ -134,6 +135,7 @@ struct RootView: View {
         }
         .tint(Color.primary)
         .modifier(TestAppearance(systemTypeSize: systemTypeSize))
+        .onChange(of: model.isApplyingTranscriptRevision) { _, value in if value { voice.stopAll() } }
         .onChange(of: model.isConnecting) { _, value in if value { voice.stopAll() } }
         .onChange(of: model.showModels) { _, value in if value { voice.stopAll() } }
         .onChange(of: model.settings.hapticsEnabled, initial: true) { _, enabled in AppFeedback.enabled = enabled }

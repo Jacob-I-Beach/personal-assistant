@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     @Published var draftContainsHealthData = false
     @Published var libraryContainsHealthData = false
     @Published var isRunning = false
+    @Published private(set) var isApplyingTranscriptRevision = false
     @Published private(set) var isInitialized = false
     @Published private(set) var isRestoringBackgroundRoute = false
     @Published var isDownloading = false
@@ -322,8 +323,19 @@ final class AppModel: ObservableObject {
         do { try JSONEncoder().encode(drafts).write(to: draftURL, options: .atomic) }
         catch { errorMessage = "Your draft could not be saved. Free some storage before closing the app." }
     }
+    func restoreTranscriptRevision(_ revisionID: UUID, conversationID: UUID) async throws {
+        guard let store, !isRunning, !isApplyingTranscriptRevision, nativeAction == nil, !needsNetworkConsent else { throw AssistantError.busy }
+        guard editingMessageID == nil else { throw AssistantError.provider("Finish or cancel the current message edit before restoring another version. Your draft is kept.") }
+        isApplyingTranscriptRevision = true; defer { isApplyingTranscriptRevision = false }
+        draftTask?.cancel(); flushDraft(); titleTask?.cancel(); titleGenerationID = UUID()
+        let expected = try await store.loadConversation(conversationID, preservingStreaming: true)
+        let restored = try await store.restoreConversationRevision(revisionID, expected: expected)
+        if conversation.id == conversationID { conversation = restored; requiresManualResume = false }
+        await refresh()
+        noticeMessage = "Transcript restored. Your draft is kept; no actions were rerun."
+    }
     func newConversation(folderID: UUID? = nil) {
-        guard !isRunning else { return }; cancelEditing(); detachWatchRequest(); draftTask?.cancel(); flushDraft()
+        guard !isRunning, !isApplyingTranscriptRevision else { return }; cancelEditing(); detachWatchRequest(); draftTask?.cancel(); flushDraft()
         conversationSelectionID = UUID()
         ReplyReturnRoute.clear()
         if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty) {
@@ -338,7 +350,7 @@ final class AppModel: ObservableObject {
         requiresManualResume = false
     }
     func selectConversation(_ summary: ConversationSummary) async {
-        guard !isRunning, let store else { return }; cancelEditing(); if summary.id != conversation.id { detachWatchRequest() }; draftTask?.cancel(); flushDraft()
+        guard !isRunning, !isApplyingTranscriptRevision, let store else { return }; cancelEditing(); if summary.id != conversation.id { detachWatchRequest() }; draftTask?.cancel(); flushDraft()
         let selection = UUID(); conversationSelectionID = selection
         do {
             if conversation.messages.isEmpty && (!draft.isEmpty || !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty) { try await store.save(conversation) }
@@ -484,7 +496,7 @@ final class AppModel: ObservableObject {
         let enteredText = suppliedText ?? draft
         let hasAttachments = !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty
         let text = enteredText
-        guard isInitialized, !isRunning, hasAttachments || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard isInitialized, !isRunning, !isApplyingTranscriptRevision, hasAttachments || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if settings.networkDestination != nil && draftContextReferences.contains(where: \.containsLocalOnlyContext) {
             noticeMessage = "This selected context stays on this iPhone. Choose an on-device model or remove its context chip before sending."; showModels = true; return
         }
@@ -564,7 +576,7 @@ final class AppModel: ObservableObject {
         await resumeReply(work, automatic: true)
     }
     func resumeReply(_ work: WorkTurn, automatic: Bool = false, reconnectOnly: Bool = false) async {
-        guard !isRunning, let store, UIApplication.shared.applicationState == .active else { return }
+        guard !isRunning, !isApplyingTranscriptRevision, let store, UIApplication.shared.applicationState == .active else { return }
         if work.backendID.hasPrefix("companion:"), settings.choice != .chatGPT {
             if !automatic { noticeMessage = "This saved reply uses ChatGPT. Send a new message with \(modelTitle), or select ChatGPT to continue the original task." }
             return
@@ -607,7 +619,7 @@ final class AppModel: ObservableObject {
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
     private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false) {
-        guard let engine else { return }
+        guard !isApplyingTranscriptRevision, let engine else { return }
         conversationSelectionID = UUID()
         let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
