@@ -6,6 +6,7 @@ Prepared in response to the installed 1.3.0 report: GPT-6.1-Sol with the largest
 
 - A regression using the exact 872,000 connection window and 855,616 selection, plus real request serialization checks for normal replies, compaction and the ChatGPT-plan route.
 - An input allowance specifically for checkpoint generation, which respects the published maximum input when a larger working allowance is selected.
+- Two worker regressions: each completes 20 operations across at least three native or portable compactions on the same task, retaining exact receipts without repeating completed effects. These use synthetic model responses and do not establish live inference quality.
 
 ## Changed
 
