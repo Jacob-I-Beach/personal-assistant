@@ -23,7 +23,14 @@ export class WorkState {
     for(const [message_index,item] of input.entries())for(const [image_index,part] of (Array.isArray(item.content)?item.content:Array.isArray(item.output)?item.output:[]).entries())if(part.type==='input_image')images.push({message_index,image_index});
     return {source_id:key,characters:text.length,images:images.slice(0,24),image_count:images.length};
   }
-  pending(id){const pending=this.store.pendingOperations(id);return pending.filter(op=>op.status!=='awaiting_review'||!pending.some(review=>review.id===op.id+'_review')).map(op=>({operation_id:op.id,tool:op.request.name,title:op.request.arguments?.question??op.request.arguments?.title??op.request.name,status:op.status}));}
+  pending(id){
+    const pending=this.store.pendingOperations(id);
+    return pending.filter(op=>{
+      if(op.status==='awaiting_review'&&pending.some(review=>review.id===op.id+'_review'))return false;
+      if(op.request.name==='review_computer_action'&&op.id.endsWith('_review')){try{if(this.store.operation(id,op.id.slice(0,-7)).result)return false;}catch{}}
+      return true;
+    }).map(op=>({operation_id:op.id,tool:op.request.name,title:op.request.arguments?.question??op.request.arguments?.title??op.request.name,status:op.status}));
+  }
   snapshot(job){return {goal:job.payload.title,notes:this.notes(job.id),pending:this.pending(job.id),operations:this.store.operationIndex(job.id,30),files:this.store.files(job.id,job.owner).map(({id,filename,version,role})=>({id,filename,version,role})),notice:'Pending is not approved or completed. Use completed receipts; never repeat an uncertain effect.'};}
   execute(call,job){
     let output;

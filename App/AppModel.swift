@@ -798,6 +798,7 @@ final class AppModel: ObservableObject {
                     case .toolResult(let result):
                         completionWindow.received(bytes: (try? result.output.jsonString().utf8.count) ?? 0)
                         activeToolCall = nil; await refresh(); activity = "Preparing the result"
+                        responseAwaitingAttention = nativeActionWaiter != nil
                     case .toolStarted(let call): activeToolCall = call; activity = nil; completionWindow.status(ToolResultPresentation.activeTitle(call)); replyActivity.update(ToolResultPresentation.activeTitle(call))
                     case .activity(let value):
                         activeToolCall = nil; activity = value

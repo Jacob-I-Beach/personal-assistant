@@ -152,3 +152,18 @@ test('long replay coalesces text without crossing tool boundaries or dropping ra
   assert.ok(pages<=3);assert.equal(text,'x'.repeat(12000)+'y'.repeat(20));assert.equal(steps,1);
   assert.equal(store.events(job.id,job.owner,1)[0].text,'x','full raw events are still available');
 });
+
+test('internal approval protocol is not model-callable and ended actions leave no active review',async t=>{
+  const store=fixture(t);let turns=0;
+  const internal=definition('review_computer_action');
+  const job=task(store,{catalog:[internal],body:{model:'synthetic',input:[],tools:[{...internal,type:'function'}]}});
+  const runner=new JobRunner(store,{streamTurn:async({body})=>{
+    assert.ok(body.tools.every(tool=>tool.name!=='review_computer_action'));
+    return ++turns===1?{output:[call('unbound-review','review_computer_action')]}:final('Use the actual action tool.');
+  }},{definitions:[],supports:()=>false});
+  await runner.start(job.id,'phone');assert.equal(store.events(job.id,'phone').some(event=>event.type==='phone_request'),false);
+  store.beginOperation(job.id,'stale',{id:'stale',name:'computer_desktop',arguments:{}},'computer');
+  store.beginOperation(job.id,'stale_review',{id:'stale_review',name:'review_computer_action',arguments:{title:'Old review'}},'phone');
+  store.finishOperation(job.id,'stale',{succeeded:false,output:{status:'failed'}});
+  assert.deepEqual(runner.workState.pending(job.id),[]);
+});

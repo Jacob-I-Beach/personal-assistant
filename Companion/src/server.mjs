@@ -257,6 +257,7 @@ export async function startCompanion(options={}) {
         const job=store.controlled(body.job_id);
         const operation=store.operation(job.id,body.operation_id);
         if(operation.request.name!=='review_computer_action'||operation.status!=='waiting_for_phone'||typeof body.approved!=='boolean')throw new Error('This review is no longer available.');
+        if(['completed','cancelled'].includes(job.status)||body.operation_id.endsWith('_review')&&store.operation(job.id,body.operation_id.slice(0,-7)).result)throw new Error('This action has already ended. Its old review is no longer active.');
         runner.answer(job.id,job.owner,body.operation_id,{callID:body.operation_id,name:'review_computer_action',succeeded:true,output:{status:body.approved?'approved':'cancelled'},completedAt:new Date().toISOString()});return jsonReply(response,200,{recorded:true});
       }
       if(url.pathname==='/api/sign-in'){

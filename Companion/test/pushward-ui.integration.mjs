@@ -13,7 +13,7 @@ const service=await startCompanion({root,apiHost:'127.0.0.1',apiPort:0,setupPort
   runtime:{definitions:[],available:async()=>true,supports:()=>false},
   bridgeOptions:{request:async(path,options)=>{sent.push({path,method:options.method});return path==='/auth/me'?{quota_period_month:202610,notifications_used:0,live_activity_updates_used:0,integration_key:{permissions:{activities:'manage',notifications:'send'}}}:{delivery:'all'};}}});
 const code=service.pairing.issue({baseURL:`https://127.0.0.1:${service.apiPort}`,fingerprint:service.tls.fingerprint,serverId:'fixture'});
-service.pairing.redeem(code.pairing_code,'Synthetic iPhone');
+const fixturePhone=service.pairing.redeem(code.pairing_code,'Synthetic iPhone');
 let browser; const reviewAbort=new AbortController(); let reviewCompletion;
 try{
   browser=await chromium.launch({headless:true,executablePath:'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'});
@@ -46,11 +46,11 @@ try{
   await page.getByText('Saved model list · ChatGPT model discovery returned HTTP 520.',{exact:false}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Check model connection'}).isEnabled(),true);
   assert.ok((await page.locator('#account').innerText()).startsWith('Signed in'));
-  const finished=service.store.create('fixture-device','ui-completed',{title:'Synthetic completed work',conversation_id:'fixture-chat',turn_id:'fixture-turn',body:{model:'synthetic'}}).job;
+  const finished=service.store.create(fixturePhone.device_id,'ui-completed',{title:'Synthetic completed work',conversation_id:'fixture-chat',turn_id:'fixture-turn',body:{model:'synthetic'}}).job;
   service.store.append(finished.id,{type:'continuation',output:[{id:'answer-1',type:'message',role:'assistant',content:[{type:'output_text',text:'## Saved result\nThe synthetic report is ready.'}]}]});
   service.store.saveFile(finished.id,{filename:'result.md',role:'artifact'},Buffer.from('Synthetic report, preserved.'));
   service.store.status(finished.id,'completed','Ready');
-  const reviewJob=service.store.create('fixture-device','ui-review',{title:'Synthetic review task',conversation_id:'fixture-chat',turn_id:'fixture-review-turn',body:{model:'synthetic'}}).job;
+  const reviewJob=service.store.create(fixturePhone.device_id,'ui-review',{title:'Synthetic review task',conversation_id:'fixture-chat',turn_id:'fixture-review-turn',body:{model:'synthetic'}}).job;
   const original={id:'review-action',name:'synthetic_action',arguments:{}};
   service.store.beginOperation(reviewJob.id,original.id,original,'computer');
   await assert.rejects(service.runner.reviewComputer(reviewJob,original,{title:'Review a synthetic action',detail:'No real-world action will be performed.'},reviewAbort.signal),error=>error.deferred===true);
@@ -68,7 +68,7 @@ try{
   const download=await downloadPromise;assert.equal((await readFile(await download.path(),'utf8')),'Synthetic report, preserved.');
   await page.locator('#close-task').click();
   await page.reload();await page.locator('.job').filter({hasText:'Synthetic completed work'}).waitFor();
-  assert.equal(service.store.get(finished.id,'fixture-device').status,'completed','closing/reopening the page cannot stop completed work');
+  assert.equal(service.store.get(finished.id,fixturePhone.device_id).status,'completed','closing/reopening the page cannot stop completed work');
   const directory=resolve('../.build');await mkdir(directory,{recursive:true});
   await page.locator('#push-status').scrollIntoViewIfNeeded();
   await page.screenshot({path:join(directory,'deferred-delivery-controls.png')});

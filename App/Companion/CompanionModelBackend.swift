@@ -127,6 +127,11 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 }
                 if let (call, result) = try transcript.apply(event) {
                     answered.insert(call.id); pending.removeValue(forKey: call.id)
+                    await phone.complete(call.id)
+                    let reviewID = call.id + "_review"
+                    if !result.succeeded, pending[reviewID]?.name == "review_computer_action" {
+                        answered.insert(reviewID); pending.removeValue(forKey: reviewID); await phone.complete(reviewID)
+                    }
                     pendingReceipts.append((call, result))
                 }
                 if event["type"] == .string("activity"), let title = event["title"]?.stringValue { observedActivity = title }

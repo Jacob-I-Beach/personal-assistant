@@ -2,6 +2,21 @@ import XCTest
 @testable import AssistantCore
 
 final class Continuity130Tests: XCTestCase {
+    func testReviewResolvedOnComputerReleasesPhoneWaiterAndNextOperation() async throws {
+        actor Seen { var ids: [String] = []; func add(_ id: String) { ids.append(id) } }
+        let seen = Seen()
+        let phone = RemotePhoneOperations { call in
+            await seen.add(call.id)
+            if call.id == "review" { try await Task.sleep(for: .seconds(30)) }
+        }
+        await phone.enqueue([ToolCall(id: "review", name: "review_computer_action", arguments: .object([:])), ToolCall(id: "next", name: "get_app_context", arguments: .object([:]))])
+        for _ in 0..<100 { if await seen.ids.contains("review") { break }; try await Task.sleep(for: .milliseconds(1)) }
+        await phone.complete("review")
+        for _ in 0..<100 { if await seen.ids.contains("next") { break }; try await Task.sleep(for: .milliseconds(1)) }
+        try await phone.check()
+        let calls = await seen.ids; XCTAssertEqual(calls, ["review", "next"])
+        await phone.stop()
+    }
     func testRevokedSharingRejectsTheNextToolBeforeExecution() async throws {
         let store = try makeTestStore(), turn = UUID()
         var chat = Conversation(); chat.messages = [Message(id: turn, role: .user, text: "Use this task")]

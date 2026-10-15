@@ -65,6 +65,7 @@ async function refreshTask(){
           if(event.call.name==='review_computer_action')for(const approved of [true,false])card.append(action(approved?'Approve this action':'Cancel',async()=>{await api('/api/review',{job_id:view.id,operation_id:event.call.id,approved});card.querySelectorAll('button').forEach(button=>button.disabled=true);await refreshTask();}));root.append(card);
         }
         if(event.type==='pending_tool'||event.type==='executed_tool'){
+          if(event.result.succeeded===false){const stale=view.nodes.get('review-'+event.call.id+'_review');if(stale)stale.replaceChildren(element('p','The action could not continue. This old review is closed.'));}
           const prior=view.nodes.get('review-'+event.call.id);if(prior)prior.replaceChildren(element('p',event.result.output?.status==='approved'?'Action approved':'Review recorded'));
           const tool=event.call.name==='use_tool'?event.call.arguments?.name??event.call.name:event.call.name;
           const receiptKey='receipt-'+event.call.id;view.nodes.get(receiptKey)?.remove();const details=document.createElement('details');view.nodes.set(receiptKey,details);details.className='tool-receipt';details.append(element('summary',(event.type==='pending_tool'?'Pending · ':event.result.succeeded?'Completed · ':'Needs attention · ')+tool.replaceAll('_',' ')));
