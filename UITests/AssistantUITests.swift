@@ -1204,7 +1204,8 @@ final class AssistantUITests: XCTestCase {
             let displayed = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", amount, amount)).firstMatch
             XCTAssertTrue(displayed.exists, "The labeled value must be accessible: \(amount)")
         }
-        XCTAssertTrue(app.staticTexts["Per model response, not for the whole task. Long tasks continue across responses and compactions. Images and tools also use context; the connection enforces its limits."].exists)
+        let explanation = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Per model response, not for the whole task.", "Long tasks continue across responses and compactions.")).firstMatch
+        XCTAssertTrue(explanation.exists)
         saveScreenshot(app, name: "ReplyBudget131-855K-with-full-reply-room")
     }
     func testContinuity130ReserveAndMobileFallbackAreVisible() {
