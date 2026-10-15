@@ -14,6 +14,9 @@ on:
         options:
           - testProduct117AttachmentsPreviewCancelAndAddPreserveDraft
           - testProduct117DictationDoesNotCancelAnActiveResponse
+          - audit120-reading
+          - audit120-surfaces
+          - audit120-inputs
           - models-memory-116
           - testToolExpansionAndLatestButtonPreserveIntentionalPosition
           - testPublishedComputerImageRendersInlineAndOpensOriginal
@@ -83,8 +86,17 @@ jobs:
           if [ "$TEST_CASE" = "models-memory-116" ]; then
             tests=("-only-testing:PersonalAssistantUITests/AssistantUITests/testLocalQwenContextAndMemoryControlsAreReachable" "-only-testing:PersonalAssistantUITests/AssistantUITests/testDownloadedModelChooserSeparatesSelectionDetailsAndDownloads")
           fi
+          case "$TEST_CASE" in
+            audit120-reading) scenarios="testAttachmentPreviewWorkingSurfacesAndActualMessageEdit" ;;
+            audit120-surfaces) scenarios="testAudit120ChartCategoryShowsEverySeriesAndDataTable testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly testAudit120ScenarioSaveConflictKeepsPreviewAndRevertsExplicitly" ;;
+            audit120-inputs) scenarios="testProduct117AttachmentsPreviewCancelAndAddPreserveDraft testProduct117DictationDoesNotCancelAnActiveResponse testAudit120InboxFiltersAndRemovedNoteRecovery testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable" ;;
+            *) scenarios="" ;;
+          esac
+          if [ -n "$scenarios" ]; then
+            tests=(); for scenario in $scenarios; do tests+=("-only-testing:PersonalAssistantUITests/AssistantUITests/$scenario"); done
+          fi
           xcodebuild test-without-building -xctestrun "$bundle" -destination "platform=iOS Simulator,id=$simulator_id" \
-            -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never \
+            -resultBundlePath .build/UITests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never -test-timeouts-enabled YES -default-test-execution-time-allowance 120 -maximum-test-execution-time-allowance 180 \
             "${tests[@]}" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee .build/ui-tests.log
       - name: Export native screenshots
@@ -103,4 +115,4 @@ jobs:
             .build/ui-recheck-build.log
             .build/ui-tests.log
             .build/ui-attachments
-          retention-days: 7
+          retention-days: 1

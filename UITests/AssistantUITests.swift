@@ -449,6 +449,7 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Home-file-picker")
     }
     func testAttachmentPreviewWorkingSurfacesAndActualMessageEdit() {
+        executionTimeAllowance = 180
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--ui-interactions", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
