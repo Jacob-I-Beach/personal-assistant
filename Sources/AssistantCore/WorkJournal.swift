@@ -85,8 +85,8 @@ extension LocalStore {
             JOIN messages m ON m.id=json_extract(CAST(w.payload AS TEXT),'$.userMessageID') AND m.conversation_id=c.id
             WHERE json_extract(CAST(w.payload AS TEXT),'$.phase') IN ('running','interrupted')
             AND json_extract(CAST(c.payload AS TEXT),'$.archivedAt') IS NULL
-            AND NOT EXISTS(SELECT 1 FROM messages newer WHERE newer.conversation_id=c.id AND newer.ordinal>m.ordinal
-                AND json_extract(CAST(newer.payload AS TEXT),'$.role')='user' AND json_extract(CAST(newer.payload AS TEXT),'$.replyToTaskID') IS NULL)
+            AND (json_extract(CAST(w.payload AS TEXT),'$.backendID') LIKE 'companion:%' OR NOT EXISTS(SELECT 1 FROM messages newer WHERE newer.conversation_id=c.id AND newer.ordinal>m.ordinal
+                AND json_extract(CAST(newer.payload AS TEXT),'$.role')='user' AND json_extract(CAST(newer.payload AS TEXT),'$.replyToTaskID') IS NULL))
             ORDER BY w.updated_at DESC LIMIT 30
             """)
             .map { try Self.decode(WorkTurn.self, $0[0].data!) }
@@ -97,15 +97,36 @@ extension LocalStore {
         if let kind { work.interruptionKind = kind }
         try saveWorkTurn(work)
     }
-    public func supersedeWork(in conversationID: UUID, except turnID: UUID) throws {
+    public func supersedeWork(in conversationID: UUID, except turnID: UUID, preservingComputerTasks: Bool = false) throws {
         try ensureWorkJournal()
         let records = try database.execute("SELECT payload FROM work_turns WHERE conversation_id=? AND id!=?", [.text(conversationID.uuidString), .text(turnID.uuidString)])
         for row in records {
             var work = try Self.decode(WorkTurn.self, row[0].data!)
+            if preservingComputerTasks && work.backendID.hasPrefix("companion:") { continue }
             if work.phase == .running || work.phase == .interrupted {
                 work.phase = .superseded; work.reason = "A newer request continued this conversation."
+                if var run = try companionRun(work.id) { run.stopRequested = true; try saveCompanionRun(run) }
                 try saveWorkTurn(work)
             }
+        }
+    }
+    public func retireWork(in conversationID: UUID, sourceMessageIDs: Set<UUID>? = nil, computerOnly: Bool = false, reason: String) throws {
+        try ensureWorkJournal()
+        var dependent = Set<UUID>()
+        if let sourceMessageIDs, !(try database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='task_questions'")).isEmpty {
+            for row in try database.execute("SELECT payload FROM task_questions WHERE conversation_id=?", [.text(conversationID.uuidString)]) {
+                let question = try Self.decode(TaskQuestion.self, row[0].data!)
+                if let source = question.answerSourceMessageID, sourceMessageIDs.contains(source) { dependent.insert(question.turnID) }
+            }
+        }
+        let rows = try database.execute("SELECT payload FROM work_turns WHERE conversation_id=?", [.text(conversationID.uuidString)])
+        for row in rows {
+            var work = try Self.decode(WorkTurn.self, row[0].data!)
+            guard [.running, .interrupted].contains(work.phase), sourceMessageIDs == nil || sourceMessageIDs!.contains(work.userMessageID) || dependent.contains(work.id),
+                  !computerOnly || work.backendID.hasPrefix("companion:") else { continue }
+            work.phase = .superseded; work.reason = reason
+            if var run = try companionRun(work.id) { run.stopRequested = true; try saveCompanionRun(run) }
+            try saveWorkTurn(work)
         }
     }
     public func recordNetworkRetry(_ id: UUID) throws {
@@ -173,6 +194,11 @@ extension LocalStore {
         try ensureWorkJournal()
         return try database.execute("SELECT payload FROM tool_operations WHERE turn_id=? ORDER BY rowid", [.text(id.uuidString)])
             .map { try Self.decode(ToolOperation.self, $0[0].data!) }
+    }
+    func recordedToolOperation(_ turnID: UUID, callID: String) throws -> ToolOperation? {
+        try ensureWorkJournal()
+        guard let data = try database.execute("SELECT payload FROM tool_operations WHERE id=?", [.text(turnID.uuidString + ":" + callID)]).first?[0].data else { return nil }
+        return try Self.decode(ToolOperation.self, data)
     }
     func finishToolOperation(_ call: ToolCall, turnID: UUID, result: ToolResult) throws {
         let key = turnID.uuidString + ":" + call.id

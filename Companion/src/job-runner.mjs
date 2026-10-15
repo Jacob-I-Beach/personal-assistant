@@ -76,8 +76,8 @@ export class JobRunner extends EventEmitter {
     queueMicrotask(() => { for (const listener of this.listeners('event')) { try { listener(id, saved); } catch {} } });
     return saved;
   }
-  publishCheckpoint(id,checkpoint,events){
-    const saved=this.store.checkpointEvents(id,checkpoint,events);
+  publishCheckpoint(id,checkpoint,events,before){
+    const saved=this.store.checkpointEvents(id,checkpoint,events,before);
     queueMicrotask(()=>{for(const event of saved)for(const listener of this.listeners('event')){try{listener(id,event);}catch{}}});return saved;
   }
   status(id, state, text, extra = {}) {
@@ -261,7 +261,12 @@ export class JobRunner extends EventEmitter {
               this.store.finishOperation(job.id, call.id, result);
             } else {
               this.publish(job.id, {type: 'phone_request', call, conversation_id: payload.conversation_id, turn_id: payload.turn_id});
-              throw Object.assign(new Error('This phone operation is pending.'),{deferred:true});
+              // Let ordinary foreground reads return in the same model round.
+              // Human input never blocks here; absent/slow phones become durable
+              // dependencies instead of holding the whole task indefinitely.
+              if(call.name!=='request_input')await this.sleep(250,undefined,{signal});
+              result=this.store.operation(job.id,call.id).result;
+              if(!result)throw Object.assign(new Error('This phone operation is pending.'),{deferred:true});
             }
           }
         } catch (error) {
@@ -272,7 +277,8 @@ export class JobRunner extends EventEmitter {
           }else {
             let operation;try{operation=this.store.operation(job.id,original.id);}catch{}
             const effectNames=new Set(['run_computer_command','computer_browser','computer_desktop','write_computer_file','patch_computer_file']);
-            const unknown=operation?.status==='started'&&effectNames.has(operation.request.name)&&!error.beforeExecution;
+            const readOnlySnapshot=operation?.request.name==='computer_desktop'&&operation.request.arguments?.action==='snapshot';
+            const unknown=operation?.status==='started'&&effectNames.has(operation.request.name)&&!readOnlySnapshot&&!error.beforeExecution;
             result = {callID: original.id, name: original.name, succeeded: false, output: {status: unknown?'outcome_unknown':'failed', error: unknown?'The tool stopped without a confirmed outcome. Inspect its actual result before repeating an effect.':'The tool could not complete this request. Check the argument schema and current connection.', detail: error.publicMessage ?? String(error.message).slice(0,600)}};
             if(operation&&!operation.result)this.store.finishOperation(job.id,original.id,result);
           }
@@ -284,7 +290,7 @@ export class JobRunner extends EventEmitter {
         }
         if(result.containsHealthData===true){checkpoint.containsHealthData=true;job.payload.contains_health_data=true;}
         const modelResult = Array.isArray(result.output) ? {result: result.output} : {...(result.output ?? {})};
-        modelResult.tool_succeeded = result.succeeded;
+        modelResult.tool_succeeded = result.output?.status==='pending'?null:result.succeeded;
         modelResult.operation_id = original.id;
         let modelOutput=JSON.stringify(modelResult);
         if(result.succeeded){
@@ -324,17 +330,17 @@ export class JobRunner extends EventEmitter {
         checkpoint.pendingSummary=signature;
         this.publishCheckpoint(job.id,checkpoint,[{type:'pending_decisions',items:pending,text:checkpoint.recoveryOperationID?'Progress is saved. A repeated failure needs your decision before this step can continue.':'Independent work is ready. The following items still need your answer, review, or iPhone. This saved task will continue when their actual results arrive.'}]);
       }
-      this.status(job.id,'waiting_for_input','Independent work is ready · your input is needed');
+      const needsInput=pending.some(item=>['request_input','review_computer_action'].includes(item.tool));
+      this.status(job.id,needsInput?'waiting_for_input':'waiting_for_phone',needsInput?'Independent work is ready · your input is needed':'Independent work is ready · waiting for the iPhone');
     }else this.status(job.id,'completed','Your response is ready');
   }
   queueRecovery(job,checkpoint,title,detail){
     if(checkpoint.recoveryOperationID)return;
     const call={id:'recovery-'+checkpoint.round+'-'+checkpoint.calls,name:'request_input',arguments:{question:title,why:detail,kind:'choice',choices_json:JSON.stringify(['Try a different approach','Skip this part','Stop this task'])}};
-    this.store.beginOperation(job.id,call.id,call,'phone');
     checkpoint.recoveryOperationID=call.id;checkpoint.deferred.push({original:call,reviewID:null});
     checkpoint.final=[{type:'message',role:'assistant',content:[{type:'output_text',text:title+' '+detail}]}];
     this.publishCheckpoint(job.id,checkpoint,[{type:'phone_request',call,conversation_id:job.payload.conversation_id,turn_id:job.payload.turn_id},
-      {type:'continuation',output:checkpoint.final,model:job.payload.body.model}]);
+      {type:'continuation',output:checkpoint.final,model:job.payload.body.model}],()=>this.store.beginOperation(job.id,call.id,call,'phone'));
   }
   wake(id,owner){queueMicrotask(()=>{if(this.closed)return;try{this.start(id,owner);}catch{if(!['completed','cancelled'].includes(this.store.metadata(id,owner).status))this.status(id,'failed','Reconnect the original computer account to continue this saved task.');}});}
   async collectDeferred(job,checkpoint,signal){

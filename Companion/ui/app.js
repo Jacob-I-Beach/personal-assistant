@@ -47,9 +47,9 @@ async function refreshTask(){
   const view=taskView;if(!view||view.busy)return;view.busy=true;
   try{
     let value;const dirty=new Set();
-    do{value=await api('/api/task',{job_id:view.id,after:view.cursor});if(taskView!==view)return;
+    do{value=await api('/api/task',{job_id:view.id,after:view.cursor,compact:true});if(taskView!==view)return;
       byId('task-state').textContent=labels[value.job.status]??value.job.status;
-      for(const event of value.events){view.cursor=event.seq;const root=byId('task-events');
+      for(const event of value.events){view.cursor=event.through_seq??event.seq;const root=byId('task-events');
         const key=event.item_id??'round-'+(event.round??0);
         if(event.type==='text_delta'){let node=view.nodes.get(key);if(!node){node=element('div','','assistant-text');view.nodes.set(key,node);root.append(node);}node.sourceText=(node.sourceText??'')+(event.text??'');dirty.add(node);}
         if(event.type==='continuation')for(const item of event.output??[])if(item.type==='message'){

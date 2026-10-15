@@ -38,6 +38,8 @@ final class AppModel: ObservableObject {
     @Published var downloadingModelID: String?
     @Published var modelStatus = "Choose a model to begin"
     @Published var activity: String?
+    @Published private var activeResponseTitle: String?
+    @Published var earlierComputerResult: (messageID: UUID, title: String)?
     @Published var activeToolCall: ToolCall?
     @Published var localRecovery: LocalRecovery?
     @Published var errorMessage: String?
@@ -113,6 +115,7 @@ final class AppModel: ObservableObject {
     private var pendingText: String?
     private var pendingRoute: ModelSettings?
     private var pendingRoutePreferences: ModelSettings?
+    private var pendingConsentConversationID: UUID?
     private var accountService: ChatGPTAccountService?
     private let signIn = ChatGPTSignIn()
     private var drafts: [String: String] = [:]
@@ -154,6 +157,7 @@ final class AppModel: ObservableObject {
         usesComputerChatGPT && !settings.localOnly && (computerAccountReachability == .unavailable || activeComputerAccount?.needsAttention == true)
     }
 
+    var chatModelTitle: String { isRunning ? activeResponseTitle ?? modelTitle : modelTitle }
     var modelTitle: String {
         switch settings.choice {
         case .localMLX: catalog.first { $0.id == settings.localRepository }?.name ?? "Downloaded model"
@@ -339,6 +343,7 @@ final class AppModel: ObservableObject {
         if conversation.id == conversationID { conversation = restored; requiresManualResume = false }
         await refresh()
         noticeMessage = "Transcript restored. Your draft is kept; no actions were rerun."
+        Task { await flushComputerStops() }
     }
     func newConversation(folderID: UUID? = nil) {
         guard !isRunning, !isApplyingTranscriptRevision else { return }; cancelEditing(); detachWatchRequest(); draftTask?.cancel(); flushDraft()
@@ -555,7 +560,7 @@ final class AppModel: ObservableObject {
         }
         if let destination = selection.networkDestination {
             if ConversationSharing.needsReview(conversation, destination: destination, includesHealth: draftContainsHealthData, confirmNewChats: settings.confirmNewConnectedChats) {
-                pendingText = text; pendingRoute = selection; pendingRoutePreferences = settings; needsNetworkConsent = true; return
+                pendingText = text; pendingRoute = selection; pendingRoutePreferences = settings; pendingConsentConversationID = conversation.id; needsNetworkConsent = true; return
             }
             // Pressing Send with an explicitly selected connection authorizes this
             // chat's ordinary content. Health sharing remains a separate decision.
@@ -565,22 +570,29 @@ final class AppModel: ObservableObject {
         startResponse(text, routedSelection: selection)
     }
     func approveNetworkConversation() {
+        guard !isRunning, !isApplyingTranscriptRevision else { return }
         let selection = pendingRoute ?? settings
-        guard pendingRoutePreferences == nil || pendingRoutePreferences == settings,
+        guard pendingConsentConversationID == nil || pendingConsentConversationID == conversation.id,
+              pendingRoutePreferences == nil || pendingRoutePreferences == settings,
               let destination = selection.networkDestination, let text = pendingText else { declineNetworkConversation(); return }
         conversation.allowedNetworkDestinations.insert(destination)
         conversation.requiresNetworkReview = false
         if draftContainsHealthData || conversation.containsHealthData { conversation.allowedHealthDestinations.insert(destination) }
-        pendingText = nil; pendingRoute = nil; pendingRoutePreferences = nil; needsNetworkConsent = false; startResponse(text, routedSelection: selection)
+        pendingText = nil; pendingRoute = nil; pendingRoutePreferences = nil; pendingConsentConversationID = nil; needsNetworkConsent = false; startResponse(text, routedSelection: selection)
     }
-    func declineNetworkConversation() { pendingText = nil; pendingRoute = nil; pendingRoutePreferences = nil; needsNetworkConsent = false }
+    func declineNetworkConversation() { pendingText = nil; pendingRoute = nil; pendingRoutePreferences = nil; pendingConsentConversationID = nil; needsNetworkConsent = false }
     func revokeNetworkConsent() {
         guard !isRunning else { return }
         titleTask?.cancel()
         conversation.allowedNetworkDestinations = []
         conversation.allowedHealthDestinations = []
         conversation.requiresNetworkReview = true
-        Task { do { try await store?.save(conversation); await refresh() } catch { errorMessage = error.localizedDescription } }
+        let revoked = conversation
+        Task { do {
+            try await store?.save(revoked)
+            try await store?.retireWork(in: revoked.id, computerOnly: true, reason: "Conversation network access was revoked.")
+            await flushComputerStops(); await refresh()
+        } catch { errorMessage = error.localizedDescription } }
     }
     func stop() {
         userRequestedStop = true; responseWasBackgrounded = false; ReplyReturnRoute.clear()
@@ -601,7 +613,11 @@ final class AppModel: ObservableObject {
             }
         }
     }
-    func deferQuestion() { pausedForInput = true; responseTask?.cancel() }
+    func deferQuestion() {
+        let questionTurn = nativeAction?.questionID.flatMap { id in pendingQuestions.first(where: { $0.id == id })?.turnID }
+        if responseOnComputer || questionTurn != activeTurnID { nativeAction = nil; return }
+        pausedForInput = true; responseTask?.cancel()
+    }
     private func pauseResponseForBackground() {
         guard isRunning, !userRequestedStop else { return }
         responseWasBackgrounded = true; responseTask?.cancel()
@@ -611,7 +627,7 @@ final class AppModel: ObservableObject {
            let work = try? await store?.unfinishedWork().first(where: { $0.conversationID == conversation.id }),
            work.backendID.hasPrefix("companion:"), work.interruptionKind != "computer_sync_attention", let record = try? await store?.companionRun(work.id), !record.stopRequested,
            !["failed", "cancelled", "interrupted"].contains(record.status) {
-            await resumeReply(work, reconnectOnly: true); return
+            await resumeReply(work, automatic: true, reconnectOnly: true); return
         }
         guard !isRunning, !userRequestedStop, !pausedForInput, !pausedForWorkBudget, !systemEndedBackgroundWork, responseWasBackgrounded, UIApplication.shared.applicationState == .active,
               let work = try? await store?.unfinishedWork().first(where: { $0.conversationID == conversation.id }),
@@ -620,14 +636,15 @@ final class AppModel: ObservableObject {
         await resumeReply(work, automatic: true)
     }
     func resumeReply(_ work: WorkTurn, automatic: Bool = false, reconnectOnly: Bool = false) async {
-        guard !isRunning, !isApplyingTranscriptRevision, let store, UIApplication.shared.applicationState == .active else { return }
+        guard !isRunning, !isApplyingTranscriptRevision, !isPreparingRoute, !needsNetworkConsent, nativeAction == nil, let store, UIApplication.shared.applicationState == .active else { return }
         if work.backendID.hasPrefix("companion:"), settings.choice != .chatGPT {
             if !automatic { noticeMessage = "This saved reply uses ChatGPT. Send a new message with \(modelTitle), or select ChatGPT to continue the original task." }
             return
         }
         do {
             let restored = try await store.loadConversation(work.conversationID)
-            guard restored.messages.last(where: \.isRequest)?.id == work.userMessageID else { throw AssistantError.provider("A newer request followed this reply. Open its conversation to choose what should continue.") }
+            guard restored.messages.contains(where: { $0.isRequest && $0.id == work.userMessageID }),
+                  work.backendID.hasPrefix("companion:") || restored.messages.last(where: \.isRequest)?.id == work.userMessageID else { throw AssistantError.provider("A newer request followed this reply. Open its conversation to choose what should continue.") }
             if work.conversationID != conversation.id {
                 guard !automatic, let summary = histories.first(where: { $0.id == work.conversationID }) else { return }
                 await selectConversation(summary)
@@ -640,12 +657,20 @@ final class AppModel: ObservableObject {
             guard selected.id == work.backendID, selected.networkDestination == work.destination else {
                 throw AssistantError.provider("Choose the model previously used for this reply before continuing it.")
             }
+            if let computer = selected as? CompanionModelBackend {
+                do {
+                    let info = try await computer.client.json("/v1/capabilities", timeout: 4)
+                    try applyComputerAccount(info["profile"] ?? .null, connection: computer.connection)
+                    guard activeComputerAccount?.isConnected == true else { throw AssistantError.provider("Reconnect the original computer account to sync this task.") }
+                } catch { computerAccountReachability = .unavailable; throw error }
+            }
             guard !settings.localOnly || selected.networkDestination == nil else { throw AssistantError.networkNotAuthorized }
             guard conversation.id == work.conversationID, !isRunning, settings == selectedSettings, !automatic || !userRequestedStop else { return }
             conversation = restored
-            startResponse("", resuming: work, automaticResume: automatic, reconnectOnly: reconnectOnly)
+            let responseTitle = (selected as? CompanionModelBackend).map { ChatGPTModel.displayTitle(for: $0.wire.model, catalog: chatGPTModels) }
+            startResponse("", resuming: work, automaticResume: automatic, reconnectOnly: reconnectOnly, responseTitle: responseTitle)
         } catch {
-            if automatic { noticeMessage = "The saved reply needs your attention. Open it and choose Continue when ready." }
+            if automatic { noticeMessage = work.backendID.hasPrefix("companion:") ? "Your computer task is saved. New requests can use mobile ChatGPT while the computer is unavailable." : "The saved reply needs your attention. Open it and choose Continue when ready." }
             else { errorMessage = error.localizedDescription }
         }
     }
@@ -662,14 +687,15 @@ final class AppModel: ObservableObject {
         if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections; draftContextReferences = prior.references }
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
-    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false, routedSelection: ModelSettings? = nil) {
-        guard !isApplyingTranscriptRevision, let engine else { return }
+    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false, routedSelection: ModelSettings? = nil, responseTitle: String? = nil) {
+        guard !isRunning, !isApplyingTranscriptRevision, let engine else { return }
         conversationSelectionID = UUID()
         let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = routedSelection ?? settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
         let contextReferences = draftContextReferences
         let previousIDs = Set(original.messages.map(\.id))
         draftTask?.cancel()
+        activeResponseTitle = responseTitle ?? modelTitle
         isRunning = true; activity = "Preparing \(modelTitle)"; errorMessage = nil; noticeMessage = nil; flushDraft()
         responseWasBackgrounded = UIApplication.shared.applicationState != .active; userRequestedStop = false; pausedForInput = false; pausedForWorkBudget = false; responseAwaitingAttention = false; systemEndedBackgroundWork = false; activeTurnID = savedWork?.id
         taskAttention.clear(conversation.id)
@@ -677,7 +703,7 @@ final class AppModel: ObservableObject {
             ?? (selection.choice == .chatGPT && selection.useComputer && selection.companion != nil && !selection.localOnly)
         let computerReply = responseOnComputer
         beginResponseWindow()
-        replyActivity.begin(conversationID: original.id, modelName: modelTitle, computer: computerReply, reconnecting: savedWork != nil,
+        replyActivity.begin(conversationID: original.id, modelName: chatModelTitle, computer: computerReply, reconnecting: savedWork != nil,
             externalPresentation: computerReply && activeComputerAccount?.activityProvider == "pushward")
         if computerReply { ReplyReturnRoute.remember(original.id) }
         requiresManualResume = false
@@ -699,6 +725,7 @@ final class AppModel: ObservableObject {
                 if let savedWork { selectedBackend = try await backend(forSavedWork: savedWork, selection: selection) }
                 else { selectedBackend = try await backend(for: selection, onComputer: computerReply) }
                 if var computer = selectedBackend as? CompanionModelBackend {
+                    activeResponseTitle = ChatGPTModel.displayTitle(for: computer.wire.model, catalog: chatGPTModels)
                     computer.allowJobRestart = savedWork != nil && !automaticResume && !reconnectOnly
                     let client = computer.client
                     computer.onJobAccepted = { [weak self] jobID, provider in
@@ -710,12 +737,13 @@ final class AppModel: ObservableObject {
                 try Task.checkCancellation()
                 if savedWork == nil, let editID, let store {
                     current = try await store.prepareMessageEdit(in: original, messageID: editID)
+                    await flushComputerStops()
                     conversation = current; editingMessageID = nil; draftBeforeEditing = nil
                     if current.excludedArtifactIDs != original.excludedArtifactIDs || current.excludedSurfaceIDs != original.excludedSurfaceIDs || current.invalidatedProjectRevisions != original.invalidatedProjectRevisions {
                         noticeMessage = "Work changed by the removed messages is kept, but excluded from this revised chat. Project context will be rebuilt from the remaining conversation."
                     }
                 } else { try await store?.save(current) }
-                let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + [QuestionTools.request]
+                let extras = NativeTools.definitions + CommunicationTools.definitions + WorkspaceTools.definitions + PlanningTools.definitions + QuestionTools.definitions
                     + (computerReply ? [ComputerScheduleTools.create, ComputerFileTools.transfer, ComputerActionReview.definition] + ComputerTools.definitions : [])
                     + (selection.healthToolsEnabled && HealthOverviewService.isEnabledInThisBuild ? [HealthOverviewService.tool] + HealthDataReader.tools : [])
                 let destination = selectedBackend.networkDestination
@@ -807,6 +835,14 @@ final class AppModel: ObservableObject {
             }
             requiresManualResume = !completedTurn && !handingOffToComputer
             let savedComputerRun = if let id = activeTurnID { try? await store?.companionRun(id) } else { nil as CompanionRunRecord? }
+            if completedTurn, computerReply, let turn = activeTurnID,
+               let start = conversation.messages.firstIndex(where: { $0.id == turn }),
+               conversation.messages.last(where: \.isRequest)?.id != turn {
+                let end = conversation.messages.indices.dropFirst(start + 1).first(where: { conversation.messages[$0].isRequest }) ?? conversation.messages.count
+                if let reply = conversation.messages[(start + 1)..<end].last(where: { $0.role == .assistant && !$0.text.isEmpty }) {
+                    earlierComputerResult = (reply.id, String(conversation.messages[start].text.prefix(90)))
+                }
+            }
             let computerStillWorking = !completedTurn && !userRequestedStop && computerReply && savedComputerRun?.jobID != nil && !["failed", "interrupted", "cancelled", "completed"].contains(savedComputerRun?.status ?? "unknown")
             if computerStillWorking { requiresManualResume = false }
             await replyActivity.finish(completed: completedTurn, detached: computerStillWorking,
@@ -859,9 +895,20 @@ final class AppModel: ObservableObject {
                     state: successful ? .complete : .needsPhone, message: text, modelName: modelTitle))
             }
             await refresh()
+            if completedTurn, !userRequestedStop, UIApplication.shared.applicationState == .active {
+                Task { [weak self] in await self?.syncNextComputerReply() }
+            }
             if responseWasBackgrounded && !userRequestedStop && UIApplication.shared.applicationState == .active {
                 Task { [weak self] in await self?.continueInterruptedReplyIfEligible() }
             }
+        }
+    }
+    func syncNextComputerReply() async {
+        guard !isRunning, !isApplyingTranscriptRevision, settings.choice == .chatGPT, settings.useComputer, !settings.localOnly,
+              let store, UIApplication.shared.applicationState == .active else { return }
+        for work in unfinishedReplies where work.conversationID == conversation.id && work.backendID.hasPrefix("companion:") && !pendingQuestions.contains(where: { $0.turnID == work.id }) {
+            guard let record = try? await store.companionRun(work.id), record.canReconnect else { continue }
+            await resumeReply(work, automatic: true, reconnectOnly: true); return
         }
     }
     private func backend(forSavedWork work: WorkTurn, selection: ModelSettings) async throws -> any ModelBackend {
@@ -902,19 +949,19 @@ final class AppModel: ObservableObject {
                 guard !token.isEmpty else { throw AssistantError.provider("Reconnect your computer in Connections.") }
                 let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: token)
                 let wire = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel, wireProtocol: .responses,
-                    chatGPTAccountID: connection.profileID, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort, contextBudget: contextBudget(for: selection))
+                    chatGPTAccountID: connection.profileID, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: reasoningEffort(for: selection), contextBudget: contextBudget(for: selection))
                 return CompanionModelBackend(connection: connection, client: client, wire: wire, store: store, notificationsEnabled: selection.taskNotifications)
             }
             guard let account = selection.chatGPTAccountID, let accountService, !selection.chatGPTModel.isEmpty else { throw AccountConnectionError.signInRequired }
             let access = try await accountService.accessToken(for: account)
             return try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: selection.chatGPTModel,
-                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: selectedReasoningEffort, contextBudget: contextBudget(for: selection))
+                                           wireProtocol: .responses, credential: access, chatGPTAccountID: account, webSearchEnabled: selection.chatGPTWebSearch, reasoningEffort: reasoningEffort(for: selection), contextBudget: contextBudget(for: selection))
         case .openAI, .compatibleServer:
             guard let url = selection.endpoint else { throw AssistantError.invalidEndpoint("Add a valid server address in Connections.") }
             let credential = try selection.credentialAccount.map { try CredentialStore.read(account: $0) } ?? ""
             if selection.choice == .openAI && credential.isEmpty { throw AssistantError.provider("Add an OpenAI API key, or use Continue with ChatGPT in the model picker.") }
             return try NetworkModelBackend(baseURL: url, model: selection.choice == .openAI ? selection.openAIModel : selection.compatibleModel,
-                wireProtocol: selection.choice == .openAI ? .responses : .chatCompletions, credential: credential, reasoningEffort: selection.choice == .openAI ? selectedReasoningEffort : nil, contextBudget: contextBudget(for: selection))
+                wireProtocol: selection.choice == .openAI ? .responses : .chatCompletions, credential: credential, reasoningEffort: selection.choice == .openAI ? reasoningEffort(for: selection) : nil, contextBudget: contextBudget(for: selection))
         }
     }
 
@@ -1128,6 +1175,7 @@ final class AppModel: ObservableObject {
         guard isRunning, conversation.id == conversationID else { throw CancellationError() }
         if PlanningTools.names.contains(call.name) { return try await executePlanningTool(call, destination: destination) }
         if call.name == QuestionTools.request.name { return try await executeQuestionTool(call, conversationID: conversationID) }
+        if [QuestionTools.list.name, QuestionTools.answer.name].contains(call.name) { return try await executeQuestionAnswerTool(call, conversationID: conversationID, destination: destination) }
         if WorkspaceTools.names.contains(call.name) { return try await executeWorkspaceTool(call, conversationID: conversationID, destination: destination) }
         if CommunicationTools.names.contains(call.name) { return try await executeCommunicationTool(call, conversationID: conversationID) }
         if call.name == ComputerScheduleTools.create.name { return try await executeScheduleTool(call) }
@@ -1317,10 +1365,11 @@ final class AppModel: ObservableObject {
     }
     func nativeReviewDidDismiss() {
         nativeReviewVisible = false
-        if let work = questionResumeAfterDismiss {
-            questionResumeAfterDismiss = nil
-            Task { await resumeReply(work) }
-        } else { Task { await presentDeferredReview() } }
+        let work = questionResumeAfterDismiss; questionResumeAfterDismiss = nil
+        Task {
+            if let work, !isRunning { await resumeReply(work) }
+            await presentDeferredReview()
+        }
     }
     private func notifyReview(_ request: NativeActionRequest) async {
         guard !responseOnComputer || !replyActivity.remoteNotificationsAvailable else { return }

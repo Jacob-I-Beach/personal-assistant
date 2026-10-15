@@ -6,6 +6,7 @@ import { listModels } from "./models.js";
 import { authorize, identityVerificationUnavailable, refreshConnection, revokeConnection } from "./oauth.js";
 import { streamResponse } from "./responses.js";
 import { streamStructuredResponse } from "./structured-responses.js";
+import { compactResponse } from "./compact-response.js";
 import { ConnectionStore } from "./storage.js";
 import type { ChatGPTClient, ChatGPTConfig, LoginProfile, PendingRegistration, SessionState, StoredConnection, StoredProfile, StoredState } from "./types.js";
 
@@ -335,6 +336,9 @@ export function createChatGPT(config: ChatGPTConfig): ChatGPTClient {
     },
     async streamTurn(options) {
       return authenticated((accessToken, signal) => streamStructuredResponse(accessToken, options, signal), options.signal);
+    },
+    async compactTurn(options) {
+      return authenticated((accessToken, signal) => compactResponse(accessToken, options, signal), options.signal);
     },
   };
 }

@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {Vault} from '../src/vault.mjs';
 import {JobStore} from '../src/job-store.mjs';
-import {HostRuntime} from '../src/host-runtime.mjs';
+import {HostRuntime,runProcess} from '../src/host-runtime.mjs';
 
 async function fixture(){
   const root=await mkdtemp(join(tmpdir(),'assistant-host-tools-')),store=new JobStore(':memory:',new Vault(randomBytes(32)));
@@ -56,4 +56,23 @@ test('desktop actions require the observation from the immediately inspected win
     assert.equal(actions,1);
     await assert.rejects(f.runtime.execute({id:'repeat',name:'computer_desktop',arguments:{action:'click',observation_id:snapshot.output.observation_id}},f.job,f.signal),/fresh/);
   }finally{await f.close();}
+});
+
+test('scoped search returns line evidence and a failed multi-edit patch preserves every original byte',async()=>{
+  const f=await fixture();try{
+    await f.runtime.execute({id:'create',name:'write_computer_file',arguments:{path:'example.txt',content:'alpha\nbeta\ngamma\n',expected_sha256:null}},f.job,f.signal);
+    const matches=await f.runtime.execute({id:'search',name:'search_computer_files',arguments:{path:null,query:'beta'}},f.job,f.signal);
+    assert.equal(matches.output.matches[0].line,2);assert.equal(matches.output.coverage.limited,false);
+    const read=await f.runtime.execute({id:'read',name:'read_computer_file',arguments:{path:'example.txt',offset:0,as_artifact:false}},f.job,f.signal);
+    await assert.rejects(f.runtime.execute({id:'bad-patch',name:'patch_computer_file',arguments:{path:'example.txt',expected_sha256:read.output.sha256,edits:[{old_text:'alpha',new_text:'changed'},{old_text:'missing',new_text:'bad'}]}},f.job,f.signal),/match exactly once/);
+    assert.equal(await readFile(read.output.path,'utf8'),'alpha\nbeta\ngamma\n');
+    const changed=await f.runtime.execute({id:'patch',name:'patch_computer_file',arguments:{path:'example.txt',expected_sha256:read.output.sha256,edits:[{old_text:'beta',new_text:'verified'}]}},f.job,f.signal);
+    assert.equal(changed.succeeded,true);assert.equal(await readFile(read.output.path,'utf8'),'alpha\nverified\ngamma\n');
+    await assert.rejects(f.runtime.execute({id:'stale-patch',name:'patch_computer_file',arguments:{path:'example.txt',expected_sha256:read.output.sha256,edits:[{old_text:'gamma',new_text:'wrong'}]}},f.job,f.signal),/changed/);
+  }finally{await f.close();}
+});
+
+test('host output preserves UTF-8 characters split across process pipe chunks',async()=>{
+  const result=await runProcess(process.execPath,['-e',"process.stdout.write(Buffer.from([0xe6]));setTimeout(()=>process.stdout.write(Buffer.from([0xbc,0xa2])),30)"],{timeout:3000,maximumBytes:3});
+  assert.equal(result.stdout,'漢');assert.equal(result.exit_code,0);assert.equal(result.output_truncated,false);
 });

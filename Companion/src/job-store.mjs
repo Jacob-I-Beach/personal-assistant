@@ -98,7 +98,7 @@ export class JobStore {
     this.db.prepare('INSERT INTO events(job_id,seq,data) VALUES(?,?,?)').run(id,seq,this.vault.sealJSON(value,`event:${id}:${seq}`));
     this.db.prepare('UPDATE jobs SET cursor=?,updated=? WHERE id=?').run(seq,Date.now(),id);return value;
   }
-  checkpointEvents(id,checkpoint,events){return this.transaction(()=>{this.checkpoint(id,checkpoint);return events.map(event=>this.appendWithin(id,event));});}
+  checkpointEvents(id,checkpoint,events,before=()=>{}){return this.transaction(()=>{before();this.checkpoint(id,checkpoint);return events.map(event=>this.appendWithin(id,event));});}
   reviewReceipt(id,operationId,event){return this.transaction(()=>{
     this.db.prepare("UPDATE operations SET status='started' WHERE job_id=? AND id=? AND result IS NULL").run(id,operationId);
     return this.appendWithin(id,event);
@@ -110,6 +110,21 @@ export class JobStore {
     if (!Number.isSafeInteger(after) || after < 0) throw new Error('Invalid progress cursor.');
     return this.db.prepare('SELECT seq,data FROM events WHERE job_id=? AND seq>? ORDER BY seq LIMIT ?')
       .all(id, after, Math.min(200, Math.max(1, limit))).map(row => this.vault.openJSON(row.data, `event:${id}:${row.seq}`));
+  }
+  replayEvents(id,owner,after=0){
+    this.assertOwner(id,owner);
+    if(!Number.isSafeInteger(after)||after<0)throw new Error('Invalid progress cursor.');
+    const result=[];let bytes=0;
+    for(const row of this.db.prepare('SELECT seq,data FROM events WHERE job_id=? AND seq>? ORDER BY seq LIMIT 5000').iterate(id,after)){
+      if(result.length>=200||bytes>=2*1024*1024)break;
+      const event=this.vault.openJSON(row.data,`event:${id}:${row.seq}`),prior=result.at(-1);
+      const same=event.type==='text_delta'&&prior?.type==='text_delta'&&typeof event.text==='string'&&event.seq===(prior.through_seq??prior.seq)+1&&
+        ['phase','item_id','output_index','content_index','round'].every(key=>event[key]===prior[key]);
+      bytes+=Buffer.byteLength(JSON.stringify(event));
+      if(same){prior.text+=event.text;prior.through_seq=event.seq;}
+      else result.push(event);
+    }
+    return result;
   }
   status(id, status, text, extra = {}) {
     return this.transaction(()=>{

@@ -1208,6 +1208,20 @@ final class AssistantUITests: XCTestCase {
         XCTAssertTrue(mobile.exists)
         saveScreenshot(app, name: "Continuity130-mobile-fallback")
     }
+    func testContinuity130EarlierResultOpensWithoutLosingLaterMessages() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-late-result", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        let result = app.buttons["earlier-computer-result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 15)); result.tap()
+        XCTAssertTrue(app.staticTexts["The earlier report is now ready."].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Stop response"].exists)
+        saveScreenshot(app, name: "Continuity130-earlier-result")
+        app.buttons["Jump to latest message"].tap()
+        XCTAssertTrue(app.staticTexts["Later answer 65 stays saved."].waitForExistence(timeout: 8))
+        saveScreenshot(app, name: "Continuity130-later-messages-kept")
+    }
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

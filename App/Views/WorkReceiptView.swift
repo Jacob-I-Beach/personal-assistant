@@ -68,6 +68,8 @@ struct WorkReceiptView: View {
         case "read_health_data", "read_health_overview": return "Read relevant Health data"
         case "read_inbox": return "Read saved captures"
         case "request_input": return output?["status"] == .string("skipped") ? "Question skipped" : "Received your answer"
+        case "list_task_questions": return "Checked pending questions"
+        case "answer_task_question": return output?["status"] == .string("answer_delivered") ? "Passed along your answer" : "Saved your answer"
         case "list_planning_sources": return "Checked planning connections"
         case "read_schedule": return "Read your selected calendars"
         case "find_available_time": return "Checked available time"

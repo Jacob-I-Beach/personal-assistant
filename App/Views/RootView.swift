@@ -41,7 +41,7 @@ struct RootView: View {
                     ToolbarItem(placement: .principal) {
                         Button { voice.stopAll(); model.showModels = true } label: {
                             VStack(spacing: 2) {
-                                HStack(spacing: 5) { Text(model.modelTitle).font(.subheadline.weight(.semibold)).lineLimit(1); Image(systemName: "chevron.down").font(.caption2) }
+                                HStack(spacing: 5) { Text(model.chatModelTitle).font(.subheadline.weight(.semibold)).lineLimit(1); Image(systemName: "chevron.down").font(.caption2) }
                                 Text(model.modelLocation).font(.caption2).foregroundStyle(Color.secondary)
                             }.foregroundStyle(Color.primary)
                         }.accessibilityLabel("Choose model").disabled(model.isRunning)
@@ -265,13 +265,24 @@ struct ChatView: View {
                         Button { chatNavigation.destination = .outputs(model.conversation.id) } label: { Label("Files in this chat", systemImage: "folder").font(.subheadline).frame(minHeight: 44) }
                     }
                     TaskStatusStrip()
+                    if let result = model.earlierComputerResult, model.conversation.messages.contains(where: { $0.id == result.messageID }) {
+                        Button {
+                            let items = ChatTimeline.items(model.conversation.messages)
+                            if let index = items.firstIndex(where: { $0.messages.contains(where: { $0.id == result.messageID }) }) {
+                                let lower = max(0, index - 20); searchWindow = lower..<min(items.count, lower + 100)
+                                viewport.jumpToMessage(items[index].id, in: model.conversation.id)
+                            }
+                            model.earlierComputerResult = nil
+                        } label: { VStack(alignment: .leading, spacing: 4) { Label("Earlier task finished · Open result", systemImage: "checkmark.circle"); Text(result.title).font(.caption).foregroundStyle(.secondary).lineLimit(2) }.frame(maxWidth: .infinity, alignment: .leading).padding(12) }
+                            .buttonStyle(.plain).accessibilityIdentifier("earlier-computer-result")
+                    }
                     if !model.isRunning, !model.conversation.messages.isEmpty,
                        let work = model.unfinishedReplies.first(where: { work in work.conversationID == model.conversation.id && work.userMessageID == model.conversation.messages.last(where: \.isRequest)?.id && !model.pendingQuestions.contains(where: { $0.turnID == work.id }) }) {
                         SavedWorkCard(work: work)
                     }
                     ForEach(model.pendingQuestions.filter { $0.conversationID == model.conversation.id }) { question in
                         Button { model.openQuestion(question) } label: {
-                            VStack(alignment: .leading, spacing: 8) { Label("Needs your answer", systemImage: "bubble.left").font(.caption); Text(question.title).font(.subheadline.weight(.medium)); Text("Open question").font(.caption) }
+                            VStack(alignment: .leading, spacing: 8) { Label("Needs your answer", systemImage: "bubble.left").font(.caption); Text(question.title).font(.subheadline.weight(.medium)); if let work = model.unfinishedReplies.first(where: { $0.id == question.turnID }) { Text(work.goal).font(.caption).foregroundStyle(.secondary).lineLimit(2) }; Text("Open question").font(.caption) }
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
                         }.buttonStyle(.plain)
                     }

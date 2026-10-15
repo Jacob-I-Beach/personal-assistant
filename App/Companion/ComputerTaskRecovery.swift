@@ -13,6 +13,8 @@ enum ComputerTaskRecovery {
         }
         var restored = current
         restored.choice = .chatGPT; restored.chatGPTModel = model
+        restored.chatGPTWebSearch = work.backendID.hasSuffix(":web-search")
+        if let effort = record.payload["body"]?["reasoning"]?["effort"]?.stringValue { restored.reasoningByModel[model] = effort }
         return restored
     }
 }

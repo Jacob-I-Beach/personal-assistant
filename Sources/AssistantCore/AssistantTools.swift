@@ -19,11 +19,12 @@ public struct AssistantTools: Sendable {
     let additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)?
     private let classification: ToolDataClassification
     private let execution = ToolExecutionStatus()
+    private let networkDestination: String?
 
     public init(store: LocalStore, conversationID: UUID, captureIDs: Set<UUID>, sandbox: JavaScriptSandbox, memoryEnabled: Bool = false, remote: Bool = false,
                 artifactLocalOnly: Bool = false, healthData: Bool = false, fileIDs: Set<UUID> = [], workspaceEnabled: Bool = false,
                 compactCatalog: Bool = false, contextBudget: Int? = nil, automaticMemory: Bool = false, operationScope: UUID? = nil, additionalDefinitions: [ToolDefinition] = [],
-                additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) {
+                additionalExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil, networkDestination: String? = nil) {
         self.store = store; self.conversationID = conversationID; self.captureIDs = captureIDs; self.sandbox = sandbox
         self.memoryEnabled = memoryEnabled; self.remote = remote
         self.automaticMemory = automaticMemory
@@ -32,6 +33,7 @@ public struct AssistantTools: Sendable {
         self.smallContext = (contextBudget ?? Int.max) < 20_000
         self.artifactLocalOnly = artifactLocalOnly; self.healthData = healthData
         self.additionalDefinitions = additionalDefinitions; self.additionalExecutor = additionalExecutor
+        self.networkDestination = networkDestination
         classification = ToolDataClassification(health: healthData, localOnly: artifactLocalOnly)
         if let contextBudget, !compactCatalog {
             let bytes = availableDefinitions.reduce(0) { $0 + $1.name.utf8.count + $1.description.utf8.count + ((try? $1.parameters.jsonString().utf8.count) ?? 0) + 100 }
@@ -80,6 +82,15 @@ public struct AssistantTools: Sendable {
         try result.modelText(maximumBytes: smallContext ? 2000 : nil)
     }
     private func executeImpl(_ call: ToolCall) async throws -> ToolResult {
+        if let networkDestination {
+            let current = try await store.loadConversation(conversationID, preservingStreaming: true)
+            guard !current.networkDisabled, current.allowedNetworkDestinations.contains(networkDestination) else { throw AssistantError.networkNotAuthorized }
+            if let operationScope {
+                guard let work = try await store.workTurn(operationScope), [.running, .interrupted].contains(work.phase),
+                      current.messages.contains(where: { $0.isRequest && $0.id == work.userMessageID }) else { throw AssistantError.networkNotAuthorized }
+                if let run = try await store.companionRun(operationScope), run.stopRequested { throw CancellationError() }
+            }
+        }
         if compactCatalog && [Self.discover.name, Self.invoke.name].contains(call.name) {
             do {
                 guard let arguments = call.arguments.objectValue else { throw AssistantError.invalidTool("Supply the named tool arguments.") }

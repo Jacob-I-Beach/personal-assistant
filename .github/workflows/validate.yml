@@ -233,7 +233,7 @@ jobs:
           case "${{ matrix.suite }}" in
             continuity130)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/ContinuityPlatformTests" "-only-testing:PersonalAssistantPlatformTests/ComputerAccountPlatformTests" "-only-testing:PersonalAssistantPlatformTests/LocalIsolationPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests" "-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests")
-              scenarios="testContinuity130ReserveAndMobileFallbackAreVisible testLocalMessageStaysLocalWithSavedComputerWork testLocalQwenContextAndMemoryControlsAreReachable testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testPublishedComputerImageRendersInlineAndOpensOriginal"
+              scenarios="testContinuity130ReserveAndMobileFallbackAreVisible testContinuity130EarlierResultOpensWithoutLosingLaterMessages testLocalMessageStaysLocalWithSavedComputerWork testLocalQwenContextAndMemoryControlsAreReachable testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testPublishedComputerImageRendersInlineAndOpensOriginal"
               ;;
             audit-drafts120)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/ProductJourneyPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AuditCompletionPlatformTests")

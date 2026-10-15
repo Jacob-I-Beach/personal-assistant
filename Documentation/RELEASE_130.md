@@ -5,8 +5,8 @@ Candidate under verification. This file is not an installation or live-model acc
 ## Added
 
 - PC-owned tasks continue through working sessions without the former 30-round/40-action stop. Transient model transport failures retry with backoff; cancellation and account/device authority are rechecked.
-- Pending questions, phone actions and exact computer reviews are durable dependencies. Independent tools can proceed; a late answer resumes the same job. The phone services native requests independently from its transcript subscription.
-- A 30% compaction reserve across context choices, source-linked checkpoints for phone models, and PC context archives with bounded retrieval and image inspection. Source edits invalidate phone checkpoints. The full conversation and operation receipts are retained.
+- Pending questions, phone actions and exact computer reviews are durable dependencies. Independent tools can proceed; a late answer resumes the same job. The phone services native requests independently from its transcript subscription. Later messages do not orphan older computer questions; completed older turns merge atomically without replacing newer messages.
+- A 30% compaction reserve across context choices, source-linked checkpoints for phone models, and PC context archives with bounded retrieval and image inspection. The PC prefers native OpenAI compaction when the existing connection accepts it, preserving the canonical output unchanged, and falls back to a factual checkpoint or exact saved evidence. Source edits invalidate phone checkpoints. The full conversation and operation receipts are retained.
 - Five discoverable task playbooks for research, documents/data, computer work, phone/planning and code/long work. Skills organize existing capabilities; they do not confer permissions.
 - Scoped computer file search and version-checked text patches. Desktop observations include monitor orientation, coordinate conversion and display-arrangement identity.
 
@@ -32,4 +32,4 @@ Candidate under verification. This file is not an installation or live-model acc
 
 ## Design reference
 
-OpenAI recommends compaction as retained task state, preserving source continuity across long work: [API deployment checklist](https://developers.openai.com/api/docs/guides/deployment-checklist#leverage-compaction). The current candidate's portable checkpoint path uses the existing authorized connection and does not assume that the ChatGPT-plan connection supports a separate compact endpoint. It is not a claim about Codex's hidden configuration.
+OpenAI recommends compaction as retained task state, preserving source continuity across long work: [API deployment checklist](https://developers.openai.com/api/docs/guides/deployment-checklist#leverage-compaction). The candidate uses the existing authorized account for native compaction when supported, and a portable checkpoint fallback otherwise. Endpoint acceptance by this particular ChatGPT-plan account is not established by synthetic protocol tests. It is not a claim about Codex's hidden configuration.

@@ -112,6 +112,7 @@ export interface ChatGPTClient {
   disconnect(): Promise<void>;
   streamResponse(options: StreamResponseOptions): Promise<{ text: string }>;
   streamTurn(options: StructuredResponseOptions): Promise<Record<string, unknown>>;
+  compactTurn(options: StructuredResponseOptions): Promise<Record<string, unknown>>;
 }
 
 export interface StoredCredentials {

@@ -92,6 +92,7 @@ public actor LocalStore {
         try database.transaction {
             try insertConversationRevision(revision)
             try Self.persist(revised, in: database)
+            try retireWork(in: original.id, sourceMessageIDs: Set(removed.map(\.id)), reason: "The source request was edited or removed.")
             if let project = invalidatedProject {
                 try database.execute("UPDATE project_workspaces SET payload=? WHERE id=?", [.blob(try Self.encode(project)), .text(project.id.uuidString)])
             }

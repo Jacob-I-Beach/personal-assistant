@@ -59,6 +59,12 @@ extension AppModel {
             record.status = "running"; record.jobID = UUID().uuidString.lowercased()
             try? await store.saveCompanionRun(record); try? await store.saveWorkTurn(work)
         }
+        if ProcessInfo.processInfo.arguments.contains("--ui-late-result") {
+            let reply = Message(role: .assistant, text: "The earlier report is now ready.", providerID: "companion:fixture")
+            conversation.messages = [Message(role: .user, text: "Prepare the earlier report"), reply]
+            for index in 1...65 { conversation.messages += [Message(role: .user, text: "Later question \(index)"), Message(role: .assistant, text: "Later answer \(index) stays saved.")] }
+            earlierComputerResult = (reply.id, "Prepare the earlier report")
+        }
         try? await store.save(conversation)
         draft = ""
     }

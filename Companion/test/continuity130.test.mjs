@@ -137,3 +137,18 @@ test('an archived image remains available as its exact pixels after context roll
   const result=workState.execute({id:'inspect',name:'inspect_context_image',arguments:{source_id:source.source_id,message_index:0,image_index:0}},job);
   assert.deepEqual(store.file(job.id,job.owner,result.output.files[0].id).data,bytes);
 });
+
+test('long replay coalesces text without crossing tool boundaries or dropping raw evidence',t=>{
+  const store=fixture(t),job=task(store);
+  for(let i=0;i<12000;i++)store.append(job.id,{type:'text_delta',text:'x',item_id:'answer',round:0,phase:'final_answer'});
+  store.append(job.id,{type:'activity',title:'Verified the calculation'});
+  for(let i=0;i<20;i++)store.append(job.id,{type:'text_delta',text:'y',item_id:'answer',round:0,phase:'final_answer'});
+  store.status(job.id,'completed','Ready');
+  let cursor=0,pages=0,text='',steps=0;
+  while(cursor<store.metadata(job.id,job.owner).cursor){
+    const events=store.replayEvents(job.id,job.owner,cursor);pages++;assert.ok(events.length<=200);
+    for(const event of events){assert.equal(event.seq,cursor+1);cursor=event.through_seq??event.seq;if(event.type==='text_delta')text+=event.text;if(event.type==='activity')steps++;}
+  }
+  assert.ok(pages<=3);assert.equal(text,'x'.repeat(12000)+'y'.repeat(20));assert.equal(steps,1);
+  assert.equal(store.events(job.id,job.owner,1)[0].text,'x','full raw events are still available');
+});

@@ -14,6 +14,7 @@ public struct TaskQuestion: Identifiable, Codable, Equatable, Sendable {
     public let createdAt: Date
     public var state: State = .pending
     public var answer: Message?
+    public var answerSourceMessageID: UUID?
     public init(conversationID: UUID, turnID: UUID, callID: String, title: String, detail: String, kind: Kind, choices: [String]) throws {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, title.count <= 240, detail.count <= 700,
               choices.count <= 5, choices.allSatisfy({ !$0.isEmpty && $0.count <= 120 }), Set(choices).count == choices.count else {
@@ -48,20 +49,36 @@ extension LocalStore {
         return try database.execute("SELECT payload FROM task_questions ORDER BY rowid DESC LIMIT 100").map { try Self.decode(TaskQuestion.self, $0[0].data!) }
             .filter { $0.state == .pending && eligible.contains($0.turnID) }
     }
-    public func answerQuestion(_ id: UUID, text: String, captureIDs: [UUID], skip: Bool) throws -> TaskQuestion {
+    public func answerQuestion(_ id: UUID, text: String, captureIDs: [UUID], skip: Bool, sourceMessageID: UUID? = nil) throws -> TaskQuestion {
         var value = try question(id)
-        guard value.state == .pending, let work = try workTurn(value.turnID), [.running, .interrupted].contains(work.phase),
-              try loadConversation(value.conversationID).messages.last(where: \.isRequest)?.id == work.userMessageID else {
+        let chat = try loadConversation(value.conversationID)
+        guard let work = try workTurn(value.turnID), [.running, .interrupted, .completed].contains(work.phase),
+              chat.messages.contains(where: { $0.isRequest && $0.id == work.userMessageID }),
+              work.backendID.hasPrefix("companion:") || (chat.messages.last(where: \.isRequest)?.id == work.userMessageID) else {
             throw AssistantError.invalidTool("This question belongs to an earlier or completed task.")
+        }
+        if value.state != .pending {
+            guard (skip && value.state == .skipped) || (!skip && value.state == .answered && value.answer?.text == text && value.answer?.captureIDs == captureIDs && value.answerSourceMessageID == sourceMessageID) else { throw AssistantError.invalidTool("This question already has a saved answer. Send a correction as a new message instead of replacing its receipt.") }
+            return value
+        }
+        guard work.phase != .completed else { throw AssistantError.invalidTool("This task already finished.") }
+        var derivedLocalOnly = false, derivedHealth = false
+        if let sourceMessageID {
+            let evidence = try message(sourceMessageID, in: value.conversationID)
+            guard evidence.role == .user, !skip, (!text.isEmpty && evidence.text.contains(text) || value.kind == .photo && text.isEmpty && !captureIDs.isEmpty),
+                  Set(captureIDs).isSubset(of: Set(evidence.captureIDs)) else { throw AssistantError.invalidTool("Use an exact answer from the current user message. A model cannot invent an answer or approve an action through this tool.") }
+            derivedLocalOnly = evidence.containsLocalOnlyContext; derivedHealth = evidence.containsHealthData
         }
         guard text.utf8.count <= 8000, captureIDs.count <= 1, skip || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !captureIDs.isEmpty else { throw AssistantError.invalidTool("Enter an answer, choose a photo, or skip the question.") }
         for id in captureIDs { _ = try loadCapture(id) }
-        let chat = try loadConversation(value.conversationID)
         let source = try message(work.userMessageID, in: value.conversationID)
-        var answer = Message(role: .user, text: skip ? "" : text, captureIDs: skip ? [] : captureIDs, containsHealthData: chat.containsHealthData, containsLocalOnlyContext: chat.networkDisabled || source.containsLocalOnlyContext)
+        var answer = Message(role: .user, text: skip ? "" : text, captureIDs: skip ? [] : captureIDs, containsHealthData: chat.containsHealthData || derivedHealth, containsLocalOnlyContext: chat.networkDisabled || source.containsLocalOnlyContext || derivedLocalOnly)
         answer.replyToTaskID = value.turnID
-        value.state = skip ? .skipped : .answered; value.answer = skip ? nil : answer
-        try database.execute("UPDATE task_questions SET payload=? WHERE id=?", [.blob(try Self.encode(value)), .text(id.uuidString)])
+        value.state = skip ? .skipped : .answered; value.answer = skip ? nil : answer; value.answerSourceMessageID = sourceMessageID
+        try database.transaction {
+            try database.execute("UPDATE task_questions SET payload=? WHERE id=?", [.blob(try Self.encode(value)), .text(id.uuidString)])
+            try classifyWork(value.turnID, localOnly: answer.containsLocalOnlyContext, health: answer.containsHealthData)
+        }
         return value
     }
 }

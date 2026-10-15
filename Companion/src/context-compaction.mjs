@@ -14,6 +14,20 @@ export async function compactTaskContext({job,checkpoint,body,windowBytes,workSt
   const source=workState.archive(job.id,checkpoint.input);
   onProgress?.('Organizing context · keeping the full task saved');
   let mode='saved_evidence',summary=null;
+  if(typeof provider.compactTurn==='function'&&!checkpoint.nativeCompactionUnavailable){
+    try{
+      const canonical=await provider.compactTurn({body:{model:body.model,input:checkpoint.input,instructions:body.instructions},signal});
+      if(Array.isArray(canonical.output)&&canonical.output.some(item=>item.type==='compaction'&&typeof item.encrypted_content==='string')){
+        const next=[...canonical.output,{role:'user',content:[{type:'input_text',text:'[Runtime task update]\nContinue the same saved task. Exact earlier context is available with read_task_context: '+JSON.stringify(source)+'. Pending reviews and actual operation receipts are in read_work_state; compaction grants no new authority.'}]}];
+        if(contextWeight(next)+contextWeight(body.instructions)+contextWeight(body.tools)<=working){
+          return {input:next,compacted:true,protectedStart:next.length,source,mode:'provider_native',summary:null,windowBytes,reserveBytes:compactionReserve(windowBytes),inputBytes:contextWeight(next)};
+        }
+      }
+    }catch(error){
+      if(signal.aborted)throw error;
+      if([400,401,403,404,422].includes(error.status)||error.code==='invalid_compaction')checkpoint.nativeCompactionUnavailable=true;
+    }
+  }
   try{
     // Reserve applies before the normal generation. The summary can use the
     // reserved headroom, but may never exceed the complete selected allowance.

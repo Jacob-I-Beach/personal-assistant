@@ -164,14 +164,15 @@ export async function startCompanion(options={}) {
       if(action==='cancel'&&request.method==='POST'){await jsonBody(request,4096);return jsonReply(response,200,publicJob(store.get(id,owner).payload.execution_only?toolSessions.cancel(id,owner):runner.cancel(id,owner)));}
       if(action==='events'&&request.method==='GET'){
         const after=Number(url.searchParams.get('after')??0),wait=Math.min(25000,Math.max(0,Number(url.searchParams.get('wait_ms'))||0));
-        let events=store.events(id,owner,after);
+        const readEvents=()=>url.searchParams.get('compact')==='1'?store.replayEvents(id,owner,after):store.events(id,owner,after);
+        let events=readEvents();
         if(!events.length&&!terminal.has(job.status)&&wait){
           await new Promise(resolveWait=>{
             let timer;const finish=()=>{clearTimeout(timer);runner.off('event',changed);response.off('close',finish);resolveWait();};
             const changed=jobId=>{if(jobId===id)finish();};
             runner.on('event',changed);response.once('close',finish);timer=setTimeout(finish,wait);
           });
-          events=store.events(id,owner,after);
+          events=readEvents();
         }
         if(!response.destroyed)return jsonReply(response,200,{job:publicJob(store.metadata(id,owner)),events});
         return;
@@ -246,7 +247,7 @@ export async function startCompanion(options={}) {
       if(url.pathname==='/api/pushward-disconnect')return jsonReply(response,200,await bridge.disconnect());
       if(url.pathname==='/api/task'){
         const entry=store.controlled(body.job_id);
-        return jsonReply(response,200,{job:publicJob(entry),events:store.events(entry.id,entry.owner,Number(body.after)||0),files:store.files(entry.id,entry.owner)});
+        return jsonReply(response,200,{job:publicJob(entry),events:body.compact===true?store.replayEvents(entry.id,entry.owner,Number(body.after)||0):store.events(entry.id,entry.owner,Number(body.after)||0),files:store.files(entry.id,entry.owner)});
       }
       if(url.pathname==='/api/file'){
         const job=store.controlled(body.job_id);

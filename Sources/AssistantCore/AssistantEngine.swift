@@ -100,7 +100,14 @@ public actor AssistantEngine {
         // durable. Otherwise waitUntilIdle can release a continuation while
         // this run's outer error handler is still modifying the same task.
         do {
-        var containsHealthData = containsHealthData
+        var taskConversation = original
+        if resuming, backend is any RemoteTaskBackend,
+           let saved = try await store.workTurn(turnID),
+           let start = original.messages.firstIndex(where: { $0.isRequest && $0.id == saved.userMessageID }) {
+            let end = original.messages.indices.dropFirst(start + 1).first(where: { original.messages[$0].isRequest }) ?? original.messages.count
+            taskConversation.messages = Array(original.messages.prefix(end))
+        }
+        var containsHealthData = resuming && backend is any RemoteTaskBackend ? taskConversation.containsHealthData : containsHealthData
         var references = try await store.validateContextReferences(contextReferences, conversationID: original.id, remote: backend.networkDestination != nil)
         for index in references.indices where [.calendar, .reminder].contains(references[index].kind) {
             if appContext?.planningSharedWithModel != true {
@@ -118,11 +125,11 @@ public actor AssistantEngine {
         }
         if let destination = backend.networkDestination {
             guard !original.networkDisabled, original.allowedNetworkDestinations.contains(destination) else { throw AssistantError.networkNotAuthorized }
-            if containsHealthData || original.containsHealthData {
+            if containsHealthData || taskConversation.containsHealthData {
                 guard original.allowedHealthDestinations.contains(destination) else { throw AssistantError.networkNotAuthorized }
             }
         }
-        var conversation = original
+        var conversation = taskConversation
         conversation.archivedAt = nil
         for id in captureIDs { _ = try await store.loadCapture(id) }
         guard imageSelections.allSatisfy({ key, points in
@@ -134,15 +141,16 @@ public actor AssistantEngine {
         if resuming {
             guard var saved = try await store.workTurn(turnID), saved.conversationID == conversation.id, saved.backendID == backend.id, saved.destination == backend.networkDestination,
                   saved.phase == .interrupted || saved.phase == .running,
-                  let last = conversation.messages.last(where: \.isRequest), last.id == saved.userMessageID,
+                  let last = conversation.messages.first(where: { $0.isRequest && $0.id == saved.userMessageID }),
+                  backend is any RemoteTaskBackend || conversation.messages.last(where: \.isRequest)?.id == saved.userMessageID,
                   backend.networkDestination == nil || !last.containsLocalOnlyContext else {
                 throw AssistantError.invalidTool("This reply cannot resume automatically. Open its chat and choose how to continue.")
             }
-            guard !automaticResume || saved.automaticResumeCount < 3 else {
+            guard backend is any RemoteTaskBackend || !automaticResume || saved.automaticResumeCount < 3 else {
                 throw AssistantError.invalidTool("Automatic recovery has paused. Use Continue reply to deliberately resume the saved task.")
             }
             guard backend is any RemoteTaskBackend || saved.permitsContextRetry(maximumTextBytes: backend.contextLimits.maximumTextBytes) else { throw AssistantError.contextCapacity }
-            saved.automaticResumes = automaticResume ? saved.automaticResumeCount + 1 : 0
+            saved.automaticResumes = automaticResume && !(backend is any RemoteTaskBackend) ? saved.automaticResumeCount + 1 : 0
             saved.phase = .running; saved.resumes += 1; saved.reason = nil; saved.interruptionKind = nil; saved.needsChangedRequest = false
             work = saved; user = last
         } else {
@@ -157,8 +165,8 @@ public actor AssistantEngine {
         var contextConfiguration = work.configuration.objectValue ?? [:]
         contextConfiguration["context_text_bytes"] = .number(Double(backend.contextLimits.maximumTextBytes))
         work.configuration = .object(contextConfiguration)
-        try await store.save(conversation)
-        if !resuming { try await store.supersedeWork(in: conversation.id, except: turnID) }
+        if !(resuming && backend is any RemoteTaskBackend) { try await store.save(conversation) }
+        if !resuming { try await store.supersedeWork(in: conversation.id, except: turnID, preservingComputerTasks: true) }
         try await store.saveWorkTurn(work)
         if resuming && !(backend is any RemoteTaskBackend) {
             let savedOperations = try await store.toolOperations(turnID)
@@ -202,7 +210,7 @@ public actor AssistantEngine {
                                     artifactLocalOnly: localOnlyContext, healthData: conversation.containsHealthData,
                                     fileIDs: Set(eligibleAttachments.flatMap(\.fileIDs)), workspaceEnabled: workspaceEnabled,
                                     compactCatalog: backend.networkDestination == nil || backend.contextLimits.workingTextBytes < 20_000, contextBudget: backend.contextLimits.workingTextBytes, automaticMemory: automaticMemory, operationScope: turnID,
-                                    additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor)
+                                    additionalDefinitions: additionalTools, additionalExecutor: additionalExecutor, networkDestination: backend.networkDestination)
         let turnStart = conversation.messages.firstIndex(where: { $0.id == user.id })!
         let turnInstructions = Self.turnInstructions(turnID: turnID, userID: user.id, resuming: resuming, automaticMemory: automaticMemory)
         if let remote = backend as? any RemoteTaskBackend {
@@ -420,32 +428,7 @@ public actor AssistantEngine {
         try await store.classifyWork(turnID, localOnly: message.containsLocalOnlyContext, health: message.containsHealthData)
     }
     private func commitComputerTranscript(_ messages: [Message], receipts: [ToolResult], prefix: [Message], conversationID: UUID, turnID: UUID, destination: String?) async throws {
-        var current = try await store.loadConversation(conversationID)
-        guard current.messages.last(where: \.isRequest)?.id == turnID,
-              messages.allSatisfy({ !$0.containsLocalOnlyContext && ($0.role != .user || $0.replyToTaskID == turnID) }) else { throw AssistantError.networkNotAuthorized }
-        for result in receipts {
-            try applyHealthAuthorization(result, destination: destination, conversation: &current)
-            // Validate photos/Health/answer provenance through the same boundary
-            // as a local turn before the remote projection becomes authoritative.
-            var check = current
-            try await appendUserResponse(result, turnID: turnID, destination: destination, conversation: &check)
-        }
-        // A computer tool can finish while the phone hands off. Replace its
-        // provisional local receipt instead of displaying the same call twice.
-        let transferredCalls = Set(messages.filter { $0.role == .tool }.compactMap(\.toolCallID))
-        let kept = prefix.compactMap { original -> Message? in
-            var message = original
-            if message.role == .tool, let id = message.toolCallID, transferredCalls.contains(id) { return nil }
-            if message.role == .assistant {
-                let priorCount = message.toolCalls.count
-                message.toolCalls.removeAll { transferredCalls.contains($0.id) }
-                if priorCount != message.toolCalls.count { message.continuation = nil }
-                if priorCount > 0 && message.toolCalls.isEmpty && message.text.isEmpty && message.captureIDs.isEmpty && message.fileIDs.isEmpty { return nil }
-            }
-            return message
-        }
-        current.messages = kept + messages
-        try await store.save(current)
+        try await store.commitCompanionTranscript(messages, receipts: receipts, prefix: prefix, conversationID: conversationID, turnID: turnID, destination: destination)
     }
     private func applyHealthAuthorization(_ result: ToolResult, destination: String?, conversation: inout Conversation) throws {
         if result.succeeded, let workspace = result.authorizedWorkspaceID { conversation.workspaceIDs.insert(workspace) }

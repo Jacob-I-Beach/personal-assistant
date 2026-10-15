@@ -118,7 +118,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
         while true {
             try Task.checkCancellation()
             let wait = record.status == "waiting_for_input" ? 1000 : 25000
-            let batch = try await observe(path + "/events?after=\(transcript.cursor)&wait_ms=\(wait)", output: output)
+            let batch = try await observe(path + "/events?after=\(transcript.cursor)&wait_ms=\(wait)&compact=1", output: output)
             let events = batch["events"]?.arrayValue ?? []
             var observedActivity: String?
             for event in events {

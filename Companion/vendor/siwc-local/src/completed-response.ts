@@ -9,7 +9,7 @@ export class CompletedResponse {
     const values = terminal.length ? terminal : [...this.items.entries()].sort((a,b)=>a[0]-b[0]).map(([,item])=>item);
     // Public text can be continued. An incomplete response NEVER authorizes a
     // function call, even if its partial JSON happens to parse.
-    return values.filter(isObject).filter(item=>item.type==='message').map(item=>({type:'message',role:'assistant',content:
+    return values.filter(isObject).filter(item=>item.type==='message').map(item=>({...(typeof item.id==='string'?{id:item.id}:{}),type:'message',role:'assistant',content:
       (Array.isArray(item.content)?item.content:[]).filter(isObject).filter(part=>part.type==='output_text'&&typeof part.text==='string').map(part=>({type:'output_text',text:part.text}))})).filter(item=>item.content.length>0);
   }
   accept(event: Record<string, unknown>): Record<string, unknown> | undefined {

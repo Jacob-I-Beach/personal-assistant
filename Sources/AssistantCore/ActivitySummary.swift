@@ -139,6 +139,8 @@ public enum ActivitySummaries {
         case "prepare_route", "read_route", "open_in_maps": return "Prepared directions"
         case "get_current_location": return "Read your approved location"
         case "request_input": return output["status"] == .string("skipped") ? "Question skipped" : "Received your answer"
+        case "list_task_questions": return "Checked pending questions"
+        case "answer_task_question": return output["status"] == .string("answer_delivered") ? "Passed along your answer" : "Saved your answer"
         case "list_planning_sources", "read_schedule", "find_available_time": return "Checked your schedule"
         case "read_reminders": return "Checked your reminders"
         case "save_calendar_event": return "Saved the reviewed event"

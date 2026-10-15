@@ -58,6 +58,63 @@ public struct CompanionReplayGate: Sendable {
     }
 }
 extension LocalStore {
+    /// Merge one owned turn atomically on the store actor. Later requests and
+    /// other turns' results must survive a delayed computer projection.
+    public func commitCompanionTranscript(_ messages: [Message], receipts: [ToolResult], prefix: [Message], conversationID: UUID, turnID: UUID, destination: String?) throws {
+        try Task.checkCancellation()
+        try database.transaction {
+        if let run = try companionRun(turnID), run.stopRequested { throw CancellationError() }
+        var current = try loadConversation(conversationID, preservingStreaming: true)
+        guard let work = try workTurn(turnID), [.running, .interrupted].contains(work.phase),
+              let start = current.messages.firstIndex(where: { $0.isRequest && $0.id == work.userMessageID }),
+              let prefixStart = prefix.firstIndex(where: { $0.id == work.userMessageID }),
+              messages.allSatisfy({ !$0.containsLocalOnlyContext && ($0.role != .user || $0.replyToTaskID == turnID) }),
+              !current.networkDisabled, destination == nil || current.allowedNetworkDestinations.contains(destination!) else { throw AssistantError.networkNotAuthorized }
+        for result in receipts {
+            if result.succeeded, let workspace = result.authorizedWorkspaceID { current.workspaceIDs.insert(workspace) }
+            if result.containsHealthData == true, let destination {
+                guard current.allowedHealthDestinations.contains(destination) || result.authorizedHealthDestination == destination else { throw AssistantError.networkNotAuthorized }
+                current.allowedHealthDestinations.insert(destination)
+            }
+            if let response = result.userResponse {
+                guard result.succeeded, response.role == .user, response.replyToTaskID == turnID, !response.containsLocalOnlyContext,
+                      !response.containsHealthData || destination == nil || current.allowedHealthDestinations.contains(destination!) else { throw AssistantError.networkNotAuthorized }
+                for id in response.captureIDs { _ = try loadCapture(id) }
+            }
+            if let call = messages.flatMap(\.toolCalls).first(where: { $0.id == result.callID }) {
+                let existing = try recordedToolOperation(turnID, callID: result.callID)
+                let effective: ToolCall
+                if let existing { effective = existing.call }
+                else if call.name == "use_tool", let name = call.arguments["name"]?.stringValue {
+                    effective = ToolCall(id: call.id, name: name, arguments: try CompactToolInvocation.values(from: call.arguments))
+                } else { effective = call }
+                var normalized = result; normalized.name = effective.name
+                if let prior = existing?.result {
+                    guard prior.succeeded == normalized.succeeded, prior.output == normalized.output else { throw AssistantError.invalidTool("The computer receipt conflicts with the saved device outcome. Inspect the task before trying again.") }
+                } else {
+                    if existing == nil { _ = try beginToolOperation(effective, conversationID: conversationID, turnID: turnID, localOnly: result.containsLocalOnlyContext == true, health: result.containsHealthData == true) }
+                    try finishToolOperation(effective, turnID: turnID, result: normalized)
+                }
+                try classifyWork(turnID, localOnly: result.containsLocalOnlyContext == true, health: result.containsHealthData == true)
+            }
+        }
+        let transferred = Set(messages.filter { $0.role == .tool }.compactMap(\.toolCallID))
+        let kept = prefix.dropFirst(prefixStart + 1).compactMap { original -> Message? in
+            var value = original
+            if value.role == .tool, let id = value.toolCallID, transferred.contains(id) { return nil }
+            if value.role == .assistant {
+                let count = value.toolCalls.count; value.toolCalls.removeAll { transferred.contains($0.id) }
+                if count != value.toolCalls.count { value.continuation = nil }
+                if count > 0 && value.toolCalls.isEmpty && value.text.isEmpty && value.captureIDs.isEmpty && value.fileIDs.isEmpty { return nil }
+            }
+            return value
+        }
+        let end = current.messages.indices.dropFirst(start + 1).first(where: { current.messages[$0].isRequest }) ?? current.messages.count
+        current.messages.replaceSubrange((start + 1)..<end, with: kept + messages)
+        current.updatedAt = Date()
+        try Self.persist(current, in: database)
+        }
+    }
     public func computerToolWorkspace(_ turnID: UUID) throws -> [String: String]? {
         try database.execute("CREATE TABLE IF NOT EXISTS computer_tool_workspaces(id TEXT PRIMARY KEY,payload BLOB NOT NULL)")
         guard let data = try database.execute("SELECT payload FROM computer_tool_workspaces WHERE id=?", [.text(turnID.uuidString)]).first?[0].data else { return nil }
@@ -128,9 +185,13 @@ public struct CompanionTranscript: Sendable {
         guard let value = event["seq"]?.numberValue, let sequence = Int(exactly: value), sequence > cursor else { return nil }
         guard sequence <= 0x3fff_ffff_ffff else { throw AssistantError.invalidTool("The computer progress cursor is outside the supported range.") }
         guard sequence == cursor + 1 else { throw AssistantError.provider("Some computer progress is missing. Reconnect to recover the saved sequence.") }
+        let through = event["through_seq"]?.numberValue.flatMap(Int.init(exactly:)) ?? sequence
+        guard event["through_seq"] == nil || event["through_seq"]?.numberValue.flatMap(Int.init(exactly:)) != nil else { throw AssistantError.provider("The computer returned an invalid replay cursor.") }
+        guard through >= sequence, through <= 0x3fff_ffff_ffff,
+              through == sequence || event["type"] == .string("text_delta") else { throw AssistantError.provider("The computer returned an invalid replay range.") }
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = event["recordedAt"]?.stringValue.flatMap { formatter.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) } ?? Date()
-        defer { cursor = sequence }
+        defer { cursor = through }
         switch event["type"]?.stringValue {
         case "response_begin":
             // Only the current, uncommitted response can be replaced after retry.

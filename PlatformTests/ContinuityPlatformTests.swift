@@ -47,4 +47,21 @@ import XCTest
         XCTAssertEqual(AppleModelBackend(location: .device).contextLimits.compactionReserveBytes, 3000)
         XCTAssertTrue(AppleModelBackend(location: .device).supportsContextCheckpoints)
     }
+    func testLocalAnswerToolStoresExactSourceWithoutStartingComputerWork() async throws {
+        let model = AppModel(); try await model.waitUntilReady(); let store = try XCTUnwrap(model.store)
+        let earlier = UUID(), current = UUID()
+        var chat = Conversation(); chat.messages = [Message(id: earlier, role: .user, text: "Prepare a report"), Message(id: current, role: .user, text: "Use Blue")]
+        try await store.save(chat)
+        try await store.saveWorkTurn(WorkTurn(id: earlier, conversationID: chat.id, userMessageID: earlier, backendID: "companion:fixture", goal: "Report"))
+        try await store.saveWorkTurn(WorkTurn(id: current, conversationID: chat.id, userMessageID: current, backendID: "apple:on-device", goal: "Use Blue"))
+        let question = try await store.saveQuestion(TaskQuestion(conversationID: chat.id, turnID: earlier, callID: "q", title: "Which label?", detail: "Only the label is pending", kind: .choice, choices: ["Blue"]))
+        let chatID = chat.id
+        let broker = AssistantTools(store: store, conversationID: chatID, captureIDs: [], sandbox: JavaScriptSandbox(), operationScope: current, additionalDefinitions: QuestionTools.definitions,
+            additionalExecutor: { call in try await model.executeQuestionAnswerTool(call, conversationID: chatID, destination: nil) })
+        let result = try await broker.execute(ToolCall(id: "answer", name: "answer_task_question", arguments: .object(["question_id": .string(question.id.uuidString), "answer_quote": .string("Blue")])))
+        XCTAssertTrue(result.succeeded); XCTAssertEqual(result.output["status"], .string("answer_saved"))
+        let saved = try await store.question(question.id); XCTAssertEqual(saved.answerSourceMessageID, current)
+        XCTAssertNil(AppModel.questionResult(saved, callID: "q", name: "request_input").userResponse, "The existing user message must not be duplicated in an older turn")
+        XCTAssertFalse(model.isRunning); XCTAssertNil(model.nativeAction)
+    }
 }

@@ -15,15 +15,15 @@ extension AppModel {
               let client = try? CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount)),
               let pending = try? await store.pendingCompanionStops(connectionID: connection.destination) else { return }
         for (turn, job) in (try? await store.pendingComputerToolStops(destination: connection.destination)) ?? [] {
-            do { _ = try await client.json("/v1/jobs/" + job + "/cancel", method: "POST", body: .object([:])); try await store.markComputerToolStop(turn, delivered: true) }
+            do { _ = try await client.json("/v1/jobs/" + job + "/cancel", method: "POST", body: .object([:]), timeout: 4); try await store.markComputerToolStop(turn, delivered: true) }
             catch { noticeMessage = "Stop is saved and will reach your computer when it reconnects." }
         }
         for var record in pending {
             do {
-                let result = try await client.json("/v1/cancel-request", method: "POST", body: .object(["request_key": record.payload["request_key"] ?? .string(record.turnID.uuidString)]))
+                let result = try await client.json("/v1/cancel-request", method: "POST", body: .object(["request_key": record.payload["request_key"] ?? .string(record.turnID.uuidString)]), timeout: 4)
                 record.status = result["status"]?.stringValue ?? record.status
                 try await store.saveCompanionRun(record)
-            } catch { return }
+            } catch { noticeMessage = "Stop is saved on this iPhone. The computer may keep working until that request reconnects."; return }
         }
     }
     func executeScheduleTool(_ call: ToolCall) async throws -> ToolResult {
