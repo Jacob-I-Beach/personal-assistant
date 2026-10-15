@@ -12,6 +12,7 @@ on:
         type: choice
         default: testToolExpansionAndLatestButtonPreserveIntentionalPosition
         options:
+          - testReplyBudget131LargestSelectionShowsNormalReplyCapacity
           - testProduct117AttachmentsPreviewCancelAndAddPreserveDraft
           - testProduct117DictationDoesNotCancelAnActiveResponse
           - audit120-reading
