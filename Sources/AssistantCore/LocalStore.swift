@@ -135,15 +135,25 @@ public actor LocalStore {
         if let conversationID { parameters.append(.text(conversationID.uuidString)) }
         if let folderID { parameters.append(.text(folderID.uuidString)) }
         parameters.append(.integer(Int64(min(max(limit, 1), 30))))
-        return try database.execute("""
+        let sql = """
             SELECT m.id, m.conversation_id, COALESCE(json_extract(CAST(c.payload AS TEXT),'$.modelTitleOverride'),c.title), snippet(message_search, 0, '', '', ' … ', 36), m.payload
             FROM message_search JOIN messages m ON m.rowid = message_search.rowid
             JOIN conversations c ON c.id = m.conversation_id
             WHERE message_search MATCH ? AND json_extract(CAST(m.payload AS TEXT),'$.role') IN ('user','assistant') \(scope) ORDER BY rank LIMIT ?
-            """, parameters).map { row in
+            """
+        var rows = try database.execute(sql, parameters)
+        var related = false
+        if rows.isEmpty {
+            let expanded = RetrievalTerms.terms(query).sorted().prefix(24).map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"*" }
+            if !expanded.isEmpty {
+                parameters[0] = .text(expanded.joined(separator: " OR "))
+                rows = try database.execute(sql, parameters); related = !rows.isEmpty
+            }
+        }
+        return try rows.map { row in
                 let message = try Self.decode(Message.self, row[4].data!)
                 return HistoryMatch(id: UUID(uuidString: row[0].text!)!, conversationID: UUID(uuidString: row[1].text!)!,
-                                    title: row[2].text!, excerpt: row[3].text!, role: message.role, createdAt: message.createdAt, sourceFingerprint: HistoryLanding.fingerprint(message.text))
+                                    title: row[2].text!, excerpt: row[3].text!, role: message.role, createdAt: message.createdAt, sourceFingerprint: HistoryLanding.fingerprint(message.text), relatedWords: related)
             }
     }
     public func message(_ id: UUID, in conversationID: UUID) throws -> Message {

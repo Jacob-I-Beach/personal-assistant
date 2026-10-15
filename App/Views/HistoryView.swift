@@ -73,6 +73,7 @@ struct HistoryView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(match.title).font(.subheadline.weight(.medium)).lineLimit(2)
+                                    if match.relatedWords == true { Text("Related words · inspect the source").font(.caption2).foregroundStyle(.secondary) }
                                     Text(MarkdownContent(match.excerpt).renderPlainText()).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                                 }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                             }.id(match.id).accessibilityIdentifier("history-match-" + match.id.uuidString)

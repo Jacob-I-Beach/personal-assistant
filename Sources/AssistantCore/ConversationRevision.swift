@@ -52,6 +52,7 @@ extension LocalStore {
         restored.excludedSurfaceIDs.formUnion(current.excludedSurfaceIDs)
         restored.excludedFileIDs.formUnion(current.excludedFileIDs)
         restored.invalidatedProjectRevisions.merge(current.invalidatedProjectRevisions, uniquingKeysWith: max)
+        for index in restored.messages.indices { restored.messages[index].continuation = nil }
         restored.recoverInterruptedMessages()
         restored.updatedAt = Date()
         let removed = Set(current.messages.map(\.id)).subtracting(restored.messages.map(\.id))

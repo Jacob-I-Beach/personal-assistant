@@ -38,6 +38,14 @@ extension AppModel {
                 chat.messages = [Message(role: .user, text: "Prepare an estimate"), Message(role: .assistant, text: "Adjust the estimate below.", toolCalls: [call]), Message(role: .tool, text: try JSONValue.object(["surface_id": .string(surface.id.uuidString)]).jsonString(), toolCallID: call.id)]
                 try await store.save(chat)
             }
+            if ProcessInfo.processInfo.arguments.contains("--ui-product117-charts") {
+                let call = ToolCall(id: "chart-fixture", name: "present_surface", arguments: .object([:]))
+                let spec = try JSONValue.parse(#"{"kind":"chart","title":"Two series","style":"line","data":[{"label":"Shared","series":"First","value":10},{"label":"Shared","series":"Second","value":20},{"label":"Later","series":"First","value":12},{"label":"Later","series":"Second","value":24}]}"#)
+                let surface = try WorkSurface(conversationID: chat.id, sourceCallID: call.id, spec: spec, localOnly: false, health: false)
+                try await store.saveSurface(surface)
+                chat.messages = [Message(role: .user, text: "Compare these values"), Message(role: .assistant, text: "Inspect either category.", toolCalls: [call]), Message(role: .tool, text: try JSONValue.object(["surface_id": .string(surface.id.uuidString)]).jsonString(), toolCallID: call.id)]
+                try await store.save(chat)
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-product117-branches"), try await store.conversationRevisions(chat.id).isEmpty {
                 chat.messages = [Message(role: .user, text: "Original branch request"), Message(role: .assistant, text: "Original branch answer")]
                 try await store.save(chat)

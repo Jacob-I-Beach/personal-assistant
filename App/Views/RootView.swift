@@ -19,7 +19,7 @@ struct RootView: View {
     private var showTaskActivity: Bool { get { model.rootPresentation == .task } nonmutating set { if newValue { model.present(.task) } else { model.dismissPresentation(.task) } } }
     private var showActivityPreview: Bool { get { model.rootPresentation == .activityPreview } nonmutating set { if newValue { model.present(.activityPreview) } else { model.dismissPresentation(.activityPreview) } } }
     @State private var awaitingRootDismissal = false
-    var body: some View {
+    private var chatShell: some View {
         NavigationStack {
             ChatView().environmentObject(voice)
                 .navigationDestination(item: $chatNavigation.destination) { destination in
@@ -110,32 +110,23 @@ struct RootView: View {
             }
         }
         .tint(Color.primary)
+    }
+    var body: some View {
+        chatShell
         .sheet(item: Binding(get: { model.rootPresentation }, set: { model.rootPresentation = $0 }), onDismiss: {
             model.didDismissPresentation(); presentationDidDismiss()
         }) { route in rootSheet(route) }
         .onAppear { chatNavigation.model = model }
         .onOpenURL { url in
             guard let link = AssistantTaskLink(url) else { return }
-            showHistory = false; showSettings = false; showTaskActivity = false; model.showModels = false
+            showHistory = false; if model.rootPresentation?.isReview != true { model.rootPresentation = nil }
             Task { await model.openAssistantLink(link) }
         }
         .onChange(of: model.nativeAction?.id) { old, new in
             if let new { model.present(.review(new)) }
             else if let old { model.dismissPresentation(.review(old)) }
         }
-        .confirmationDialog("Add context to your draft?", isPresented: Binding(get: { model.pendingContextualDraft != nil }, set: { if !$0 { model.pendingContextualDraft = nil } }), presenting: model.pendingContextualDraft) { proposal in
-            Button("Add context and keep my draft") { model.acceptContextualDraft(proposal) }
-            Button("Cancel", role: .cancel) { model.pendingContextualDraft = nil }
-        } message: { proposal in Text("Add “\(proposal.reference.title)” as selected context. Your current text and attachments stay, and nothing is sent until you choose Send.") }
-        .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-            Button("OK") { model.errorMessage = nil }
-        } message: { Text(model.errorMessage ?? "") }
-        .confirmationDialog("Use \(model.modelTitle) for this conversation?", isPresented: $model.needsNetworkConsent, titleVisibility: .visible) {
-            Button("Allow for this conversation") { model.approveNetworkConversation() }
-            Button("Keep on this device", role: .cancel) { model.declineNetworkConversation() }
-        } message: {
-            Text((model.draftContainsHealthData || model.conversation.containsHealthData ? "This conversation includes a selected Health summary. Sharing it sends that Health-derived information to the selected service for this wellness discussion. " : "") + "Relevant conversation text, selected images and files, and requested tool results will be sent to \(model.modelLocation). Workspace search, when enabled in Settings, can include permitted other chats and Library files. You can revoke this conversation's permission in Settings.")
-        }
+        .modifier(AssistantRootDialogs())
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.becameActive() }
             else if phase == .background { model.enteredBackground() }
@@ -492,5 +483,26 @@ struct CaptureThumbnail: View {
     var body: some View {
         Group { if let image { Image(uiImage: image).resizable().scaledToFill() } else { Image(systemName: "photo").frame(maxWidth: .infinity, maxHeight: .infinity).background(.quaternary) } }
             .clipped().task(id: id) { image = await model.image(id) }.accessibilityLabel("Attached image")
+    }
+}
+
+private struct AssistantRootDialogs: ViewModifier {
+    @EnvironmentObject private var model: AppModel
+    private var consentExplanation: String { (model.draftContainsHealthData || model.conversation.containsHealthData ? "This conversation includes a selected Health summary. Sharing it sends that Health-derived information to the selected service for this wellness discussion. " : "") + "Relevant conversation text, selected images and files, and requested tool results will be sent to \(model.modelLocation). Workspace search, when enabled in Settings, can include permitted other chats and Library files. You can revoke this conversation's permission in Settings." }
+    func body(content: Content) -> some View {
+        content
+        .confirmationDialog("Add context to your draft?", isPresented: Binding(get: { model.pendingContextualDraft != nil }, set: { if !$0 { model.pendingContextualDraft = nil } }), presenting: model.pendingContextualDraft) { proposal in
+            Button("Add context and keep my draft") { model.acceptContextualDraft(proposal) }
+            Button("Cancel", role: .cancel) { model.pendingContextualDraft = nil }
+        } message: { proposal in Text("Add “\(proposal.reference.title)” as selected context. Your current text and attachments stay, and nothing is sent until you choose Send.") }
+        .alert("Could not finish", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+            Button("OK") { model.errorMessage = nil }
+        } message: { Text(model.errorMessage ?? "") }
+        .confirmationDialog("Use \(model.modelTitle) for this conversation?", isPresented: $model.needsNetworkConsent, titleVisibility: .visible) {
+            Button("Allow for this conversation") { model.approveNetworkConversation() }
+            Button("Keep on this device", role: .cancel) { model.declineNetworkConversation() }
+        } message: {
+            Text(consentExplanation)
+        }
     }
 }

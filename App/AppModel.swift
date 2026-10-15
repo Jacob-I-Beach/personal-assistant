@@ -1029,7 +1029,7 @@ final class AppModel: ObservableObject {
         guard !isConnecting, !isManagingAccount, !isRunning else { return }
         if accountService == nil {
             do { accountService = try ChatGPTAccountService() }
-            catch { errorMessage = error.localizedDescription; return }
+            catch { localRecovery = LocalRecovery(conversationID: nil, category: .connection, title: "ChatGPT connection needs attention", detail: error.localizedDescription, retained: "Your account records, pairing, saved chats and unsent draft are kept."); return }
         }
         guard let accountService else { return }
         isConnecting = true
@@ -1042,7 +1042,7 @@ final class AppModel: ObservableObject {
                 if !isRunning, let first = chatGPTModels.first { chooseChatGPTModel(first) }
                 noticeMessage = "ChatGPT is connected. Requests here use your ChatGPT plan and its app usage settings."
             } catch {
-                if !(error is CancellationError) { errorMessage = error.localizedDescription }
+                if !(error is CancellationError) { localRecovery = LocalRecovery(conversationID: nil, category: .connection, title: "ChatGPT connection needs attention", detail: error.localizedDescription, retained: "Your account records, pairing, saved chats and unsent draft are kept.") }
                 accounts = await accountService.summaries()
             }
         }

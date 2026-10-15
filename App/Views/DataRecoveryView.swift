@@ -26,8 +26,8 @@ struct DataRecoveryView: View {
                 Text("These records are kept by this app. Connecting a computer does not create an independent backup of the whole phone library.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Export your work") {
-                Toggle("Include on-device-only work and drafts", isOn: $includePrivate)
-                Toggle("Include Health-derived work", isOn: $includeHealth)
+                Toggle("Include on-device-only work and drafts", isOn: $includePrivate).disabled(busy)
+                Toggle("Include Health-derived work", isOn: $includeHealth).disabled(busy)
                 Text("The archive contains readable personal data. Choose where to save it. Account credentials, pairing keys, model weights and pending actions are excluded. Connected-folder originals remain in their own folders.").font(.caption).foregroundStyle(.secondary)
                 Button("Create archive", systemImage: "square.and.arrow.up") { Task { await export() } }.disabled(busy || model.isRunning)
                 if let lastExport { Text("Last exported: " + lastExport).font(.caption).foregroundStyle(.secondary) }
@@ -87,7 +87,7 @@ struct DataRecoveryView: View {
         let access = url.startAccessingSecurityScopedResource(); defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             let copied = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".paarchive")
-            try FileManager.default.copyItem(at: url, to: copied)
+            try await Task.detached { try FileManager.default.copyItem(at: url, to: copied) }.value
             inspected = try await Task.detached { try PersonalArchive.inspect(copied) }.value
             selectedURL = copied; staged = nil
         } catch { self.error = error.localizedDescription }
@@ -96,7 +96,7 @@ struct DataRecoveryView: View {
         guard let selectedURL, !busy, !model.isRunning else { return }; busy = true; error = nil; defer { busy = false }
         do {
             let parent = try PrivatePaths.root().appendingPathComponent("restored-libraries")
-            staged = try await PersonalArchive.stageRestore(selectedURL, in: parent)
+            staged = try await Task.detached { try await PersonalArchive.stageRestore(selectedURL, in: parent) }.value
         } catch { self.error = error.localizedDescription }
     }
 }

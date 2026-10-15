@@ -17,6 +17,7 @@ public struct PresentationState: Equatable, Sendable {
         guard route != active else { return }
         if active == nil && dismissing == nil { active = route; return }
         if pending?.isReview != true { pending = route }
+        if route.isReview && active != nil { return }
         if active?.isReview != true { beginDismissal() }
     }
     public mutating func beginDismissal() { if let active { dismissing = active; self.active = nil } }

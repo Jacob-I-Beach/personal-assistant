@@ -241,7 +241,7 @@ jobs:
               ;;
             audit-interactions120)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/LocalModelPlatformTests" "-only-testing:PersonalAssistantPlatformTests/AppleToolSchemaPlatformTests")
-              scenarios="testProduct117AttachmentsPreviewCancelAndAddPreserveDraft testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly testProduct117DictationDoesNotCancelAnActiveResponse testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testAudit120InboxFiltersAndRemovedNoteRecovery"
+              scenarios="testProduct117AttachmentsPreviewCancelAndAddPreserveDraft testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly testProduct117DictationDoesNotCancelAnActiveResponse testAttachmentPreviewWorkingSurfacesAndActualMessageEdit testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable testAudit120InboxFiltersAndRemovedNoteRecovery testAudit120ChartCategoryShowsEverySeriesAndDataTable"
               ;;
             product-drafts117)
               test_options+=("-only-testing:PersonalAssistantPlatformTests/ProductJourneyPlatformTests" "-only-testing:PersonalAssistantPlatformTests/NativeReviewPlatformTests")

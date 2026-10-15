@@ -103,6 +103,7 @@ private struct ProjectDetailView: View {
             Section { Text("Updated \(project.updatedAt.formatted(date: .abbreviated, time: .shortened)) · Revision \(project.revision)").font(.caption).foregroundStyle(.secondary) }
             if let failure { Text(failure).foregroundStyle(.secondary) }
         }.navigationTitle(project.title).navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(editing).navigationBarBackButtonHidden(editing)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button(editing ? "Save" : "Edit") {
                     if !editing { original = project; decisions = project.decisions.joined(separator: "\n"); questions = project.questions.joined(separator: "\n"); editing = true }

@@ -43,7 +43,28 @@ struct AssistantInboxView: View {
                         Picker("Show notes", selection: $filter) { ForEach(["Unhandled", "Filed", "All"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented)
                         if visible.isEmpty { Text("No notes match this view.").foregroundStyle(.secondary) }
                         ForEach(visible) { entry in
-                            VStack(alignment: .leading, spacing: 8) {
+                            entryRow(entry)
+                        }.onDelete { indices in
+                            let ids = indices.map { visible[$0].id }
+                            Task { do { for id in ids { try await model.store?.removeInboxEntry(id) }; await model.refresh(); removed = try await model.store?.deletedInboxEntries() ?? []; notice = "Note removed. Restore it from Recently removed." } catch { notice = error.localizedDescription } }
+                        }
+                    }
+                }
+                if !removed.isEmpty { Section { DisclosureGroup("Recently removed") {
+                    ForEach(removed) { entry in HStack { Text(entry.text).lineLimit(2); Spacer(); Button("Restore") { Task { do { try await model.store?.restoreInboxEntry(entry.id); await model.refresh(); removed = try await model.store?.deletedInboxEntries() ?? [] } catch { notice = error.localizedDescription } } }.frame(minHeight: 44) } }
+                } } }
+            }.searchable(text: $query, prompt: "Find a saved thought")
+                .task { removed = (try? await model.store?.deletedInboxEntries()) ?? []; projects = (try? await model.store?.projectWorkspaces()) ?? [] }
+                .scrollDismissesKeyboard(.interactively).navigationTitle("Assistant inbox")
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+    private func move(_ entry: InboxEntry, to id: UUID?) async {
+        do { try await model.store?.moveInboxEntry(entry.id, to: id); await model.refresh(); notice = "Note moved. Nothing was sent to a model." }
+        catch { notice = error.localizedDescription }
+    }
+    private func entryRow(_ entry: InboxEntry) -> some View {
+VStack(alignment: .leading, spacing: 8) {
                                 Text(entry.text).font(.subheadline).textSelection(.enabled)
                                 Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption2).foregroundStyle(.secondary)
                                 Menu("Move note") {
@@ -70,19 +91,6 @@ struct AssistantInboxView: View {
                                     if entry.handledAt == nil { Button("Mark handled") { Task { await model.finishInboxEntry(entry) } } }
                                 }.font(.caption).buttonStyle(.borderless)
                             }.padding(.vertical, 6)
-                        }.onDelete { indices in
-                            let ids = indices.map { visible[$0].id }
-                            Task { do { for id in ids { try await model.store?.removeInboxEntry(id) }; await model.refresh(); removed = try await model.store?.deletedInboxEntries() ?? []; notice = "Note removed. Restore it from Recently removed." } catch { notice = error.localizedDescription } }
-                        }
-                    }
-                }
-                if !removed.isEmpty { Section { DisclosureGroup("Recently removed") {
-                    ForEach(removed) { entry in HStack { Text(entry.text).lineLimit(2); Spacer(); Button("Restore") { Task { do { try await model.store?.restoreInboxEntry(entry.id); await model.refresh(); removed = try await model.store?.deletedInboxEntries() ?? [] } catch { notice = error.localizedDescription } } }.frame(minHeight: 44) } }
-                } } }
-            }.searchable(text: $query, prompt: "Find a saved thought")
-                .task { removed = (try? await model.store?.deletedInboxEntries()) ?? []; projects = (try? await model.store?.projectWorkspaces()) ?? [] }
-                .scrollDismissesKeyboard(.interactively).navigationTitle("Assistant inbox")
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }
     }
+
 }

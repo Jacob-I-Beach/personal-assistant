@@ -103,6 +103,12 @@ public enum PersonalArchive {
         // duplicate overwrite, credential import or automatic task resumption.
         let target = parent.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        #if os(iOS) || os(macOS)
+        var protected = target; var resources = URLResourceValues(); resources.isExcludedFromBackup = true; try protected.setResourceValues(resources)
+        #endif
+        #if os(iOS)
+        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: target.path)
+        #endif
         let store = try LocalStore(root: target)
         try await store.restoreArchiveRecords(checked.manifest)
         let second = try read(url) { entry, bytes in
@@ -149,10 +155,14 @@ public enum PersonalArchive {
 extension LocalStore {
     public func exportPersonalArchive(to url: URL, includePrivate: Bool = false, includeHealth: Bool = false) throws -> ArchiveInspection {
         let allChats = try conversations()
-        let chats = allChats.filter { (includeHealth || !$0.containsHealthData) && (includePrivate || (!$0.networkDisabled && !$0.messages.contains(where: \.containsLocalOnlyContext))) }
+        let allArtifacts = try artifacts(), allFiles = try workspaceFiles(), allProjects = try projectWorkspaces()
+        let protectedOwners = Set(allArtifacts.filter { (!includePrivate && $0.containsLocalOnlyContext) || (!includeHealth && $0.containsHealthData) }.map(\.conversationID))
+            .union(allFiles.filter { (!includePrivate && !$0.allowsConnectedModels) || (!includeHealth && $0.containsHealthData) }.compactMap(\.conversationID))
+            .union(allProjects.filter { (!includePrivate && $0.containsLocalOnlyContext) || (!includeHealth && $0.containsHealthData) }.map(\.sourceConversationID))
+        let chats = allChats.filter { !protectedOwners.contains($0.id) && (includeHealth || !$0.containsHealthData) && (includePrivate || (!$0.networkDisabled && !$0.messages.contains(where: \.containsLocalOnlyContext))) }
         let chatIDs = Set(chats.map(\.id))
-        let documents = try artifacts().filter { chatIDs.contains($0.conversationID) && (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) }
-        let originals = try workspaceFiles().filter { ($0.conversationID == nil || chatIDs.contains($0.conversationID!)) && (includePrivate || $0.allowsConnectedModels) && (includeHealth || !$0.containsHealthData) }
+        let documents = allArtifacts.filter { chatIDs.contains($0.conversationID) && (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) }
+        let originals = allFiles.filter { ($0.conversationID == nil || chatIDs.contains($0.conversationID!)) && (includePrivate || $0.allowsConnectedModels) && (includeHealth || !$0.containsHealthData) }
         let notes = try inboxEntries().filter { ($0.conversationID == nil || chatIDs.contains($0.conversationID!)) && (includePrivate || !$0.containsLocalOnlyContext) }
         var documentHistory: [ArtifactRecord] = [], revisions: [ConversationRevision] = [], views: [WorkSurface] = []
         for document in documents { documentHistory += try artifactHistory(document.id).filter { (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) } }
@@ -163,22 +173,27 @@ extension LocalStore {
             views += try surfaces(conversationID: chat.id).filter { (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) }
         }
         let wantedCaptures = Set(chats.flatMap { $0.messages.flatMap(\.captureIDs) } + notes.flatMap(\.captureIDs) + revisions.flatMap { $0.conversation.messages.flatMap(\.captureIDs) })
-        let excludedCaptures = Set(allChats.filter { !chatIDs.contains($0.id) }.flatMap { $0.messages.flatMap(\.captureIDs) })
-        let photos = try captures().filter { !excludedCaptures.contains($0.id) && (includePrivate || wantedCaptures.contains($0.id)) }
+        var excludedCaptures = Set(allChats.filter { !chatIDs.contains($0.id) }.flatMap { $0.messages.flatMap(\.captureIDs) })
+        for chat in allChats {
+            for revision in try conversationRevisions(chat.id) where (!includeHealth && revision.conversation.containsHealthData) || (!includePrivate && (revision.conversation.networkDisabled || revision.conversation.messages.contains(where: \.containsLocalOnlyContext))) {
+                excludedCaptures.formUnion(revision.conversation.messages.flatMap(\.captureIDs))
+            }
+        }
+        let photos = try captures().filter { !excludedCaptures.contains($0.id) && ((includePrivate && includeHealth) || wantedCaptures.contains($0.id)) }
         let savedMemories = try memories().filter { (includePrivate || $0.allowsConnectedModels) && ($0.conversationID == nil || chatIDs.contains($0.conversationID!)) && ($0.sourceConversationID == nil || chatIDs.contains($0.sourceConversationID!)) }
         let memoryIDs = Set(savedMemories.map(\.id))
         let memoryHistory = try database.execute("SELECT payload FROM memory_changes ORDER BY created_at").map { try Self.decode(MemoryChange.self, $0[0].data!) }.filter { memoryIDs.contains($0.memoryID) && (includePrivate || ($0.before?.allowsConnectedModels != false && $0.after.allowsConnectedModels)) }
         let viewIDs = Set(views.map(\.id))
         let hasSurfaceHistory = try !database.execute("SELECT 1 FROM sqlite_master WHERE name='surface_history'").isEmpty
         let surfaceHistory = try (hasSurfaceHistory ? database.execute("SELECT payload FROM surface_history") : []).map { try Self.decode(WorkSurface.self, $0[0].data!) }.filter { viewIDs.contains($0.id) && (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) }
-        let projects = try projectWorkspaces().filter { chatIDs.contains($0.sourceConversationID) && (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) }
+        let projects = allProjects.filter { chatIDs.contains($0.sourceConversationID) && (includePrivate || !$0.containsLocalOnlyContext) && (includeHealth || !$0.containsHealthData) }
         var binaries: [ArchiveBinary] = []
         for file in originals { let data = try Data(contentsOf: workspaceFileURL(file.id)); binaries.append(.init(id: file.id, kind: "file", bytes: data.count, checksum: PersonalArchive.checksum(data))) }
         for photo in photos { let data = try imageData(photo.id); binaries.append(.init(id: photo.id, kind: "capture", bytes: data.count, checksum: PersonalArchive.checksum(data))) }
         var drafts: [String: String] = [:], documentDrafts: [String: String] = [:]
         if let data = try? Data(contentsOf: root.appendingPathComponent("drafts.json")), let saved = try? JSONDecoder().decode([String: String].self, from: data), includePrivate { drafts = saved.filter { UUID(uuidString: $0.key).map(chatIDs.contains) == true } }
         if includePrivate { for document in documents { if let draft = try artifactDraftRecord(id: document.id) { documentDrafts[document.id.uuidString] = String(decoding: try Self.encode(draft), as: UTF8.self) } } }
-        let manifest = PersonalArchiveManifest(includesPrivateData: includePrivate, includesHealthData: includeHealth, conversations: chats, folders: try folders().filter { folder in chats.contains { $0.folderID == folder.id } }, artifacts: documents, artifactHistory: documentHistory, files: originals, captures: photos, memories: savedMemories, memoryHistory: memoryHistory, inbox: notes, projects: projects, surfaces: views, surfaceHistory: surfaceHistory, revisions: revisions, drafts: drafts, artifactDrafts: documentDrafts, exclusions: ["Account credentials and pairing keys", "Model weights and derived caches", "Connected-folder bookmarks", "Pending approvals and executable task queues", includePrivate ? "" : "On-device-only work and unsent drafts", includeHealth ? "" : "Health-derived work"].filter { !$0.isEmpty }, binaries: binaries)
+        let manifest = PersonalArchiveManifest(includesPrivateData: includePrivate, includesHealthData: includeHealth, conversations: chats, folders: try folders().filter { folder in chats.contains { $0.folderID == folder.id } }, artifacts: documents, artifactHistory: documentHistory, files: originals, captures: photos, memories: savedMemories, memoryHistory: memoryHistory, inbox: notes, projects: projects, surfaces: views, surfaceHistory: surfaceHistory, revisions: revisions, drafts: drafts, artifactDrafts: documentDrafts, exclusions: ["Account credentials and pairing keys", "Model weights and derived caches", "Connected-folder bookmarks", "Pending approvals and executable task queues", "Recently removed Inbox notes", includePrivate && includeHealth ? "" : "Unreferenced camera captures", includePrivate ? "" : "On-device-only work and unsent drafts", includeHealth ? "" : "Health-derived work"].filter { !$0.isEmpty }, binaries: binaries)
         try PersonalArchive.write(manifest: manifest, to: url) { entry in entry.kind == "capture" ? try imageData(entry.id) : try Data(contentsOf: workspaceFileURL(entry.id)) }
         return try PersonalArchive.inspect(url)
     }
@@ -191,7 +206,7 @@ extension LocalStore {
         try database.execute("CREATE TABLE IF NOT EXISTS work_surfaces(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,payload BLOB NOT NULL)")
         try database.transaction {
             for folder in manifest.folders { try saveFolder(folder) }
-            for var chat in manifest.conversations { chat.allowedNetworkDestinations = []; chat.allowedHealthDestinations = []; chat.requiresNetworkReview = true; chat.recoverInterruptedMessages(); try Self.persist(chat, in: database) }
+            for var chat in manifest.conversations { chat.allowedNetworkDestinations = []; chat.allowedHealthDestinations = []; chat.requiresNetworkReview = true; for index in chat.messages.indices { chat.messages[index].continuation = nil }; chat.recoverInterruptedMessages(); try Self.persist(chat, in: database) }
             for artifact in manifest.artifacts { try saveArtifact(artifact) }
             for item in manifest.artifactHistory { try database.execute("INSERT INTO artifact_history VALUES(?,?,?)", [.text(item.id.uuidString), .integer(Int64(item.revision)), .blob(try Self.encode(item))]) }
             for var file in manifest.files { file.allowsConnectedModels = false; file.allowsWorkspaceSearch = false; try database.execute("INSERT INTO workspace_files VALUES(?,?,?)", [.text(file.id.uuidString), .real(file.createdAt.timeIntervalSince1970), .blob(try Self.encode(file))]) }

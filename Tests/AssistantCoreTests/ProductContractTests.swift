@@ -29,6 +29,23 @@ final class ProductContractTests: XCTestCase, @unchecked Sendable {
             else { XCTAssertEqual(try ToolArguments.normalize(row["input"]!, schema: row["schema"]!), row["expected"], name) }
         }
     }
+    func testSharedReceiptFixturesPreserveIdentityAndOptionalAuthorityFields() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources/AssistantCore/Resources/ProtocolParity.json")
+        let fixture = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: file))
+        for row in fixture["receipts"]!.arrayValue! {
+            let decoded = try LocalStore.decode(ToolResult.self, JSONEncoder().encode(row))
+            let roundTrip = try JSONDecoder().decode(JSONValue.self, from: LocalStore.encode(decoded))
+            for (key, value) in row.objectValue! { XCTAssertEqual(roundTrip[key], value, key) }
+            let modelText = try JSONValue.parse(decoded.modelText())
+            XCTAssertEqual(modelText["operation_id"], row["callID"]); XCTAssertEqual(modelText["status"], row["output"]?["status"])
+        }
+    }
+    func testQueuedReviewDoesNotDiscardAnOpenEditor() {
+        var state = PresentationState(); state.request(.settings)
+        let review = AppPresentation.review(UUID()); state.request(review)
+        XCTAssertEqual(state.active, .settings); XCTAssertEqual(state.pending, review); XCTAssertNil(state.dismissing)
+        state.beginDismissal(); _ = state.didDismiss(); XCTAssertEqual(state.active, review)
+    }
     func testMemoryCanariesSelectParaphraseAndExcludeIrrelevantExpiredAndPrivate() {
         let chat = UUID()
         var food = SavedMemory(title: "Diet", text: "Vegetarian; avoid meat", allowsConnectedModels: true); food.kind = .preference

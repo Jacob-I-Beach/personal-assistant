@@ -31,6 +31,7 @@ private struct SettingsForm: View {
     var body: some View {
         Group {
             Form {
+                LocalRecoveryRow()
                 if group == .connections {
                 Section { NavigationLink { DeviceAccessView() } label: { Label("Tools & device", systemImage: "iphone") } }
                 }
@@ -147,6 +148,7 @@ private struct SettingsForm: View {
                 }
             }
             .navigationTitle(group.rawValue)
+            .navigationBarBackButtonHidden(connectionIsDirty)
             .safeAreaInset(edge: .bottom) {
                 if let localError { Label(localError, systemImage: "exclamationmark.circle").font(.subheadline).frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.bar).accessibilityIdentifier("settings-save-error") }
             }

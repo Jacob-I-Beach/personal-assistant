@@ -26,6 +26,7 @@ public struct HistoryMatch: Codable, Identifiable, Equatable, Sendable {
     public var role: MessageRole
     public var createdAt: Date
     public var sourceFingerprint: String? = nil
+    public var relatedWords: Bool? = nil
 }
 public struct ArtifactRecord: Codable, Identifiable, Equatable, Sendable {
     public var revision = 1

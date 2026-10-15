@@ -1143,6 +1143,16 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Audit120-largest-text-models")
         app.buttons["Done"].tap(); XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 5))
     }
+    func testAudit120ChartCategoryShowsEverySeriesAndDataTable() {
+        let app = productApp("charts")
+        let picker = app.buttons["chart-category-picker"]
+        for _ in 0..<6 { if picker.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(picker.waitForExistence(timeout: 5)); picker.tap(); app.buttons["Shared"].tap()
+        XCTAssertTrue(app.staticTexts["Shared · First: 10"].waitForExistence(timeout: 5)); XCTAssertTrue(app.staticTexts["Shared · Second: 20"].exists)
+        let table = app.buttons["Data table"]; for _ in 0..<4 { if table.isHittable { break }; app.swipeUp() }; table.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Shared · Second")).firstMatch.exists)
+        saveScreenshot(app, name: "Audit120-chart-all-series")
+    }
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

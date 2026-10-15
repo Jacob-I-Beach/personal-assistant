@@ -108,6 +108,10 @@ struct WorkingSurfaceView: View {
             }
         case .chart:
             chart(surface)
+            Picker("Inspect category", selection: $selectedChartLabel) {
+                Text("Choose a category").tag(String?.none)
+                ForEach(Array(Set(surface.rows.compactMap { $0["label"]?.stringValue })).sorted(), id: \.self) { label in Text(label).tag(Optional(label)) }
+            }.accessibilityIdentifier("chart-category-picker")
             if let selectedChartLabel {
                 ForEach(Array(surface.rows.filter { $0["label"]?.stringValue == selectedChartLabel }.enumerated()), id: \.offset) { _, row in
                     Text("\(selectedChartLabel) · \(row["series"]?.stringValue ?? surface.title): \(cell(row["value"]!))").font(.caption).monospacedDigit()

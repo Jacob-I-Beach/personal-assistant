@@ -28,7 +28,7 @@ try{
   await page.getByText('Ready for Python, spreadsheets, documents and page inspection.').waitFor();
   assert.equal(await page.locator('#bridge-form').isVisible(),false);
   assert.equal(await page.locator('#bridge-test').isVisible(),false);
-  await page.getByText('Notifications & Live Activities',{exact:true}).click();
+  await page.getByText('Advanced · Notifications & Live Activities',{exact:true}).click();
   await page.getByText('Remote alerts and Island updates are deferred',{exact:false}).waitFor();
   assert.equal(sent.length,0,'deferred setup must not contact PushWard');
   const readiness=await page.evaluate(async()=>{

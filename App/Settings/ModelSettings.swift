@@ -138,10 +138,12 @@ enum PrivatePaths {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--ui-") }) { name = "Test Outputs" }
         #endif
+        let active = try activeData(root: root())
+        if active.lastPathComponent != "data" { name += "/Restored/" + active.lastPathComponent }
         var directory = documents.appendingPathComponent(name, isDirectory: true)
+        let existed = FileManager.default.fileExists(atPath: directory.path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        var values = URLResourceValues(); values.isExcludedFromBackup = true
-        try directory.setResourceValues(values)
+        if !existed { var values = URLResourceValues(); values.isExcludedFromBackup = true; try directory.setResourceValues(values) }
         try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: directory.path)
         return directory
     }
@@ -150,7 +152,7 @@ enum PrivatePaths {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-empty") { folder = "PersonalAssistant-UITests-Empty" }
         if ProcessInfo.processInfo.arguments.contains("--ui-product117") {
-            let modes = ["editor", "attachments", "search", "surfaces", "settings", "browse", "branches", "projects", "recovery", "inbox"]
+            let modes = ["editor", "attachments", "search", "surfaces", "settings", "browse", "branches", "projects", "recovery", "inbox", "charts"]
             let mode = modes.first(where: { ProcessInfo.processInfo.arguments.contains("--ui-product117-" + $0) }) ?? "default"
             folder = "PersonalAssistant-UITests-Product117-" + mode
         }
@@ -168,10 +170,9 @@ enum PrivatePaths {
         let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                     appropriateFor: nil, create: true)
             .appendingPathComponent(folder, isDirectory: true)
+        let existed = FileManager.default.fileExists(atPath: directory.path)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        var excluded = directory
-        var values = URLResourceValues(); values.isExcludedFromBackup = true
-        try excluded.setResourceValues(values)
+        if !existed { var excluded = directory; var values = URLResourceValues(); values.isExcludedFromBackup = true; try excluded.setResourceValues(values) }
         try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: directory.path)
         return directory
     }
@@ -192,13 +193,22 @@ enum PrivatePaths {
     }
     static func configureBackup(root: URL, includeUserData: Bool) throws {
         let active = try activeData(root: root)
-        // Inactive datasets stay excluded. Switching libraries must not silently
-        // include an older protected library in the device backup.
-        for (url, exclude) in [(root, false), (root.appendingPathComponent("data"), active.lastPathComponent == "data" ? !includeUserData : true),
-                              (root.appendingPathComponent("restored-libraries"), true), (root.appendingPathComponent("models"), true), (try outputs(), !includeUserData)] {
+        func mark(_ url: URL, excluded: Bool) throws {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            var target = url; var values = URLResourceValues(); values.isExcludedFromBackup = exclude
-            try target.setResourceValues(values)
+            var target = url; var values = URLResourceValues(); values.isExcludedFromBackup = excluded; try target.setResourceValues(values)
         }
+        let restored = root.appendingPathComponent("restored-libraries")
+        try FileManager.default.createDirectory(at: restored, withIntermediateDirectories: true)
+        for directory in try FileManager.default.contentsOfDirectory(at: restored, includingPropertiesForKeys: nil) {
+            try mark(directory, excluded: directory.standardizedFileURL != active.standardizedFileURL || !includeUserData)
+        }
+        try mark(root.appendingPathComponent("data"), excluded: active.lastPathComponent != "data" || !includeUserData)
+        try mark(restored, excluded: false)
+        try mark(root.appendingPathComponent("models"), excluded: true)
+        // Published copies are deliberately excluded. They can include versions
+        // from an inactive protected library. Originals remain in its archive.
+        let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        try mark(documents.appendingPathComponent("Outputs"), excluded: true)
+        try mark(root, excluded: false)
     }
 }

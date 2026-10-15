@@ -113,6 +113,10 @@ extension LocalStore {
         work.networkRetries = (work.networkRetries ?? 0) + 1
         try saveWorkTurn(work)
     }
+    /// Inspection only. Missing receipts never become a replay command.
+    public func uncertainOperationNames(_ id: UUID) throws -> [String] {
+        try toolOperations(id).filter { ($0.result == nil && $0.awaitingReview != true) || $0.result?.output["status"] == .string("outcome_unknown") }.map(\.name)
+    }
     /// A shareable operational report. No prompt text, tool arguments, extracted content,
     /// file paths, account/model identifiers, location, credentials or error bodies.
     public func taskDiagnostics(_ id: UUID) throws -> JSONValue {

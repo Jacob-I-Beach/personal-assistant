@@ -7,6 +7,7 @@ struct TaskActivityView: View {
     @State private var report: JSONValue?
     @State private var note: String?
     @State private var work: WorkTurn?
+    @State private var evidence: JSONValue?
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -19,6 +20,19 @@ struct TaskActivityView: View {
                             ForEach(Array(work.plan.enumerated()), id: \.offset) { _, step in
                                 Label(step["title"]?.stringValue ?? "Recorded step", systemImage: step["status"] == .string("completed") ? "checkmark.circle" : "circle").font(.subheadline)
                             }
+                        }
+                        if let actions = evidence?["actions"]?.arrayValue, !actions.isEmpty {
+                            Text("Recorded actions").font(.headline)
+                            ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text((action["tool"]?.stringValue ?? "Action").replacingOccurrences(of: "_", with: " ")).font(.subheadline.weight(.medium))
+                                    Text((action["status"]?.stringValue ?? "Unknown").replacingOccurrences(of: "_", with: " ")).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        if model.artifacts.contains(where: { $0.conversationID == work.conversationID }) {
+                            Text("Saved outputs").font(.headline)
+                            ForEach(model.artifacts.filter { $0.conversationID == work.conversationID }) { artifact in NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) } }
                         }
                         Button("Open response") { dismiss() }.buttonStyle(.bordered)
                     }
@@ -36,6 +50,7 @@ struct TaskActivityView: View {
                     guard let id = model.conversation.messages.last(where: \.isRequest)?.id else { note = "Send a request to start a task record."; return }
                     do {
                         work = try await model.store?.workTurn(id)
+                        evidence = try await model.store?.workEvidence(id, conversationID: model.conversation.id, remote: false, workspaceEnabled: false)
                         var fields = try await model.store?.taskDiagnostics(id).objectValue ?? [:]
                         fields["background_processing"] = ResponseCompletionWindow.diagnostic(for: id)
                         report = .object(fields)

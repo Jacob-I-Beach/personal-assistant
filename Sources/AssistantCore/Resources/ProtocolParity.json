@@ -212,5 +212,33 @@
       "input": "é",
       "error": true
     }
+  ],
+  "receipts": [
+    {
+      "callID": "fixture-effect-1",
+      "name": "synthetic_effect",
+      "succeeded": true,
+      "output": {
+        "status": "saved",
+        "artifact_id": "00000000-0120-4000-8000-000000000011"
+      },
+      "completedAt": "2026-10-14T12:00:00Z",
+      "containsHealthData": false,
+      "containsLocalOnlyContext": false,
+      "authorizedWorkspaceID": "00000000-0120-4000-8000-000000000012"
+    },
+    {
+      "callID": "fixture-effect-2",
+      "name": "synthetic_effect",
+      "succeeded": false,
+      "output": {
+        "status": "outcome_unknown",
+        "error": "Inspect the destination before another action."
+      },
+      "completedAt": "2026-10-14T12:00:01Z",
+      "containsHealthData": true,
+      "containsLocalOnlyContext": true,
+      "authorizedHealthDestination": "fixture-destination"
+    }
   ]
 }
