@@ -1,3 +1,13 @@
+# Current handoff — 1.2.0 build 23
+
+Production source `2de8e5f8b62e62a223563199b0b8405d3ff025bd`, native build `38667036175`; unchanged-app interaction rechecks `38669579168`, `38669582055`, `38669585071`. Both device/simulator builds, 265 Windows/Mac core tests, 34 native platform/TLS checks and all 21 UI journeys have passing coverage. The primary interaction batch hit its test time budget; the same compiled app passed the smaller rechecks. No live inference or personal action was used.
+
+PC 1.2.0 release r1 is installed, preserving the account, one pairing, 28 task identities, certificate and data folder. The pinned private connection and model discovery returned HTTPS200, eight available models including the selected GPT and Python readiness. Windows sign-in startup points at the new launcher; the existing authorized Node runtime is retained.
+
+Standard/Memory IPAs and exact receipts are in the adjacent PersonalAssistant-iPhone/1.2.0 output folder. Signing/install, actual memory-profile grant and physical 64K/audio/depth/VoiceOver/extended-lock/network checks remain pending. Health and external notifications remain deliberately deferred. Read RELEASE_120.md, AUDIT_120.md, ProductAudit120.json, ProductJourneys120.json and ReleaseValidation120.json for scope and evidence. All required code work from both supplied audits is implemented; the remaining acceptance dependencies are explicit.
+
+---
+
 # Implementation status
 
 **Current: 1.1.7 build 22 is packaged and native-verified; Computer 1.1.7 release r2 is installed.** The second product/UX package was fully reviewed: 32 recommendations, 28 proposed journeys, 19 verified manifest files and 9 screenshots. Fifteen bounded recommendations were implemented, 12 partially addressed, 4 architecture proposals deferred and the user requested 64K control retained. Source 100e00404c82a627bba9d9836330f67b4b525bb4 / run 38649322248 provides the final binary. 246 Windows/Mac core, 67 companion, 7 updater and 22 native platform tests pass; 12 UI journeys have passing coverage, with microphone setup and actual PDF content verified against the unchanged app in 38651497096 and 38651932273. Preserved the account, one pairing, 25 tasks, certificate and actual Windows startup. Existing-account model discovery now returns eight models including GPT-6.1-Sol; no credentials were reset and live generation was not tested. Apple signing/profile, phone installation, physical 64K, dictation/VoiceOver and extended background/cellular acceptance remain deferred. Health and external task notifications stay paused. See RELEASE_117.md, AUDIT_117.md, ProductAudit117.json, ProductJourneys117.json and ReleaseValidation117.json.

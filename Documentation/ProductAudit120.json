@@ -1,0 +1,464 @@
+{
+  "version": "1.2.0",
+  "build": 23,
+  "source_audit": "f9ed6d1350cc8716d3fda568ce92fd481983b0aa",
+  "source_candidate": "2de8e5f8b62e62a223563199b0b8405d3ff025bd",
+  "status": "All feasible implementation complete; automated release checks passed; physical dependencies explicit",
+  "items": [
+    {
+      "id": "PX-01",
+      "title": "Make first use about a useful conversation, not configuring an AI stack",
+      "implementation_status": "implemented",
+      "change": "Derived first-use readiness, optional setup dismissal, preserved draft, direct ChatGPT/on-device choices.",
+      "acceptance": [
+        "An unsigned, disconnected or unsupported installation shows an honest path rather than a working-model promise.",
+        "Completing or cancelling either setup path preserves draft text and attachments.",
+        "Local-only mode never silently enables connected inference.",
+        "A returning configured user does not see first-use setup cards again."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-02",
+      "title": "Give Home a shorter hierarchy and put unfinished work ahead of feature advertising",
+      "implementation_status": "implemented",
+      "change": "Unfinished work and recent conversation/output precede compact entry actions; Home refresh remains automatic.",
+      "acceptance": [
+        "A pending question is reachable before unrelated starter cards.",
+        "A configured user does not get repeated account or Calendar setup prompts.",
+        "Largest supported text remains scrollable, readable and keyboard-safe without truncating essential actions.",
+        "Ordinary questions and casual conversation remain first-class, without a mandatory project."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-03",
+      "title": "Unify capability and readiness wording across every screen",
+      "implementation_status": "implemented",
+      "change": "One CapabilityAvailability projection separates setup, catalog availability, blocked memory and a ready route; reused across Home, Models and Connections.",
+      "acceptance": [
+        "The same account-connected/model-unavailable fixture yields compatible wording on all relevant screens.",
+        "Python unavailable does not label ordinary chat unavailable.",
+        "No availability label asserts a live inference success unless one was actually recorded.",
+        "Unavailable actions provide a reason and safe next action, not only disabled opacity."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-04",
+      "title": "Keep the chat shell, but simplify navigation and make New chat direct",
+      "implementation_status": "implemented",
+      "change": "Direct New chat, visible Settings, a grouped workspace footer, collapsible folders, and distinct navigation identities.",
+      "acceptance": [
+        "All current destinations remain reachable through one documented navigation map.",
+        "New chat is one action when idle and does not lose the current draft.",
+        "Model changes preserve scroll, draft and prior-message provenance.",
+        "No new permanent tab bar is added merely to fit the number of features."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-05",
+      "title": "Let users browse saved work while a response runs, without mixing execution contexts",
+      "implementation_status": "implemented",
+      "change": "Read-only saved-chat browsing preserves the active execution owner, Stop target and unsent draft; Return restores the active view.",
+      "acceptance": [
+        "A running task continues while an older conversation is inspected read-only.",
+        "Returning to the active task restores its real progress and reading position.",
+        "No callback attaches a file, answer or native review to the currently viewed but unrelated chat.",
+        "Cancellation still targets the original active turn after navigation."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-06",
+      "title": "Make navigation and modal transitions a typed, testable product system",
+      "implementation_status": "implemented",
+      "change": "Typed root PresentationState waits for actual dismissal, queues reviews without replacing an open editor, and restores task links without animation timers.",
+      "acceptance": [
+        "An attachment picker, file preview and settings sheet each return to the correct owner with draft intact.",
+        "A task link closes or resolves unrelated presentations deterministically.",
+        "No correctness-critical transition waits for an arbitrary animation duration.",
+        "Review dismissal retains the existing cancelled-versus-deferred semantics."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-07",
+      "title": "Make attachments inspectable and use an actual attachment picker",
+      "implementation_status": "implemented",
+      "change": "Real attachment selection/preview, source IDs, preparation/partial/unreadable states, per-file failures and model-specific pixel limitations.",
+      "acceptance": [
+        "A user can preview every attached item before Send and return without changing the draft.",
+        "Cancelling selection adds nothing; confirming adds each ID once.",
+        "A Health-derived file cannot become attachable to a foreign chat through the new picker.",
+        "A failed import identifies the affected item and does not clear successful attachments."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-08",
+      "title": "Stop making dictation implicitly cancel the current response",
+      "implementation_status": "implemented",
+      "change": "Dictation no longer implicitly stops a response; speech callbacks, cutoff/finalization and owner checks preserve typed and recognized draft text.",
+      "acceptance": [
+        "Tapping Dictate never cancels an active turn without a clear intentional action.",
+        "Denied microphone or speech permission leaves the draft intact and offers typing.",
+        "A time-limited or interrupted recording visibly ends with retained text.",
+        "Send uses finalized or explicitly accepted draft text; no hidden auto-send occurs."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-09",
+      "title": "Turn task state into a calm, actionable in-chat surface",
+      "implementation_status": "implemented",
+      "change": "One active task strip, actionable questions/reviews, saved sync/context recovery and expanded goal/action/output evidence.",
+      "acceptance": [
+        "Only one primary task-status surface competes with the answer at a time.",
+        "Waiting for review presents the exact existing review, not a new authorization.",
+        "Syncing completed work does not rerun the model or completed effects.",
+        "Support diagnostics remain exportable without exposing extra private content."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-10",
+      "title": "Replace generic failure dead ends with local recovery actions",
+      "implementation_status": "implemented",
+      "change": "Owned recovery states and local import/editor/export errors; uncertain receipts offer inspection instead of a replay button.",
+      "acceptance": [
+        "Every common failure has a safe actionable outcome, not only OK.",
+        "An unknown side-effect outcome never gets a generic replay button.",
+        "Errors inside an editor are visible there without dismissing the editor.",
+        "The exact draft, attachments and completed outputs survive recovery selection."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-11",
+      "title": "Reduce transcript chrome without reducing useful controls",
+      "implementation_status": "implemented",
+      "change": "Quieter earlier-message actions, readable tool summaries, copy/read-aloud accessibility actions and stable reading position.",
+      "acceptance": [
+        "Copy, share and edit are discoverable with touch and VoiceOver.",
+        "Long replies preserve reading position during streaming.",
+        "Sources and failed tool evidence remain accessible, not removed for visual cleanliness.",
+        "Ordinary two-turn chat uses fewer repeated action rows without hiding the latest answer controls."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-12",
+      "title": "Give each output one canonical identity and an intentional place in the conversation",
+      "implementation_status": "implemented",
+      "change": "Canonical output projection carries identity, origin, revision, preview/location and protection; distinct same-name files remain distinct and full collections are uncapped at six.",
+      "acceptance": [
+        "A file published inline is not redundantly appended as an unrelated bottom-of-chat result.",
+        "Two different files with the same filename remain distinct.",
+        "Opening from chat, Library or project resolves the same current object and revision.",
+        "More than six results remain discoverable through the full output collection."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-13",
+      "title": "Open the document before opening its management controls",
+      "implementation_status": "implemented",
+      "change": "Original document preview leads; CSV is literal, executable formats remain source views, and saved-versus-draft versions are explicit.",
+      "acceptance": [
+        "A supported result opens directly to readable content from chat.",
+        "The user can inspect original bytes or extraction limits in Info.",
+        "HTML/SVG security restrictions are not bypassed.",
+        "Ask about the file preserves its ID, classification and the existing draft."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-14",
+      "title": "Make every Ask about this action behave consistently",
+      "implementation_status": "implemented",
+      "change": "Files, documents, surfaces, projects, Inbox, planning items and images use a draft-preserving source-reference flow; image points and revisions survive handoff.",
+      "acceptance": [
+        "The same control behaves the same with empty and nonempty drafts.",
+        "A tap does not issue a model request unless explicitly labeled to send.",
+        "Two surfaces with identical titles cannot be confused.",
+        "Protected objects stay scoped correctly across draft handoff."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-15",
+      "title": "Make interactive results precise, reversible and inspectable",
+      "implementation_status": "implemented",
+      "change": "Locale-aware exact values obey the slider step; undo/reset, explicit unsaved conflict recovery, all-series selection, symbol distinctions and data tables.",
+      "acceptance": [
+        "Exact numeric entry and slider changes yield the same validated result.",
+        "Selecting a shared X label displays all relevant series.",
+        "A failed save visibly distinguishes unsaved values and supports recovery.",
+        "Reset/undo preserves revision history and never triggers an external action."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-16",
+      "title": "Make Projects directly usable without knowing a magic prompt",
+      "implementation_status": "implemented",
+      "change": "Direct empty/current-chat project creation, goal/status/decision/question correction, output links and context-aware Continue; existing folder IDs preserved.",
+      "acceptance": [
+        "A user creates an empty project without invoking a model.",
+        "Continue opens the right conversation and object context.",
+        "Existing folder-associated project IDs survive the UI change.",
+        "A project can remain absent throughout normal chat use."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-17",
+      "title": "Make search land on the thing it found",
+      "implementation_status": "implemented",
+      "change": "Separate title and message results, exact fingerprinted bounded landing, preserved query/position and labeled related-word fallback.",
+      "acceptance": [
+        "A match older than the first visible page opens at its exact message.",
+        "Back returns to the original query and results.",
+        "Removed or edited hits report a stale source instead of opening unrelated text.",
+        "Streaming does not immediately pull the viewport away from the search hit."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-18",
+      "title": "Give Library search scope, useful empty states and room to grow",
+      "implementation_status": "implemented",
+      "change": "Incremental FTS index, filename/type/date/origin filters, excerpts, cancellation, empty states, rebuild and a measured 1,000-document fixture.",
+      "acceptance": [
+        "Zero query matches produces a helpful state with a clear action.",
+        "File and artifact results have a consistent row and correct origin.",
+        "Rapid typing cannot show stale-query results after a newer query.",
+        "A representative large fixture has recorded search latency and cancellation behavior."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-19",
+      "title": "Present memory as useful remembered context, not a database editor",
+      "implementation_status": "implemented",
+      "change": "Searchable remembered context, tentative status, direct source-message inspection, correction/forget/undo; no unsubstantiated usage badges.",
+      "acceptance": [
+        "A preference can be corrected without understanding enum names.",
+        "An inferred note remains visibly tentative.",
+        "Source navigation opens the exact retained evidence or explains its absence.",
+        "No memory-use badge is synthesized from the model’s own unsupported claim."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-20",
+      "title": "Make editing earlier prompts reversible without pretending external actions were undone",
+      "implementation_status": "implemented",
+      "change": "Pre-edit transcript/output snapshots, read-only history and explicit semantic-version-checked restore. Current access revocations survive; no old actions restart.",
+      "acceptance": [
+        "Editing does not silently destroy the only accessible copy of a later useful answer.",
+        "Changing branches cannot repeat an external action.",
+        "Source links and memory derived from removed active context remain coherent.",
+        "The UI distinguishes replacing text, branching discussion and undoing an actual action."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-21",
+      "title": "Separate editing drafts from saved artifact revisions",
+      "implementation_status": "implemented",
+      "change": "Persistent artifact drafts with base revision, compare/discard/resume, CAS save conflicts and committed-only export.",
+      "acceptance": [
+        "Closing and reopening a dirty editor shows a labeled restored draft.",
+        "Discard returns to the authoritative revision without creating another revision.",
+        "A conflicting save leaves both the draft and current saved version recoverable.",
+        "Sharing clearly uses a saved revision or explicitly chosen draft copy."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-22",
+      "title": "Make settings commit behavior consistent",
+      "implementation_status": "implemented",
+      "change": "Grouped settings, validated immediate preferences and staged connection Apply/Cancel; dirty forms retain or explicitly discard changes.",
+      "acceptance": [
+        "The same preference behaves consistently wherever it appears.",
+        "A failed preference write restores the visible value and explains the failure.",
+        "Closing a staged dirty form never silently discards a consequential change.",
+        "Privacy checks cannot be bypassed by immediate-persistence bindings."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-23",
+      "title": "Treat keeping and restoring personal work as part of the everyday product",
+      "implementation_status": "implemented",
+      "change": "Versioned local archive, explicit protected-data coverage review, integrity checks, isolated restore, retained libraries and deferred activation. Accounts, weights and executable queues excluded.",
+      "acceptance": [
+        "The user can tell what happens if the phone is lost.",
+        "A restore rehearsal uses an isolated destination and preserves source identities.",
+        "Credentials and excluded protected records do not enter an ordinary backup implicitly.",
+        "Deleting weights, clearing caches and deleting personal work have distinct controls."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-24",
+      "title": "Finish the downloaded-model ownership experience",
+      "implementation_status": "implemented",
+      "change": "Separate unload, derived-cache removal and package/partial-download removal; bounded owned paths and measured stored bytes preserve personal work.",
+      "acceptance": [
+        "Remove downloaded files reports reclaimed disk space and leaves personal work intact.",
+        "Downloaded, loaded and current-request fit are not conflated.",
+        "Interrupted downloads explain what can resume and what must be repaired.",
+        "Model capability and performance badges come from validated metadata or recorded measurements."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-25",
+      "title": "Keep response controls powerful, but do not make token budgets ordinary homework",
+      "implementation_status": "retained_and_verified",
+      "change": "Retains the requested 64K default and actual model-supported controls; memory estimates and signing allowance stay distinct from measured inference.",
+      "acceptance": [
+        "A user can use the assistant without entering a token count or memory ceiling.",
+        "Every selectable reasoning control corresponds to a supported runtime setting.",
+        "The scope of a change is visible and matches stored behavior.",
+        "Selecting a different model never silently moves protected data to a new destination."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-26",
+      "title": "Make Inbox a fast capture tool, not a small workflow form",
+      "implementation_status": "implemented",
+      "change": "Fast save-only Inbox capture, search, Unhandled/Filed filters, timestamps, move-to-chat/project and recoverable removal.",
+      "acceptance": [
+        "A thought can be saved with text entry plus one action.",
+        "Saving, marking handled and asking are visibly distinct.",
+        "Ask preserves the original note and uses its stable ID.",
+        "A quick-capture entry point, if built, works safely without network or model availability."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-27",
+      "title": "Connect day context to direct, bounded assistance",
+      "implementation_status": "implemented",
+      "change": "Selected calendar/reminder identity prepares context without performing a write; freshness and review checks remain at execution.",
+      "acceptance": [
+        "A contextual action names and references the exact selected item.",
+        "No Calendar or Reminders mutation happens before the existing review boundary.",
+        "Disconnected sources do not generate invented availability summaries.",
+        "Dismissing day context leaves ordinary chat fully usable."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-28",
+      "title": "Make the camera experience about a question, with depth as an optional instrument",
+      "implementation_status": "implemented",
+      "change": "Ordinary photos support questions and coordinate selection; accessible normalized point controls retain alignment through zoom/rotation; depth remains measurement-specific.",
+      "acceptance": [
+        "An ordinary photo has a direct route to a draft question.",
+        "Missing depth does not appear as a broken primary capability.",
+        "Selected points remain aligned to the displayed image after zoom and rotation.",
+        "Accessible interaction and measurement wording are tested without inventing accuracy guarantees."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-29",
+      "title": "Turn the computer companion from persistent setup into an optional working companion",
+      "implementation_status": "implemented",
+      "change": "Returning PC view leads with work, separate service readiness, actionable reviews/files, explicit Stop task versus service, accessible advanced setup and idle browser cleanup.",
+      "acceptance": [
+        "A paired returning user sees work and pending approvals before setup cards.",
+        "Account, inference discovery and computation failures have separate statuses.",
+        "Closing the web page and stopping the service are unmistakably different.",
+        "No Health, notification bridge or paid integration is enabled as part of cosmetic work."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-30",
+      "title": "Create a small semantic design system instead of applying decoration screen by screen",
+      "implementation_status": "implemented",
+      "change": "Shared semantic surfaces/spacing/actions/output/task components, system appearance, PC tokens, light/dark and contrast-aware controls.",
+      "acceptance": [
+        "Equivalent actions and status meanings look consistent across phone and computer.",
+        "Primary action remains distinguishable without color alone.",
+        "Reading surfaces are not covered in decorative translucency or continuous animation.",
+        "Screens are checked at actual device sizes in light/dark and increased contrast."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": false
+    },
+    {
+      "id": "PX-31",
+      "title": "Make accessibility and interrupted interaction part of the component contract",
+      "implementation_status": "implemented",
+      "change": "Owned keyboard/modal transitions, explicit labels, large controls, reduced-motion behavior, exact chart/point alternatives and largest-text navigation tests.",
+      "acceptance": [
+        "Primary workflows work with VoiceOver and the largest supported Dynamic Type sizes.",
+        "Touch targets are verified in points, not guessed from screenshot pixels.",
+        "Reduced-motion modes preserve state information without required animation.",
+        "Keyboard, rotation, background and audio interruptions preserve drafts and navigation context."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    },
+    {
+      "id": "PX-32",
+      "title": "Validate complete product journeys before claiming market readiness",
+      "implementation_status": "implemented",
+      "change": "All 28 proposed journeys reconciled to code/core/platform/UI/PC evidence; real audio, local inference, long suspension and human usability remain labeled physical checks.",
+      "acceptance": [
+        "Each shipped journey has a recorded source version, environment and result.",
+        "Synthetic/native/live-model evidence is labeled separately.",
+        "No visual polish ticket bypasses permission, cancellation or persistence regression checks.",
+        "Observed user confusion is documented and used to revise the design, not hidden behind a completion percentage."
+      ],
+      "automated_validation": "Passed shared/platform/UI/companion evidence as mapped in ReleaseValidation120 and ProductJourneys120; no claim beyond the listed layer.",
+      "physical_dependency": true
+    }
+  ],
+  "external_dependencies": [
+    "User-operated signing and in-place phone installation",
+    "Actual memory profile grant and sustained 64K local inference",
+    "Apple Developer provisioning for deferred Health/APNs/Live Activities",
+    "Physical audio, camera/depth, accessibility and extended-lock/network acceptance",
+    "Separately authorized live-model quality evaluation and human usability observation"
+  ]
+}

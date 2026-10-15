@@ -1,0 +1,8 @@
+{
+  "environment": "Windows/Swift shared-core fixture; not iPhone measurements",
+  "samples": 12,
+  "messages": 5000,
+  "artifacts": 1000,
+  "result_line": "AUDIT120_BENCHMARK messages=5000 artifacts=1000 uncached_checkpoint_p50_ms=316.06292724609375 assembly_ms=1305.8090209960938 checkpoint_p50_ms=17.34161376953125 checkpoint_p95_ms=342.7276611328125 library_p50_ms=0.8106231689453125 library_p95_ms=0.888824462890625",
+  "interpretation": "P50 cached checkpoints versus uncached snapshots; P95 includes the first invalidated/cold checkpoint. Request assembly is measured separately. No physical battery/memory/latency claim."
+}

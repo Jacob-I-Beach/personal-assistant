@@ -1,0 +1,171 @@
+{
+  "version": "1.2.0",
+  "build": 23,
+  "source": "2de8e5f8b62e62a223563199b0b8405d3ff025bd",
+  "native_run": 38667036175,
+  "test_only_rechecks": [
+    38669579168,
+    38669582055,
+    38669585071
+  ],
+  "tests": {
+    "windows_core": 265,
+    "mac_core": 265,
+    "native_platform_including_tls": 34,
+    "native_ui": 21,
+    "companion": 70,
+    "updater": 7,
+    "real_computer_integrations": 2,
+    "rendered_computer_ui": "Passed production UI with synthetic jobs, cancelled review, verified file bytes, light/dark and narrow layouts"
+  },
+  "native_ui_passed": [
+    "testAttachmentPreviewWorkingSurfacesAndActualMessageEdit",
+    "testAudit120ArchiveExportShowsCoverageBeforeSaving",
+    "testAudit120ArchiveInspectionAndIsolatedRestore",
+    "testAudit120BrowseSavedChatKeepsResponseAndDraftOwnedByOriginal",
+    "testAudit120ChartCategoryShowsEverySeriesAndDataTable",
+    "testAudit120ConversationRestoreKeepsPriorVersionAndDoesNotExecute",
+    "testAudit120CreateProjectAndContinueWithoutSending",
+    "testAudit120InboxFiltersAndRemovedNoteRecovery",
+    "testAudit120LargestTextKeepsPrimaryActionsReachable",
+    "testAudit120ScenarioSaveConflictKeepsPreviewAndRevertsExplicitly",
+    "testDarkAndLargeTextControlsRemainUsable",
+    "testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable",
+    "testLocalMessageStaysLocalWithSavedComputerWork",
+    "testProduct117AttachmentsPreviewCancelAndAddPreserveDraft",
+    "testProduct117DictationDoesNotCancelAnActiveResponse",
+    "testProduct117DraftRestoresWithoutChangingSavedRevision",
+    "testProduct117PreferenceSavesWithoutGlobalSaveModal",
+    "testProduct117ScenarioExactEntryUndoAndAskRemainDraftOnly",
+    "testProduct117SearchReturnsToExactOldMessageAndKeepsQuery",
+    "testUnavailableCatalogKeepsSavedModelsAndLocalChoiceUsable",
+    "testWelcomeCatalogAndSettings"
+  ],
+  "native_platform_passed": [
+    "AppleToolSchemaPlatformTests.testCompactToolSchemaKeepsAnArrayOfNamedArguments",
+    "AppleToolSchemaPlatformTests.testNullableObjectsKeepTheirNestedFields",
+    "AuditCompletionPlatformTests.testArchiveSelectionRejectsAnUnverifiedLibrary",
+    "AuditCompletionPlatformTests.testBoundedReadRejectsOversizedAdvertisedAndActualBodies",
+    "AuditCompletionPlatformTests.testLibrarySelectionIsDeferredAndOriginalRemainsReversible",
+    "AuditCompletionPlatformTests.testPresentationTransitionsPreserveEngineConversationAndDraft",
+    "AuditCompletionPlatformTests.testReadinessDoesNotTurnSavedAuthenticationIntoReadyModelService",
+    "AuditCompletionPlatformTests.testTranscriptRestoreUsesSemanticSnapshotEqualityAndKeepsDraft",
+    "CompanionTLSPlatformTests.testCompanionStillRequiresHTTPSAndDoesNotOptOutGlobally",
+    "CompanionTLSPlatformTests.testExistingLocalConnectionStillWorks",
+    "CompanionTLSPlatformTests.testLegacyPolicyRejectsTailscaleCertificate",
+    "CompanionTLSPlatformTests.testPinnedCertificateConnectsThroughTailscaleAddress",
+    "CompanionTLSPlatformTests.testRedirectCannotForwardDeviceCredential",
+    "CompanionTLSPlatformTests.testWrongCertificateCannotReceiveDeviceCredential",
+    "ComputerAccountPlatformTests.testAuthenticatedIdentityIsBoundToThePairedAccountAndCachesNoCredentials",
+    "ComputerAccountPlatformTests.testSavedTaskUsesOriginalModelWithoutChangingTheNextMessageSelection",
+    "ComputerAccountPlatformTests.testSharingAndAuthenticationAreDifferentStates",
+    "LocalIsolationPlatformTests.testLocalSelectionsCannotRecoverAnOlderComputerModel",
+    "LocalIsolationPlatformTests.testNewAppleRequestUsesTheOnDeviceBackendEvenWithComputerEnabled",
+    "LocalIsolationPlatformTests.testPausedPresentationIgnoresOldBridgeHints",
+    "LocalModelPlatformTests.testLocalPreferencesPersistAndPersonalBuildDoesNotClaimPushProvisioning",
+    "LocalModelPlatformTests.testPinnedDownloadReportsBytesAndReusesCompletedFileWithoutAnotherRequest",
+    "LocalModelPlatformTests.testQwenTextPlanUsesTheReportedHeadroomAndAutomaticDoesNotReuseOldManualContext",
+    "NativeReviewPlatformTests.testCancelMessageEditRestoresDraftAndAttachmentsWithoutChangingHistory",
+    "NativeReviewPlatformTests.testDismissalResolvesOnlyTheMatchingNativeRequest",
+    "NativeReviewPlatformTests.testInterruptedReviewIsNotRecordedAsAUserCancellation",
+    "NativeReviewPlatformTests.testUnusedDownloadedBackendUnloadsWithoutInitializingMetal",
+    "ProductJourneyPlatformTests.testArtifactEditorRestoresConflictedDraftAndDiscardKeepsNewerSavedText",
+    "ProductJourneyPlatformTests.testAttachmentBatchIsAtomicWhenASelectedFileIsUnavailable",
+    "ProductJourneyPlatformTests.testContextProposalPreservesDraftAndRejectsDelayedOwnerChange",
+    "ProductJourneyPlatformTests.testContextRoutingWaitsForRealDismissalAndRetainsTheSelectedIdentity",
+    "ProductJourneyPlatformTests.testPreferenceCommitAndFailedWriteKeepPublishedAndPersistedValuesConsistent",
+    "ProductJourneyPlatformTests.testSpeechAuthorizationCompletionAcceptsAnOffMainCallback",
+    "ProductJourneyPlatformTests.testSpeechRecognitionCompletionCopiesValuesBeforeReturningToUI"
+  ],
+  "phone_packages": {
+    "Standard": {
+      "file": "PersonalAssistant-Standard.ipa",
+      "sha256": "1bb77d3338d6f5bb42d834647663bf6da701a1da695884f3fe3945ce2c1cffb9",
+      "bytes": 22919450,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.2.0",
+      "build": "23",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.2.0",
+          "build": "23"
+        }
+      ],
+      "requested_entitlements": {},
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "Memory": {
+      "file": "PersonalAssistant-Memory.ipa",
+      "sha256": "f349d1b7747cc879cd4810a9135a85c040075b9283ed65fd046e8609ee6533e5",
+      "bytes": 22919529,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.2.0",
+      "build": "23",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.2.0",
+          "build": "23"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.kernel.increased-memory-limit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "computer": {
+    "source": "bea1f76daa5b93c40bb4d59e0d4bba4d9805265e",
+    "package": "1.2.0-release-r1",
+    "installed": true,
+    "account_pairing_tasks_certificate_preserved": true,
+    "paired_devices": 1,
+    "saved_tasks": 28,
+    "windows_sign_in_startup_verified": true,
+    "pinned_tailscale_https": {
+      "status": 200,
+      "version": "1.2.0",
+      "certificatePinned": true
+    }
+  },
+  "gpt": {
+    "checked_at": "2026-10-15T02:22:53.740Z",
+    "network": {
+      "status": 200,
+      "version": "1.2.0",
+      "certificatePinned": true
+    },
+    "account_connected": true,
+    "sharing": true,
+    "catalog": "ready",
+    "model_count": 8,
+    "selected_model_available": true,
+    "computation_ready": true,
+    "active_work_count": 0,
+    "live_inference_tested": false,
+    "earlier_520_cause": "Not established; fresh model discovery succeeded without resetting credentials."
+  },
+  "audit": {
+    "confirmed_code_findings": 18,
+    "watchlist_items": 7,
+    "product_items": 32,
+    "journeys_mapped": 28,
+    "feasible_implementation": "completed",
+    "physical_and_human_acceptance": "separately pending"
+  },
+  "health_and_external_notifications": "Deferred by user; disabled",
+  "physical_acceptance": "User-operated installation, profile grant, sustained64K/audio/sensors/VoiceOver/extended-lock-network and live model quality remain pending."
+}

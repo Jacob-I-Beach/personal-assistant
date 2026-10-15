@@ -1,0 +1,24 @@
+{
+  "version": "1.2.0",
+  "build": 23,
+  "installation": "Not installed on the phone by the agent",
+  "physical_64k_local_inference": "Not measured",
+  "memory_profile_grant": "User deferred",
+  "physical_audio_depth_accessibility_network": "Pending",
+  "live_model_generation": "Not run",
+  "metadata_only_connection_check": {
+    "checked_at": "2026-10-15T02:22:53.740Z",
+    "network": {
+      "status": 200,
+      "version": "1.2.0",
+      "certificatePinned": true
+    },
+    "account_connected": true,
+    "sharing": true,
+    "catalog": "ready",
+    "model_count": 8,
+    "selected_model_available": true,
+    "computation_ready": true,
+    "active_work_count": 0
+  }
+}

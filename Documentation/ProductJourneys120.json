@@ -1,0 +1,296 @@
+{
+  "version": "1.2.0",
+  "build": 23,
+  "simulator": "Xcode27 workflow selected compatible iPhone simulator; actual environment in xcresult",
+  "model_route": "Deterministic fixtures through production UI/store/engine policies",
+  "scope": "All 28 proposed journeys reconciled. Machine-feasible code implemented; evidence layers and remaining physical/human work are explicit.",
+  "scenarios": [
+    {
+      "id": "J01",
+      "title": "First use without any connected account",
+      "coverage": "native/core",
+      "evidence": "First-use chooser, setup cancellation/draft handling and ordinary deterministic replies",
+      "remaining": "Authorized real-account setup and inference on the phone",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J02",
+      "title": "No supported model is currently available",
+      "coverage": "core/platform/native",
+      "evidence": "Derived blocked readiness, no-provider/no-fit admission, saved draft and model catalog fixtures",
+      "remaining": "Combined real hardware/provider availability",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J03",
+      "title": "Account connected while model service is unavailable",
+      "coverage": "platform/native/desktop",
+      "evidence": "Account/catalog separation, exact account identity, ready/stale/unavailable model checks",
+      "remaining": "Live inference is separate from discovery",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J04",
+      "title": "Attach, inspect, remove and replace a document",
+      "coverage": "platform/native",
+      "evidence": "Library selection identities, literal CSV and actual PDF content preview, cancel/add preserving draft",
+      "remaining": "Physical file-provider behavior",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J05",
+      "title": "Protected attachment cannot cross scope",
+      "coverage": "core/platform",
+      "evidence": "Protected context references and selected file transaction guard; original Health/local data canaries",
+      "remaining": "No real Health records used",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J06",
+      "title": "Dictation during an active response",
+      "coverage": "platform/native",
+      "evidence": "Active response and next draft survive Dictate; explicit Stop retains the correct owner",
+      "remaining": "Actual recorded speech",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J07",
+      "title": "Dictation permission, cutoff and interruption",
+      "coverage": "platform/code",
+      "evidence": "Off-main Speech callbacks, permission/cutoff/finalization/owner handling",
+      "remaining": "Physical microphone, language availability, cutoff and audio interruptions",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J08",
+      "title": "Contextual follow-up with empty and nonempty draft",
+      "coverage": "core/platform/native",
+      "evidence": "Exact selected source/revision, existing-draft confirmation and unsent surface/project follow-up",
+      "remaining": "No live model interpretation test",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J09",
+      "title": "Search into a long conversation",
+      "coverage": "core/native",
+      "evidence": "Bounded exact old-message landing with query/result restoration",
+      "remaining": "Physical long-history scrolling performance",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J10",
+      "title": "Search result becomes stale",
+      "coverage": "core/code",
+      "evidence": "Fingerprint/revision checks reject removed or changed sources and retain re-search path",
+      "remaining": "Expanded physical stale-result navigation",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J11",
+      "title": "Large Library and rapid search changes",
+      "coverage": "core/code",
+      "evidence": "Incremental index, cancellation and filters; 1,000-document timing fixture",
+      "remaining": "Target-phone latency profiling",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J12",
+      "title": "Open the same output from three places",
+      "coverage": "core/platform/native",
+      "evidence": "Canonical current output IDs, distinct same-name sources, stored revision reload and project links",
+      "remaining": "User library visual acceptance",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J13",
+      "title": "Artifact draft, close, restore and discard",
+      "coverage": "core/platform/native",
+      "evidence": "Close/relaunch preserves draft; discard and committed revision export are independent",
+      "remaining": "Physical app termination/storage conditions",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J14",
+      "title": "Artifact save conflict",
+      "coverage": "core/platform",
+      "evidence": "Concurrent artifact revision rejects overwrite; comparison and recoverable draft",
+      "remaining": "Physical storage-failure rehearsal",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J15",
+      "title": "Settings commit and failure semantics",
+      "coverage": "platform/native",
+      "evidence": "Preference persistence/rollback; grouped settings and staged dirty connection confirmation",
+      "remaining": "Real credential editor/account authorization",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J16",
+      "title": "Scenario exact input, undo and save failure",
+      "coverage": "core/native",
+      "evidence": "Exact stepped values, undo, injected saved-revision conflict, explicit revert",
+      "remaining": "Physical locale/keyboard variation",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J17",
+      "title": "Multi-series chart selection",
+      "coverage": "native/core",
+      "evidence": "Accessible category selection exposes every series; symbols and data table",
+      "remaining": "Physical screen-reader chart use",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J18",
+      "title": "Interrupted phone-owned work and uncertain effects",
+      "coverage": "core/native",
+      "evidence": "Unknown outcomes cannot be replayed; recorded receipts, local recovery and task evidence retained",
+      "remaining": "Physical suspension/termination timing",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J19",
+      "title": "Remote work continues while observation disconnects",
+      "coverage": "companion/core/native/TLS",
+      "evidence": "Idempotent durable job/replay ownership, browsing during response and pinned reconnect policy",
+      "remaining": "Hour-long lock, cellular/Wi-Fi transition and real provider run",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J20",
+      "title": "Create and resume an optional project",
+      "coverage": "core/native",
+      "evidence": "Manual empty/current-chat project creation, revision-safe edits and unsent Continue context",
+      "remaining": "User project acceptance",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J21",
+      "title": "Memory correction, provenance and forgetting",
+      "coverage": "core/code",
+      "evidence": "Memory source navigation, correction, tentative status, forgetting and undo",
+      "remaining": "Human provenance/correction interaction",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J22",
+      "title": "Fast Inbox capture without execution",
+      "coverage": "core/native",
+      "evidence": "Save-only capture without inference; file/filter/move/recover and draft Ask",
+      "remaining": "Physical Siri/share integration behavior",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J23",
+      "title": "Downloaded model lifecycle and storage reclamation",
+      "coverage": "core/platform/native",
+      "evidence": "Owned model cleanup, explicit cache/package distinction, download recovery and memory estimates",
+      "remaining": "Actual downloaded weights removal, memory grant and inference on phone",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J24",
+      "title": "Calendar and image contextual handoff",
+      "coverage": "core/platform/native",
+      "evidence": "Typed planning and image context, retained normalized coordinates, depth-only measurements",
+      "remaining": "Real calendars/camera/depth and accessible point control",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J25",
+      "title": "Accessibility and interrupted navigation matrix",
+      "coverage": "platform/native/desktop",
+      "evidence": "Light/dark, largest text, keyboard/modal ownership, named controls and reduced-motion/contrast styles",
+      "remaining": "Physical VoiceOver, Reduce Transparency and assistive-technology matrix",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J26",
+      "title": "Restore rehearsal and user-data boundaries",
+      "coverage": "core/platform/native",
+      "evidence": "Protected-data export coverage review, checksum/identity/path guards, isolated restore and next-launch selection",
+      "remaining": "In-place user-library backup/restore after installation",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J27",
+      "title": "Companion returning-user experience",
+      "coverage": "desktop integration",
+      "evidence": "Real rendered control center opens saved output, downloads correct bytes, declines a review and survives page reload",
+      "remaining": "Real user/provider review session",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    },
+    {
+      "id": "J28",
+      "title": "Ordinary conversation is still ordinary",
+      "coverage": "core/native",
+      "evidence": "Ordinary deterministic conversations do not require project creation or a setup ritual",
+      "remaining": "Separately authorized live answer-quality and human usability observation",
+      "external_inference": false,
+      "personal_records_used": false,
+      "native_result": "Relevant automated checks passed; the separately listed physical/human step has not been represented as executed."
+    }
+  ],
+  "native_run": 38667036175,
+  "production_source": "2de8e5f8b62e62a223563199b0b8405d3ff025bd",
+  "same_binary_rechecks": [
+    38669579168,
+    38669582055,
+    38669585071
+  ]
+}
