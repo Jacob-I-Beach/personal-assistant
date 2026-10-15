@@ -7,7 +7,7 @@ final class ResponseContinuity09Tests: XCTestCase, @unchecked Sendable {
         let data = Data(#"{"models":[{"slug":"gpt-6-astra","display_name":"Astra","visibility":"list","context_window":272000,"max_context_window":1050000},{"slug":"smaller","display_name":"Smaller","visibility":"list","context_window":128000,"max_context_window":268384}]}"#.utf8)
         let models = try ChatGPTModel.catalog(from: data)
         let large = ModelContextBudget(model: models[0].id, advertisedWindow: models[0].contextWindow, advertisedMaximumWindow: models[0].maximumContextWindow, requestedInputTokens: 1_000_000)
-        XCTAssertEqual(large.selectedInputTokens, 1_000_000); XCTAssertEqual(large.outputReserve, 50_000)
+        XCTAssertEqual(large.selectedInputTokens, 1_000_000); XCTAssertEqual(large.outputReserve, 128_000)
         let small = ModelContextBudget(model: models[1].id, advertisedWindow: models[1].contextWindow, advertisedMaximumWindow: models[1].maximumContextWindow, requestedInputTokens: 1_000_000)
         XCTAssertEqual(small.maximumInputTokens, 252_000); XCTAssertFalse(small.presets.contains(1_000_000))
         XCTAssertEqual(ModelContextBudget(model: "gpt-6-astra", advertisedWindow: 272_000).maximumInputTokens, 1_000_000)

@@ -9,7 +9,8 @@ final class CoherenceTests: XCTestCase, @unchecked Sendable {
     func testMillionTokenSelectionUsesSupportedModelAndReservesOutput() {
         let large = ModelContextBudget(model: "gpt-6.1-sol", requestedInputTokens: 1_000_000)
         XCTAssertEqual(large.selectedInputTokens, 1_000_000)
-        XCTAssertLessThanOrEqual(large.selectedInputTokens + large.outputReserve, large.modelWindow)
+        XCTAssertLessThanOrEqual(large.activeInputTokens + large.outputReserve, large.modelWindow)
+        XCTAssertLessThanOrEqual(large.compactionInputTokens + large.compactionOutputReserve, large.modelWindow)
         XCTAssertTrue(large.limitSource.contains("Published"))
         let account = ModelContextBudget(model: "gpt-6.1-sol", advertisedMaximumWindow: 200_000, requestedInputTokens: 1_000_000)
         XCTAssertEqual(account.modelWindow, 200_000)
@@ -41,7 +42,7 @@ final class CoherenceTests: XCTestCase, @unchecked Sendable {
         let backend = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: "gpt-6.1-sol", wireProtocol: .responses, contextBudget: plan)
         let request = try backend.makeRequest(.init(instructions: "Test", messages: [], tools: []))
         let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(request.httpBody))
-        XCTAssertEqual(body["max_output_tokens"], .number(50_000))
+        XCTAssertEqual(body["max_output_tokens"], .number(128_000))
         XCTAssertEqual(backend.contextLimits.maximumTextBytes, plan.textByteBudget)
         let account = try NetworkModelBackend(baseURL: URL(string: "https://api.openai.com/v1")!, model: "gpt-6.1-sol", wireProtocol: .responses,
                                               credential: "synthetic-token", chatGPTAccountID: "synthetic-account", contextBudget: plan)

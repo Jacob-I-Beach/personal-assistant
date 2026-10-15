@@ -15,6 +15,9 @@ extension AppModel {
         accounts = [.init(id: "synthetic-account", label: "Synthetic test account", isConnected: true)]
         chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":272000,"max_context_window":1050000},{"slug":"limited-context-fixture","display_name":"Limited context model","visibility":"list","context_window":128000,"max_context_window":268384}]}"#.utf8))) ?? []
         modelCatalog.phase = .ready
+        if ProcessInfo.processInfo.arguments.contains("--ui-reply-budget131") {
+            chatGPTModels = (try? ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","context_window":272000,"max_context_window":872000}]}"#.utf8))) ?? []
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-catalog-stale") {
             modelCatalog.phase = .stale; modelCatalog.issue = "ChatGPT model discovery returned HTTP 520. Your sign-in is saved."
         }
@@ -37,6 +40,9 @@ extension AppModel {
                 let mobile = AccountModelCatalog(owner: "account:synthetic-mobile", models: fixtureModels)
                 modelCatalog.begin(owner: mobile.owner, saved: mobile); modelCatalog.receive(mobile)
             }
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-reply-budget131") {
+            settings.contextTokensByModel[settings.contextPreferenceKey] = 855_616
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-published-file") {
             let id = UUID(uuidString: "00000000-0000-4000-8000-000000000112")!

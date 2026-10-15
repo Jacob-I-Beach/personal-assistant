@@ -59,6 +59,19 @@ import XCTest
         XCTAssertEqual(AppleModelBackend(location: .device).contextLimits.compactionReserveBytes, 3000)
         XCTAssertTrue(AppleModelBackend(location: .device).supportsContextCheckpoints)
     }
+    func testReportedCatalogWindowUsesTheSameBudgetForPCAndMobile() async throws {
+        let model = AppModel(); try await model.waitUntilReady()
+        model.chatGPTModels = try ChatGPTModel.catalog(from: Data(#"{"models":[{"slug":"gpt-6.1-sol","display_name":"GPT-6.1-Sol","visibility":"list","max_context_window":872000}]}"#.utf8))
+        for useComputer in [false, true] {
+            var selection = ModelSettings(); selection.choice = .chatGPT; selection.chatGPTModel = "gpt-6.1-sol"
+            selection.chatGPTAccountID = "synthetic"; selection.useComputer = useComputer; selection.companion = connection
+            selection.contextTokensByModel[selection.contextPreferenceKey] = 855_616
+            let plan = try XCTUnwrap(model.contextBudget(for: selection))
+            XCTAssertEqual(plan.outputReserve, 128_000)
+            XCTAssertEqual(plan.activeInputTokens, 598_931)
+            XCTAssertEqual(plan.compactionOutputReserve, 16_384)
+        }
+    }
     func testLocalAnswerToolStoresExactSourceWithoutStartingComputerWork() async throws {
         let model = AppModel(); try await model.waitUntilReady(); let store = try XCTUnwrap(model.store)
         let earlier = UUID(), current = UUID()

@@ -49,10 +49,12 @@ struct ReasoningEffortView: View {
                             LabeledContent("Total model capacity", value: plan.modelWindow.formatted() + " tokens")
                             LabeledContent("Active working context", value: plan.activeInputTokens.formatted() + " tokens")
                             LabeledContent("Compaction reserve · 30%", value: plan.compactionReserveTokens.formatted() + " tokens")
-                            LabeledContent("Room for the reply", value: plan.outputReserve.formatted() + " tokens")
+                            LabeledContent("Reply and reasoning", value: "Up to " + plan.outputReserve.formatted() + " tokens")
+                                .accessibilityElement(children: .ignore).accessibilityLabel("Reply and reasoning")
+                                .accessibilityValue("Up to " + plan.outputReserve.formatted() + " tokens").accessibilityIdentifier("connected-reply-allowance")
                             Text(plan.limitSource).font(.caption).foregroundStyle(.secondary)
                             Text("Reasoning shares the reply allowance. Images and tools also use context. The connection enforces the final limit.").font(.caption).foregroundStyle(.secondary)
-                            Text("The selected working allowance keeps 30% available for compaction and continuation. Full history and exact tool results remain saved; older material is retrieved when needed.").font(.caption).foregroundStyle(.secondary)
+                            Text("The 30% reserve is headroom, not occupied history. Reply space is based on active input. Compaction runs separately with its own allowance; these amounts are not added together. Full history and exact tool results remain saved.").font(.caption).foregroundStyle(.secondary)
                         }
                     } else if model.settings.choice == .localMLX {
                         let local = model.localContextBudget(memoryGiB: memoryGiB, tokens: context)

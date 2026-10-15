@@ -66,6 +66,7 @@ public protocol ModelBackend: Sendable {
     var networkDestination: String? { get }
     var supportsFileInputs: Bool { get }
     var supportsContextCheckpoints: Bool { get }
+    var checkpointInputByteBudget: Int { get }
     /// Establish the runtime's real resource budget before request assembly.
     /// Preparation loads local assets only; it does not perform inference.
     func prepareForResponse(containsImages: Bool) async throws
@@ -75,6 +76,7 @@ public extension ModelBackend {
     var contextLimits: ContextLimits { ContextLimits() }
     var supportsFileInputs: Bool { false }
     var supportsContextCheckpoints: Bool { false }
+    var checkpointInputByteBudget: Int { contextLimits.maximumTextBytes }
     func prepareForResponse(containsImages: Bool) async throws { }
 }
 

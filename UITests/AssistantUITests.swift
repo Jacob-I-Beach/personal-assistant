@@ -1189,6 +1189,21 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Audit120-surface-save-conflict")
         revert.tap(); XCTAssertTrue(app.staticTexts["Points, 70"].waitForExistence(timeout: 8)); XCTAssertFalse(app.buttons["Stop response"].exists)
     }
+    func testReplyBudget131LargestSelectionShowsNormalReplyCapacity() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-computer-account", "--ui-reply-budget131", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
+        app.buttons["Response settings"].tap()
+        let reply = app.descendants(matching: .any)["connected-reply-allowance"].firstMatch
+        for _ in 0..<10 { if reply.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(reply.exists)
+        XCTAssertEqual(reply.value as? String, "Up to 128,000 tokens")
+        XCTAssertTrue(app.staticTexts["598,931 tokens"].exists)
+        XCTAssertTrue(app.staticTexts["256,685 tokens"].exists)
+        saveScreenshot(app, name: "ReplyBudget131-855K-with-full-reply-room")
+    }
     func testContinuity130ReserveAndMobileFallbackAreVisible() {
         continueAfterFailure = false
         let app = XCUIApplication()

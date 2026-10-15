@@ -7,6 +7,8 @@ public struct ModelContextBudget: Equatable, Sendable {
     public let maximumInputTokens: Int
     public let selectedInputTokens: Int
     public let outputReserve: Int
+    public let compactionInputTokens: Int
+    public let compactionOutputReserve: Int
     public let limitSource: String
     public init(model: String, advertisedWindow: Int? = nil, advertisedMaximumWindow: Int? = nil, requestedInputTokens: Int? = nil) {
         let documented: Int? = ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"].contains(model.lowercased()) ? 1_050_000 : nil
@@ -17,7 +19,14 @@ public struct ModelContextBudget: Equatable, Sendable {
         let minimumReplySpace = min(16_384, modelWindow / 4)
         maximumInputTokens = min(1_000_000, modelWindow - minimumReplySpace)
         selectedInputTokens = min(maximumInputTokens, max(4_096, requestedInputTokens ?? min(128_000, maximumInputTokens)))
-        outputReserve = min(documented != nil ? 128_000 : min(32_768, modelWindow / 4), modelWindow - selectedInputTokens)
+        let outputMaximum = documented != nil ? 128_000 : min(32_768, modelWindow / 4)
+        let activeInput = selectedInputTokens - ContextReserve.amount(in: selectedInputTokens)
+        // The reserve is unoccupied headroom. A normal request carries only
+        // active input; subtracting the full allowance falsely reports 16K at
+        // the connection's largest preset. Compaction is a separate request.
+        outputReserve = min(outputMaximum, modelWindow - activeInput)
+        compactionInputTokens = min(selectedInputTokens, documented != nil ? 922_000 : selectedInputTokens)
+        compactionOutputReserve = min(outputMaximum, modelWindow - compactionInputTokens)
     }
     public var textByteBudget: Int { selectedInputTokens * 3 }
     public var compactionReserveTokens: Int { ContextReserve.amount(in: selectedInputTokens) }

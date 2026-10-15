@@ -21,6 +21,7 @@ public struct NetworkModelBackend: ModelBackend {
     public var supportsFileInputs: Bool { wireProtocol == .responses && baseURL.absoluteString == "https://api.openai.com/v1" }
     public var supportsContextCheckpoints: Bool { true }
     public var selectedInputTokens: Int? { contextBudget?.selectedInputTokens }
+    public var checkpointInputByteBudget: Int { contextBudget.map { $0.compactionInputTokens * 3 } ?? contextLimits.maximumTextBytes }
     public var contextLimits: ContextLimits {
         ContextLimits(maximumTextBytes: contextBudget?.textByteBudget ?? (chatGPTAccountID == nil ? 32_768 : 128_000), maximumImages: 4)
     }
@@ -143,7 +144,7 @@ public struct NetworkModelBackend: ModelBackend {
         ]
         // ChatGPT-plan token sharing rejects this field. The input planner still
         // reserves reply space; API-key connections can set an explicit output cap.
-        if chatGPTAccountID == nil, let contextBudget { body["max_output_tokens"] = .number(Double(contextBudget.outputReserve)) }
+        if chatGPTAccountID == nil, let contextBudget { body["max_output_tokens"] = .number(Double(input.isCompaction ? contextBudget.compactionOutputReserve : contextBudget.outputReserve)) }
         if !input.tools.isEmpty {
             let functions = input.tools.map { tool in
                 .object(["type": .string("function"), "name": .string(tool.name),
@@ -185,7 +186,7 @@ public struct NetworkModelBackend: ModelBackend {
             messages.append(.object(item))
         }
         var body: [String: JSONValue] = ["model": .string(model), "stream": .bool(true), "messages": .array(messages)]
-        if let contextBudget { body["max_tokens"] = .number(Double(contextBudget.outputReserve)) }
+        if let contextBudget { body["max_tokens"] = .number(Double(input.isCompaction ? contextBudget.compactionOutputReserve : contextBudget.outputReserve)) }
         if !input.tools.isEmpty {
             body["tools"] = .array(input.tools.map { tool in
                 .object(["type": .string("function"), "function": .object([
