@@ -7,6 +7,43 @@ import { randomBytes } from 'node:crypto';
 import { Vault } from '../src/vault.mjs';
 import { JobStore } from '../src/job-store.mjs';
 import { ComputeRuntime } from '../src/compute-runtime.mjs';
+import { sep } from 'node:path';
+
+test('large intermediate state reopens by handle without entering model context and retains source protection', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'assistant-state-check-'));
+  assert.ok(resolve(root).startsWith(resolve(tmpdir()) + sep));
+  const store = new JobStore(':memory:', new Vault(randomBytes(32)));
+  const job = store.create('synthetic-phone', 'large-state', {contains_health_data:false}).job;
+  const runtime = new ComputeRuntime({root:join(root,'executions'),store});
+  try {
+    const saved = await runtime.execute({id:'save',name:'run_python',arguments:{code:"assistant.save_state({'data':'x'*(2*1024*1024), 'count':17})\nassistant.publish({'saved':True})"}}, job, new AbortController().signal);
+    assert.equal(saved.succeeded,true,JSON.stringify(saved.output));
+    assert.ok(saved.output.state_file.bytes > 1024*1024);
+    assert.ok(JSON.stringify(saved).length < 4000, 'the model receives a receipt, never the state payload');
+    const state = store.file(job.id, job.owner, saved.output.state_file.id);
+    const protectedState = store.saveFile(job.id, {filename:'synthetic-protected-state.json',role:'state',contains_health_data:true},state.data);
+    const reopened = await runtime.execute({id:'reopen',name:'run_python',arguments:{state_file_id:protectedState.id,code:"assert assistant.state['data'] == 'x'*(2*1024*1024)\nassistant.publish({'bytes':len(assistant.state['data']), 'count':assistant.state['count']})"}},job,new AbortController().signal);
+    assert.equal(reopened.succeeded,true,JSON.stringify(reopened.output));
+    assert.deepEqual(reopened.output.result,{bytes:2*1024*1024,count:17});
+    assert.equal(reopened.containsHealthData,true);
+    assert.ok(JSON.stringify(reopened).length < 4000);
+  } finally {store.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('Python failures preserve the final exception and bound verbose diagnostics', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'assistant-trace-check-'));
+  assert.ok(resolve(root).startsWith(resolve(tmpdir()) + sep));
+  const store = new JobStore(':memory:', new Vault(randomBytes(32)));
+  const job = store.create('synthetic-phone','trace',{}).job;
+  const runtime = new ComputeRuntime({root:join(root,'executions'),store});
+  try {
+    const failed = await runtime.execute({id:'fail',name:'run_python',arguments:{code:"import sys\nsys.stderr.write('earlier diagnostic\\n' * 2000)\nraise ValueError('synthetic final cause')"}},job,new AbortController().signal);
+    assert.equal(failed.succeeded,false);
+    assert.match(failed.output.error,/ValueError: synthetic final cause/);
+    assert.match(failed.output.error,/Earlier traceback detail omitted/);
+    assert.ok(failed.output.error.length < 8500);
+  } finally {store.close();await rm(root,{recursive:true,force:true});}
+});
 
 test('authorized CSV becomes checked workbook and rendered PDF in the real isolated runtime', async () => {
   const root = await mkdtemp(join(tmpdir(), 'assistant-compute-check-'));

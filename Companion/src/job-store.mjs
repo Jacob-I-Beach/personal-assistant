@@ -197,7 +197,7 @@ export class JobStore {
   }
   files(jobId,owner) {
     this.assertOwner(jobId,owner);
-    return this.db.prepare('SELECT f.* FROM files f WHERE job_id=? AND version=(SELECT MAX(version) FROM files n WHERE n.job_id=f.job_id AND n.id=f.id)').all(jobId)
+    return this.db.prepare('SELECT f.id,f.version,f.metadata FROM files f WHERE job_id=? AND version=(SELECT MAX(version) FROM files n WHERE n.job_id=f.job_id AND n.id=f.id)').all(jobId)
       .map(row=>this.vault.openJSON(row.metadata,`file-info:${jobId}:${row.id}:${row.version}`));
   }
   close() { this.db.close(); }

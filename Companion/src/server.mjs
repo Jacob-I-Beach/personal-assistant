@@ -188,7 +188,8 @@ export async function startCompanion(options={}) {
           if(prior.sha!==createHash('sha256').update(bytes).digest('hex')||prior.filename!==body.filename)throw Object.assign(new Error('This file identifier belongs to a different input.'),{status:409});
           return jsonReply(response,200,prior);
         }
-        if(existing.length>=20||existing.reduce((sum,file)=>sum+file.bytes,0)+bytes.length>64*1024*1024)throw new Error('Selected task files exceed the input allowance.');
+        const inputs=existing.filter(file=>file.role==='input');
+        if(inputs.length>=20||inputs.reduce((sum,file)=>sum+file.bytes,0)+bytes.length>64*1024*1024)throw new Error('Selected task files exceed the input allowance.');
         const saved=store.saveFile(id,{id:body.id,filename:body.filename,role:'input',contains_health_data:body.contains_health_data===true},bytes);
         queueMicrotask(()=>startWhenReady(store.get(id,owner)).catch(()=>{}));
         return jsonReply(response,201,saved);

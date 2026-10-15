@@ -20,8 +20,16 @@ try:
     with stdout_path.open('wb') as out, stderr_path.open('wb') as err:
         process = subprocess.run(command, stdout=out, stderr=err, timeout=timeout, cwd='/outputs',
                                  env={'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': '/tmp/home', 'PYTHONDONTWRITEBYTECODE': '1', 'MPLBACKEND': 'Agg', 'MPLCONFIGDIR': '/tmp/matplotlib', 'LANG': 'C.UTF-8', 'OPENBLAS_NUM_THREADS': processors, 'OMP_NUM_THREADS': processors, 'MKL_NUM_THREADS': processors, 'NUMEXPR_NUM_THREADS': processors})
-    output = stdout_path.read_bytes()[:16384].decode('utf-8', 'replace')
-    error = stderr_path.read_bytes()[:8192].decode('utf-8', 'replace')
+    with stdout_path.open('rb') as stream:
+        output = stream.read(16384).decode('utf-8', 'replace')
+    with stderr_path.open('rb') as stream:
+        if stderr_path.stat().st_size > 8192:
+            error_bytes = stream.read(3072) + b'\n[Earlier traceback detail omitted]\n'
+            stream.seek(-5120, os.SEEK_END)
+            error_bytes += stream.read(5120)
+        else:
+            error_bytes = stream.read(8192)
+    error = error_bytes.decode('utf-8', 'replace')
     files, total = [], 0
     candidates = list(Path('/outputs').iterdir())
     if len(candidates) > 30:
@@ -36,7 +44,7 @@ try:
         files.append({'filename': path.name, 'data_base64': base64.b64encode(path.read_bytes()).decode('ascii')})
     result_file, state_file = Path('/tmp/assistant-result.json'), Path('/tmp/assistant-state.json')
     result = json.loads(result_file.read_text()) if result_file.exists() and result_file.stat().st_size <= 256 * 1024 else None
-    state_value = json.loads(state_file.read_text()) if state_file.exists() and state_file.stat().st_size <= 1024 * 1024 else None
+    state_value = json.loads(state_file.read_text()) if state_file.exists() and state_file.stat().st_size <= 24 * 1024 * 1024 else None
     print(json.dumps({'succeeded': process.returncode == 0, 'result': result, 'stdout': output,
                       'stdout_truncated': stdout_path.stat().st_size > 16384, 'error': error if process.returncode else None,
                       'state': state_value, 'files': files}, ensure_ascii=False, allow_nan=False))

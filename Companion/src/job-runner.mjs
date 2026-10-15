@@ -108,7 +108,9 @@ export class JobRunner extends EventEmitter {
     const handoff=!job.checkpoint&&this.prepareHandoff?await this.prepareHandoff(job,signal):null;
     signal.throwIfAborted();
     const hostTools=[...(this.runtime.definitions??[]),...workTools].filter(tool=>!payload.schedule_id||scheduledTools.has(tool.name));
-    const offeredTools=(payload.body.tools??[]).filter(tool=>tool.name!=='review_computer_action').map(tool=>tool.type==='namespace'?{...tool,tools:tool.tools.filter(entry=>entry.name!=='review_computer_action')}:tool);
+    const currentTools=new Map(hostTools.map(tool=>[tool.name,tool]));
+    const currentDefinition=tool=>currentTools.has(tool.name)?{...tool,...currentTools.get(tool.name),type:'function',strict:true}:tool;
+    const offeredTools=(payload.body.tools??[]).filter(tool=>tool.name!=='review_computer_action').map(tool=>tool.type==='namespace'?{...tool,tools:tool.tools.filter(entry=>entry.name!=='review_computer_action').map(currentDefinition)}:currentDefinition(tool));
     const wireTools=payload.schedule_id?offeredTools.filter(tool=>tool.type==='web_search'):offeredTools;
     const functions=wireTools.flatMap(tool=>tool.tools??[tool]);
     if(!functions.some(tool=>tool.name==='use_tool')){

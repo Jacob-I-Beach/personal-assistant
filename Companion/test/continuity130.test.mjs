@@ -19,6 +19,25 @@ const task=(store,extra={})=>store.create('phone','task',{title:'Complete synthe
 const receipt=call=>({callID:call.id,name:call.name,succeeded:true,output:{status:'completed'}});
 const settle=async runner=>{for(let i=0;i<20;i++){await new Promise(r=>setImmediate(r));await Promise.all([...runner.active.values()].map(item=>item.promise));if(!runner.active.size)return;}throw new Error('Task did not settle');};
 
+test('an older phone catalog uses current computer tool contracts in flat and namespaced requests',async t=>{
+  for(const namespaced of [false,true]){
+    const store=fixture(t),current={...definition('run_python'),description:'Current state handle contract'};
+    const old={...current,description:'Outdated phone contract',type:'function'};
+    const offered=namespaced?[{type:'namespace',name:'functions',tools:[old]}]:[old];
+    const job=task(store,{body:{model:'synthetic',input:[],tools:offered}});
+    const runner=new JobRunner(store,{streamTurn:async({body})=>{
+      const tools=body.tools.flatMap(tool=>tool.tools??[tool]);
+      const actual=tools.filter(tool=>tool.name==='run_python');
+      assert.equal(actual.length,1);
+      assert.equal(actual[0].description,current.description);
+      assert.deepEqual(actual[0].parameters,current.parameters);
+      return final('Done');
+    }},{definitions:[current],supports:()=>true});
+    await runner.start(job.id,'phone');
+    assert.equal(store.get(job.id,'phone').status,'completed');
+  }
+});
+
 test('PC task crosses 30 rounds and 40 actions automatically without losing operation identity',async t=>{
   const store=fixture(t);let rounds=0,effects=0;
   const runtime={definitions:[definition('calculate')],supports:()=>true,title:()=>'',execute:async c=>{effects++;return receipt(c);}};

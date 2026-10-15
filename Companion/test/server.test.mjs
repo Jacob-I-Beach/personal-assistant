@@ -41,6 +41,11 @@ test('paired HTTPS jobs survive a lost client, preserve ownership and reconnect 
     const body={request_key:'one-turn',conversation_id:'chat',turn_id:'turn',profile_id:'synthetic',start_when_ready:true,expected_file_ids:[],body:{model:'synthetic',input:[]},catalog:[]};
     const created=await request('/v1/jobs',body,token);assert.equal(created.status,201);
     const id=created.body.id;assert.equal((await request('/v1/jobs',body,token)).body.id,id);
+    const fileJob=(await request('/v1/jobs',{...body,request_key:'input-after-state',start_when_ready:false},token)).body.id;
+    for(let i=0;i<20;i++)host.store.saveFile(fileJob,{filename:`state-${i}.json`,role:'state'},Buffer.from('{}'));
+    const upload=await request(`/v1/jobs/${fileJob}/files`,{id:'input-after-state',filename:'source.txt',data_base64:Buffer.from('synthetic input').toString('base64')},token);
+    assert.equal(upload.status,201,JSON.stringify(upload.body));
+    assert.equal(host.store.files(fileJob,paired.body.device_id).filter(file=>file.role==='input').length,1);
     // The phone can disappear after Send; it need not stay alive to issue start.
     assert.equal((await request(`/v1/jobs/${id}`,undefined,token)).body.status,'running');
     release();await host.runner.active.get(id)?.promise;

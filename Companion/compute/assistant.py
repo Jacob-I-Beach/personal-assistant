@@ -15,8 +15,8 @@ def publish(value):
 
 def save_state(value):
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
-    if len(encoded.encode()) > 1024 * 1024:
-        raise ValueError('Save larger intermediate data as an output file.')
+    if len(encoded.encode()) > 24 * 1024 * 1024:
+        raise ValueError('Intermediate JSON exceeds 24 MiB. Save larger datasets as bounded output files and retain their task file handles.')
     Path('/tmp/assistant-state.json').write_text(encoded)
 
 def output_path(name):

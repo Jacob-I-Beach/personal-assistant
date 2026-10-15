@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join, resolve, sep, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const IMAGE = 'personal-assistant-compute:1.1';
+const IMAGE = 'personal-assistant-compute:1.3';
 const safeName = name => typeof name === 'string' && name.length > 0 && name.length < 180 && !/[\\/:\x00-\x1f]/.test(name) && !['.','..'].includes(name) && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name);
 
 function processResult(executable, args, {signal, timeout = 15000, maximumBytes = 96 * 1024 * 1024, onStop} = {}) {
@@ -95,7 +95,12 @@ export class ComputeRuntime {
       const memory = Math.min(8192, Math.max(512, Number(args.memory_mib) || 2048));
       const processors = Math.min(8, Math.max(1, Number(args.cpu_count) || 2));
       let state = null;
-      if (args.state_file_id) state = JSON.parse(this.store.file(job.id, job.owner, args.state_file_id).data.toString('utf8'));
+      if (args.state_file_id) {
+        const saved = this.store.file(job.id, job.owner, args.state_file_id);
+        if (saved.data.length > 24 * 1024 * 1024) throw new Error('Intermediate JSON exceeds 24 MiB. Read larger datasets through selected input files.');
+        containsHealthData ||= saved.metadata.contains_health_data === true;
+        state = JSON.parse(saved.data.toString('utf8'));
+      }
       const request = {mode: call.name === 'inspect_document' ? 'inspect' : 'python', files,
         input: typeof args.input_json === 'string' ? JSON.parse(args.input_json) : null, state, timeout_seconds: timeout, cpu_count: processors};
       if (call.name === 'inspect_document') {
@@ -145,7 +150,7 @@ export const computerTools = [
   {name:'publish_task_files',description:'Show selected task files in the conversation. Use this when the user asks to see a computer/browser screenshot, a rendered page, chart, or other output. Inspection images are otherwise private working material, not chat attachments. Uses actual file IDs from tool receipts or list_task_files; never invent a file path or claim an image was sent without this publication receipt. Existing bytes and source versions are preserved.',parameters:object({file_ids:{type:'array',items:{type:'string'},minItems:1,maxItems:8},caption:{type:'string',maxLength:1000}})},
   {name:'list_task_files',description:'List the actual files currently available to this task on the computer, with stable IDs and versions. Use after uploading a Library file or recovering an interrupted transfer.',parameters:object({})},
   {name:'read_task_output',description:'Read a bounded exact excerpt of a completed tool receipt in this computer task. Useful after working context was compacted. Does not rerun the operation.',parameters:object({call_id:{type:'string'},offset:{type:'integer',minimum:0}})},
-  {name: 'run_python', description: 'Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. Read files from assistant.files or /inputs; write artifacts to /outputs. Use assistant.publish(value) for a concise result and assistant.save_state(value) for reusable intermediate data. Isolated from network and general host files. Default 60 seconds and 2 GiB; request up to 1800 seconds, 8 GiB and 8 CPU cores when warranted. Use reviewed run_computer_command for installed GPU programs or host resources.',
+  {name: 'run_python', description: 'Execute Python on the connected computer against selected task files. Includes NumPy, pandas, SciPy, Matplotlib, openpyxl, XlsxWriter, python-docx, python-pptx, ReportLab and PDF tools. assistant.files is a list of dictionaries with id, filename and path; originals are in /inputs. Write artifacts to /outputs. assistant.publish(value) returns a concise result up to 256 KiB. assistant.save_state(value) retains JSON up to 24 MiB behind a state_file handle; provide that ID as state_file_id next time and read assistant.state. State bytes stay out of model context. Isolated from network and general host files. Default 60 seconds and 2 GiB; request up to 1800 seconds, 8 GiB and 8 CPU cores when warranted. Use reviewed run_computer_command for installed GPU programs or host resources.',
     parameters: object({code: {type: 'string'}, file_ids: {type:'array',items:{type:'string'},maxItems:12}, input_json: {...nullableString, description:'Optional JSON text parsed into assistant.input, or null. Use file IDs for datasets.'},
       state_file_id: nullableString, timeout_seconds: {type:'integer',minimum:1,maximum:1800},memory_mib:{type:['integer','null'],minimum:512,maximum:8192},cpu_count:{type:['integer','null'],minimum:1,maximum:8}})},
   {name: 'inspect_document', description: 'Open a task document, inspect page/sheet structure and render the requested actual page. Supports PDF, Word, Excel and PowerPoint. Formulas and cached values are separate; previews report coverage. Returns image evidence for the selected page and preserves the original.',
