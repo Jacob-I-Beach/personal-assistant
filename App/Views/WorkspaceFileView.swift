@@ -4,19 +4,11 @@ import SwiftUI
 
 struct WorkspaceFileRow: View {
     let file: WorkspaceFile
-    var body: some View {
-        HStack(spacing: 13) {
-            Image(systemName: file.icon).font(.title2).foregroundStyle(.secondary).frame(width: 30)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(file.filename).font(.subheadline.weight(.medium)).lineLimit(2).foregroundStyle(.primary)
-                Text("\(ByteCountFormatter.string(fromByteCount: Int64(file.byteCount), countStyle: .file)) · \(file.createdAt.formatted(date: .abbreviated, time: .omitted))").font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }.padding(.vertical, 7)
-    }
+    var body: some View { OutputRow(value: OutputPresentation(file), symbol: file.icon) }
 }
 
 struct WorkspaceFileView: View {
+    @Environment(\.conversationDisplay) private var display
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dismiss) private var dismiss
@@ -42,11 +34,11 @@ struct WorkspaceFileView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if !previewOnly, let file {
+            if !previewOnly, display?.readOnly != true, let file {
                 VStack(alignment: .leading, spacing: 8) {
                     Button("Ask about this file", systemImage: "text.bubble") {
                         let ref = ContextReference(kind: .file, sourceID: id.uuidString, title: file.filename, conversationID: model.conversation.id, health: file.containsHealthData)
-                        navigation.compose(ContextualDraftProposal(reference: ref, prompt: "Help me understand this file."), afterDismissal: navigation.showLibrary)
+                        navigation.compose(ContextualDraftProposal(reference: ref, prompt: "Help me understand this file."), afterDismissal: model.rootPresentation != nil)
                     }.buttonStyle(.bordered).disabled(model.isRunning || (file.containsHealthData && file.conversationID != model.conversation.id))
                     if file.containsHealthData && file.conversationID != model.conversation.id { Text("Use the original conversation to discuss this Health-derived file.").font(.caption).foregroundStyle(.secondary) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.bar)
@@ -61,7 +53,7 @@ struct WorkspaceFileView: View {
                             Text(file.extractionNote.isEmpty ? "Original file retained. Extracted text may not preserve every detail." : file.extractionNote).font(.subheadline).foregroundStyle(.secondary)
                             if !file.text.isEmpty { DisclosureGroup("Extracted text · \(file.text.count) characters") { Text(String(file.text.prefix(24_000))).font(.caption.monospaced()).textSelection(.enabled) } }
                         }
-                        if !previewOnly {
+                        if !previewOnly && display?.readOnly != true {
                             Section {
                                 Toggle("Include in workspace search", isOn: Binding(get: { file.allowsWorkspaceSearch }, set: { value in Task { await model.shareFile(id, workspace: value, connected: file.allowsConnectedModels); await load() } }))
                                 Toggle("Allow connected models to find it", isOn: Binding(get: { file.allowsConnectedModels }, set: { value in Task { await model.shareFile(id, workspace: file.allowsWorkspaceSearch, connected: value); await load() } }))

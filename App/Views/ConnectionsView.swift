@@ -9,6 +9,7 @@ struct ConnectionsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section { ReadinessRow() }
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Bring your day into the conversation").font(.title3.weight(.semibold))

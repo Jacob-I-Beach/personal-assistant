@@ -260,7 +260,7 @@ private enum AccountHTTP {
         configuration.timeoutIntervalForRequest = 30; configuration.timeoutIntervalForResource = 60
         let session = URLSession(configuration: configuration, delegate: NoAccountRedirect(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.boundedData(for: request, maximumBytes: 4194304)
         try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse else { throw AccountConnectionError.unavailable }
         guard (200..<300).contains(http.statusCode) else { throw AccountConnectionError.network(http.statusCode) }

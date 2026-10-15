@@ -22,6 +22,21 @@ public struct ProjectWorkspace: Codable, Sendable, Identifiable, Equatable {
     }
 }
 extension LocalStore {
+    /// Direct user creation uses the same folder/chat identity as the tool path.
+    public func createProject(title: String, goal: String = "", conversationID: UUID? = nil) throws -> ProjectWorkspace {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, title.count <= 120, goal.count <= 1600 else { throw AssistantError.invalidTool("Use a title up to 120 characters and a goal up to 1,600 characters.") }
+        let chat = try conversationID.map { try loadConversation($0) } ?? Conversation(title: title)
+        let id = chat.folderID ?? chat.id
+        guard try !projectWorkspaces().contains(where: { $0.id == id }) else { throw AssistantError.invalidTool("This chat already belongs to a project. Open that project to continue it.") }
+        var value = ProjectWorkspace(id: id, sourceConversationID: chat.id, title: title, goal: goal, status: "active", decisions: [], questions: [], outputIDs: [], revision: 1, updatedAt: Date(), containsLocalOnlyContext: chat.networkDisabled || chat.messages.contains(where: \.containsLocalOnlyContext), containsHealthData: chat.containsHealthData)
+        value.lastMutationWasUserEdit = true
+        try database.transaction {
+            if conversationID == nil { try Self.persist(chat, in: database) }
+            try saveProjectWorkspace(value, expectedRevision: 0)
+        }
+        return value
+    }
     public func projectWorkspaces() throws -> [ProjectWorkspace] {
         try database.execute("CREATE TABLE IF NOT EXISTS project_workspaces(id TEXT PRIMARY KEY,payload BLOB NOT NULL)")
         return try database.execute("SELECT payload FROM project_workspaces ORDER BY rowid DESC").map { try Self.decode(ProjectWorkspace.self, $0[0].data!) }

@@ -24,6 +24,9 @@ struct HistoryView: View {
             List {
                 Section {
                     Button { model.newConversation(folderID: selectedFolder); close() } label: { rowLabel("New chat", icon: "square.and.pencil").fontWeight(.medium) }.disabled(model.isRunning)
+                    Button { close(); open("projects") } label: { rowLabel("Projects", icon: "square.stack.3d.up") }
+                    Button { close(); open("memory") } label: { rowLabel("Memory", icon: "brain.head.profile") }
+                    Button { close(); open("models") } label: { rowLabel("Models", icon: "brain") }
                     Button { close(); open("library") } label: { rowLabel("Library", icon: "square.stack") }
                     Button { close(); open("inbox") } label: { rowLabel("Inbox", icon: "tray") }
                     Button { close(); open("connections") } label: { rowLabel("Connections", icon: "point.3.connected.trianglepath.dotted") }
@@ -47,19 +50,23 @@ struct HistoryView: View {
                         if visible.isEmpty { Text(archived ? "Archived chats will appear here." : "Your conversations will appear here.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 12).listRowSeparator(.hidden) }
                         ForEach(visible) { chat in
                             HStack(alignment: .center, spacing: 6) {
-                                Button { Task { await model.selectConversation(chat); close() } } label: {
+                                Button { if model.isRunning { model.present(.savedConversation(chat.id, message: nil)); close() } else { Task { await model.selectConversation(chat); close() } } } label: {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(chat.title).lineLimit(2).font(.subheadline.weight(chat.id == model.conversation.id ? .semibold : .regular))
                                         Text(chat.updatedAt, format: .dateTime.month(.abbreviated).day()).font(.caption2).foregroundStyle(.secondary)
                                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6).contentShape(Rectangle())
-                                }.disabled(model.isRunning)
+                                }
                                 ChatActionsMenu(chat: chat)
                             }.listRowSeparator(.hidden)
                                 .listRowBackground(chat.id == model.conversation.id ? Color.primary.opacity(0.055) : Color.clear)
                         }
                     }
                 } else {
-                    Section("Matching conversations") {
+                    let titleMatches = visible.filter { $0.title.localizedCaseInsensitiveContains(query) }
+                    if !titleMatches.isEmpty { Section("Conversation titles") { ForEach(titleMatches) { chat in
+                        Button { if model.isRunning { model.present(.savedConversation(chat.id, message: nil)); close() } else { Task { await model.selectConversation(chat); close() } } } label: { Label(chat.title, systemImage: "bubble.left.and.bubble.right") }
+                    } } }
+                    Section("Message contents") {
                         ForEach(matches) { match in
                             Button {
                                 Task { await openMatch(match) }
@@ -68,7 +75,7 @@ struct HistoryView: View {
                                     Text(match.title).font(.subheadline.weight(.medium)).lineLimit(2)
                                     Text(MarkdownContent(match.excerpt).renderPlainText()).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                                 }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                            }.disabled(model.isRunning).id(match.id).accessibilityIdentifier("history-match-" + match.id.uuidString)
+                            }.id(match.id).accessibilityIdentifier("history-match-" + match.id.uuidString)
                         }
                         if matches.isEmpty { Text("No matching chats").foregroundStyle(.secondary) }
                         if let failure { Text(failure).font(.subheadline).foregroundStyle(.secondary) }
@@ -107,11 +114,12 @@ struct HistoryView: View {
         }
     }
     private func openMatch(_ match: HistoryMatch) async {
-        guard !model.isRunning, let store = model.store else { return }
+        guard let store = model.store else { return }
         do {
             let source = try await store.loadConversation(match.conversationID)
             _ = try HistoryLanding(match: match, conversation: source)
             guard let summary = model.histories.first(where: { $0.id == match.conversationID }) else { throw AssistantError.provider("This conversation is no longer available.") }
+            if model.isRunning { model.present(.savedConversation(match.conversationID, message: match.id)); close(); return }
             await model.selectConversation(summary)
             guard model.conversation.id == match.conversationID else { return }
             navigation.searchLanding = try HistoryLanding(match: match, conversation: model.conversation)
@@ -123,7 +131,7 @@ struct HistoryView: View {
             .font(.subheadline).contentShape(Rectangle())
     }
     private func rowLabel(_ title: String, icon: String) -> some View {
-        Label(title, systemImage: icon).frame(maxWidth: .infinity, minHeight: 38, alignment: .leading).contentShape(Rectangle())
+        Label(title, systemImage: icon).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
     }
 }
 
@@ -140,7 +148,7 @@ struct ChatActionsMenu: View {
             Button("Move to folder", systemImage: "folder") { moving = true }
             Button(chat.archivedAt == nil ? "Archive" : "Restore", systemImage: chat.archivedAt == nil ? "archivebox" : "tray.and.arrow.up") { Task { await model.changeChat(chat.id, .archive(chat.archivedAt == nil)) } }
             Button("Delete", systemImage: "trash", role: .destructive) { deleting = true }
-        } label: { Image(systemName: "ellipsis").frame(width: 36, height: 44).contentShape(Rectangle()).foregroundStyle(.secondary) }
+        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle()).foregroundStyle(.secondary) }
             .accessibilityLabel("Options for \(chat.title)").disabled(model.isRunning)
             .alert("Rename chat", isPresented: $renaming) {
                 TextField("Chat title", text: $name)

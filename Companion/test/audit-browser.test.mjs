@@ -66,3 +66,17 @@ test('actual Edge DOM review rejects changed targets and accepts one stable fill
     assert.ok(saved>=8);
   }finally{await runtime.close();}
 });
+
+test('browser workspaces have a resource ceiling and idle expiry without interrupting active work',async()=>{
+  let time=1000,closed=0;
+  const runtime=new BrowserRuntime({store:{},review:async()=>{},now:()=>time,idleMilliseconds:100,maximumSessions:2,launch:async()=>({close:async()=>{closed++;},newContext:async()=>({newPage:async()=>({setDefaultTimeout(){}})})})});
+  try{
+    await runtime.session({id:'a'});await runtime.session({id:'b'});
+    await assert.rejects(runtime.session({id:'c'}),/active task workspaces/);
+    runtime.executing.add('a');time=1200;await runtime.reapIdle();
+    assert.equal(runtime.sessions.has('a'),true);assert.equal(runtime.sessions.has('b'),false);assert.equal(closed,1);
+    await runtime.session({id:'c'});runtime.executing.delete('a');await runtime.reapIdle();
+    assert.equal(runtime.sessions.has('a'),false);assert.equal(runtime.sessions.has('c'),true);
+  }finally{await runtime.close();}
+  assert.equal(closed,3);
+});

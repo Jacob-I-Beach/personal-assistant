@@ -1,6 +1,24 @@
 import SwiftUI
 
+private enum SettingsGroup: String, CaseIterable, Identifiable {
+    case conversation = "Conversations", models = "Models", privacy = "Privacy & recovery", connections = "Connections", accessibility = "Accessibility & voice", about = "About"
+    var id: String { rawValue }
+    var icon: String { switch self { case .conversation: "bubble.left.and.bubble.right"; case .models: "brain"; case .privacy: "hand.raised"; case .connections: "point.3.connected.trianglepath.dotted"; case .accessibility: "accessibility"; case .about: "info.circle" } }
+}
 struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            List {
+                Section { ReadinessRow() }
+                ForEach(SettingsGroup.allCases) { group in NavigationLink { SettingsForm(group: group) } label: { Label(group.rawValue, systemImage: group.icon).frame(minHeight: 44) } }
+            }.navigationTitle("Settings")
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+}
+private struct SettingsForm: View {
+    let group: SettingsGroup
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ModelSettings()
@@ -11,9 +29,12 @@ struct SettingsView: View {
     @State private var initialConnection = ModelSettings()
     @State private var showContext = false
     var body: some View {
-        NavigationStack {
+        Group {
             Form {
+                if group == .connections {
                 Section { NavigationLink { DeviceAccessView() } label: { Label("Tools & device", systemImage: "iphone") } }
+                }
+                if group == .connections {
                 Section("ChatGPT") {
                     if model.usesComputerChatGPT {
                         Label(model.chatGPTAccountLabel, systemImage: "person.crop.circle")
@@ -34,6 +55,8 @@ struct SettingsView: View {
                     Toggle("Allow web search with ChatGPT", isOn: preference(\.chatGPTWebSearch)).disabled(model.isRunning)
                     Text("Lets supported account models search the web and return source links. Availability follows the selected model and your account's policy. This does not grant browser control or network access to code.").font(.footnote).foregroundStyle(.secondary)
                 }
+                }
+                if group == .models {
                 Section("On-device models") {
                     Toggle("Allow cellular downloads", isOn: preference(\.allowCellularDownloads)).disabled(model.isRunning)
                     Stepper("Response budget: \(model.settings.localResponseTokens)", value: Binding(get: { model.settings.localResponseTokens }, set: { value in
@@ -42,7 +65,10 @@ struct SettingsView: View {
                     Button("Unload from memory") { model.unloadModel() }.disabled(model.isRunning)
                     Text("Downloads stay on disk when memory is released. The practical context and model size depend on device measurements.").font(.footnote).foregroundStyle(.secondary)
                 }
+                }
+                if group == .privacy {
                 Section("Privacy and recovery") {
+                    NavigationLink { DataRecoveryView() } label: { Label("Data & recovery", systemImage: "externaldrive.badge.timemachine") }
                     Toggle("Confirm each new connected chat", isOn: preference(\.confirmNewConnectedChats)).disabled(model.isRunning)
                     Text("When off, Send uses the model you selected without another pop-up. Health sharing still has a separate review.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Allow iPhone background time", isOn: preference(\.continueInBackground)).disabled(model.isRunning)
@@ -65,6 +91,8 @@ struct SettingsView: View {
                     Text(model.libraryContainsHealthData ? "This library contains Health-derived information and stays excluded from device backups. Export selected items when needed." : "Conversations, memories, captures, and files stay excluded until you enable this. Model weights are always excluded. Account credentials remain in this device's Keychain.").font(.footnote).foregroundStyle(.secondary)
                     Button("Revoke network access for this conversation") { model.revokeNetworkConsent() }.disabled(model.isRunning)
                 }
+                }
+                if group == .connections {
                 Section {
                     DisclosureGroup("Other connections") {
                         Picker("Connection", selection: $draft.choice) {
@@ -93,30 +121,37 @@ struct SettingsView: View {
                         if let connectionNotice { Text(connectionNotice).font(.caption).foregroundStyle(.secondary) }
                     }
                 }
+                }
+                if group == .accessibility {
                 Section("Feedback & voice") {
                     Toggle("Gentle haptics", isOn: preference(\.hapticsEnabled)).disabled(model.isRunning)
                     Text("Quiet feedback for selections, sending, copying and replies. A soft three-tap pattern means the assistant needs your answer.").font(.footnote).foregroundStyle(.secondary)
                     Toggle("Read completed responses aloud", isOn: preference(\.speakReplies)).disabled(model.isRunning)
                     Text("You can also play an individual answer from its speaker button. Voice input uses on-device transcription when available.").font(.footnote).foregroundStyle(.secondary)
                 }
+                }
+                if group == .conversation {
                 Section("Conversations") {
                     Button("Home context", systemImage: "sun.max") { showContext = true }
                     Toggle("Automatic chat titles", isOn: preference(\.automaticChatTitles)).disabled(model.isRunning)
                     Text("Uses the selected model to name new chats after the first answer. Names you enter yourself are kept.").font(.footnote).foregroundStyle(.secondary)
                 }
+                }
+                if group == .about {
                 Section("About") {
                     Text("Personal Assistant").font(.headline)
                     Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")").font(.caption).foregroundStyle(.secondary)
                     Text("A private workspace for your conversations, models, and useful work.").foregroundStyle(.secondary)
                     NavigationLink("Open-source acknowledgments") { AcknowledgmentsView() }
                 }
+                }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(group.rawValue)
             .safeAreaInset(edge: .bottom) {
                 if let localError { Label(localError, systemImage: "exclamationmark.circle").font(.subheadline).frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.bar).accessibilityIdentifier("settings-save-error") }
             }
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { if connectionIsDirty { discardConnection = true } else { dismiss() } } }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { if connectionIsDirty { discardConnection = true } else { model.dismissPresentation(.settings) } } }
             }
             .onAppear { draft = model.settings; initialConnection = model.settings }
             .task { await model.refreshAccounts() }
@@ -131,7 +166,7 @@ struct SettingsView: View {
             .onChange(of: model.libraryContainsHealthData) { _, contains in if contains { draft.includeInDeviceBackup = false } }
             .interactiveDismissDisabled(connectionIsDirty)
             .confirmationDialog("Discard connection changes?", isPresented: $discardConnection, titleVisibility: .visible) {
-                Button("Discard connection changes", role: .destructive) { credential = ""; dismiss() }
+                Button("Discard connection changes", role: .destructive) { credential = ""; model.dismissPresentation(.settings) }
                 Button("Keep editing", role: .cancel) { }
             } message: { Text("Ordinary preferences are already saved. Only the unapplied connection fields will be discarded.") }
         }

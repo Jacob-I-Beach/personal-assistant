@@ -13,11 +13,11 @@ struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var sidebarAnimation: Animation? { reduceMotion ? nil : .snappy(duration: 0.25) }
     @State private var showHistory = false
-    @State private var showSettings = false
-    @State private var showHealth = false
-    @State private var showWatchRequests = false
-    @State private var showTaskActivity = false
-    @State private var showActivityPreview = false
+    private var showSettings: Bool { get { model.rootPresentation == .settings } nonmutating set { if newValue { model.present(.settings) } else { model.dismissPresentation(.settings) } } }
+    private var showHealth: Bool { get { model.rootPresentation == .health } nonmutating set { if newValue { model.present(.health) } else { model.dismissPresentation(.health) } } }
+    private var showWatchRequests: Bool { get { model.rootPresentation == .watch } nonmutating set { if newValue { model.present(.watch) } else { model.dismissPresentation(.watch) } } }
+    private var showTaskActivity: Bool { get { model.rootPresentation == .task } nonmutating set { if newValue { model.present(.task) } else { model.dismissPresentation(.task) } } }
+    private var showActivityPreview: Bool { get { model.rootPresentation == .activityPreview } nonmutating set { if newValue { model.present(.activityPreview) } else { model.dismissPresentation(.activityPreview) } } }
     @State private var awaitingRootDismissal = false
     var body: some View {
         NavigationStack {
@@ -58,6 +58,8 @@ struct RootView: View {
                             }
                             #endif
                             Button("Connections", systemImage: "point.3.connected.trianglepath.dotted") { chatNavigation.showConnections = true }
+                            Button("Conversation history", systemImage: "clock.arrow.circlepath") { model.present(.revisions(model.conversation.id)) }
+                            Button("Save chat to a project", systemImage: "square.stack.3d.up") { model.present(.projects) }
                             Button("Task activity", systemImage: "list.bullet.rectangle") { showTaskActivity = true }
                             Button("Assistant inbox", systemImage: "tray") { model.showInbox = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Assistant menu")
@@ -88,6 +90,8 @@ struct RootView: View {
                             case "library": chatNavigation.showLibrary = true
                             case "connections": chatNavigation.showConnections = true
                             case "inbox": model.showInbox = true
+                            case "projects": model.present(.projects)
+                            case "memory": model.present(.memory)
                             case "activity": showTaskActivity = true
                             case "models": model.showModels = true
                             case "watch": showWatchRequests = true
@@ -106,24 +110,19 @@ struct RootView: View {
             }
         }
         .tint(Color.primary)
-        .sheet(isPresented: $model.showModels, onDismiss: presentationDidDismiss) { ModelLibraryView() }
-        .sheet(isPresented: $chatNavigation.showLibrary, onDismiss: presentationDidDismiss) { LibraryView() }
-        .sheet(isPresented: $chatNavigation.showConnections, onDismiss: presentationDidDismiss) { ConnectionsView() }
-        .sheet(isPresented: $showSettings, onDismiss: presentationDidDismiss) { SettingsView() }
-        .sheet(isPresented: $showHealth) { HealthOverviewView() }
-        .sheet(isPresented: $showWatchRequests) { WatchRequestsView() }
-        .sheet(isPresented: $showTaskActivity) { TaskActivityView() }
-        #if DEBUG
-        .sheet(isPresented: $showActivityPreview) { ActivityPreviewGallery() }
-        #endif
-        .sheet(isPresented: $model.showInbox, onDismiss: presentationDidDismiss) { AssistantInboxView() }
-        .sheet(isPresented: $model.showPlanningAccess) { PlanningAccessView(service: model.planning) }
+        .sheet(item: Binding(get: { model.rootPresentation }, set: { model.rootPresentation = $0 }), onDismiss: {
+            model.didDismissPresentation(); presentationDidDismiss()
+        }) { route in rootSheet(route) }
+        .onAppear { chatNavigation.model = model }
         .onOpenURL { url in
             guard let link = AssistantTaskLink(url) else { return }
             showHistory = false; showSettings = false; showTaskActivity = false; model.showModels = false
             Task { await model.openAssistantLink(link) }
         }
-        .sheet(item: $model.nativeAction, onDismiss: { model.nativeReviewDidDismiss() }) { NativeActionView(request: $0) }
+        .onChange(of: model.nativeAction?.id) { old, new in
+            if let new { model.present(.review(new)) }
+            else if let old { model.dismissPresentation(.review(old)) }
+        }
         .confirmationDialog("Add context to your draft?", isPresented: Binding(get: { model.pendingContextualDraft != nil }, set: { if !$0 { model.pendingContextualDraft = nil } }), presenting: model.pendingContextualDraft) { proposal in
             Button("Add context and keep my draft") { model.acceptContextualDraft(proposal) }
             Button("Cancel", role: .cancel) { model.pendingContextualDraft = nil }
@@ -149,8 +148,8 @@ struct RootView: View {
         .onChange(of: model.settings.hapticsEnabled, initial: true) { _, enabled in AppFeedback.enabled = enabled }
         .onChange(of: chatNavigation.dismissalRequest) { _, _ in
             guard model.nativeAction == nil else { return }
-            awaitingRootDismissal = chatNavigation.showLibrary || chatNavigation.showConnections || showSettings || model.showModels || model.showInbox
-            chatNavigation.showLibrary = false; chatNavigation.showConnections = false; showSettings = false; model.showModels = false; model.showInbox = false; showHistory = false
+            awaitingRootDismissal = model.rootPresentation != nil
+            model.rootPresentation = nil; showHistory = false
             if !awaitingRootDismissal && !chatNavigation.waitsForDismissal { finishPendingNavigation() }
         }
         .onChange(of: chatNavigation.routingReady) { _, _ in if !awaitingRootDismissal { finishPendingNavigation() } }
@@ -161,6 +160,32 @@ struct RootView: View {
         // Keep this outside the presentation modifiers so their destinations
         // receive it as well as the NavigationStack's original content.
         .environmentObject(chatNavigation)
+    }
+    @ViewBuilder private func rootSheet(_ route: AppPresentation) -> some View {
+        switch route {
+        case .models: ModelLibraryView()
+        case .library: LibraryView()
+        case .connections: ConnectionsView()
+        case .settings: SettingsView()
+        case .health: HealthOverviewView()
+        case .watch: WatchRequestsView()
+        case .task: TaskActivityView()
+        case .inbox: AssistantInboxView()
+        case .planning: PlanningAccessView(service: model.planning)
+        case .folders: NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.showConnectedFolders = false } } } }
+        case .projects: NavigationStack { ProjectsView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.dismissPresentation(.projects) } } } }
+        case .memory: NavigationStack { MemoryView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.dismissPresentation(.memory) } } } }
+        case .recovery: NavigationStack { DataRecoveryView() }
+        case .savedConversation(let id, let message): SavedConversationView(id: id, messageID: message)
+        case .revisions(let id): ConversationRevisionsView(conversationID: id)
+        case .review(let id): if let request = model.nativeAction, request.id == id { NativeActionView(request: request) }
+        case .activityPreview:
+            #if DEBUG
+            ActivityPreviewGallery()
+            #else
+            EmptyView()
+            #endif
+        }
     }
     private func presentationDidDismiss() { awaitingRootDismissal = false; chatNavigation.presentationDidDismiss() }
     private func finishPendingNavigation() {
@@ -178,7 +203,7 @@ private struct TestAppearance: ViewModifier {
     @ViewBuilder func body(content: Content) -> some View {
         #if DEBUG
         content.preferredColorScheme(ProcessInfo.processInfo.arguments.contains("--ui-dark") ? .dark : nil)
-            .environment(\.dynamicTypeSize, ProcessInfo.processInfo.arguments.contains("--ui-large") ? .accessibility2 : systemTypeSize)
+            .environment(\.dynamicTypeSize, ProcessInfo.processInfo.arguments.contains("--ui-largest") ? .accessibility5 : ProcessInfo.processInfo.arguments.contains("--ui-large") ? .accessibility2 : systemTypeSize)
         #else
         content
         #endif
@@ -246,11 +271,7 @@ struct ChatView: View {
                     if model.artifacts.contains(where: { $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains($0.id) }) || model.files.contains(where: { $0.conversationID == model.conversation.id && !model.conversation.excludedFileIDs.contains($0.id) }) {
                         Button { chatNavigation.destination = .outputs(model.conversation.id) } label: { Label("Files in this chat", systemImage: "folder").font(.subheadline).frame(minHeight: 44) }
                     }
-                    if let call = model.activeToolCall {
-                        ActiveWorkRow(title: model.activity ?? ToolResultPresentation.activeTitle(call))
-                    } else if let activity = model.activity, activity.hasPrefix("Retrying") || activity.hasPrefix("Reconnecting") || !model.conversation.messages.suffix(2).filter({ $0.state == .streaming }).flatMap(\.displayParts).contains(where: { $0.web?.isRunning == true }) {
-                        ActiveWorkRow(title: activity)
-                    }
+                    TaskStatusStrip()
                     if !model.isRunning, !model.conversation.messages.isEmpty,
                        let work = model.unfinishedReplies.first(where: { work in work.conversationID == model.conversation.id && work.userMessageID == model.conversation.messages.last(where: \.isRequest)?.id && !model.pendingQuestions.contains(where: { $0.turnID == work.id }) }) {
                         SavedWorkCard(work: work)
@@ -310,9 +331,6 @@ struct ChatView: View {
             case .capture(let id): CaptureViewer(captureID: id, initialPoints: model.selectedImagePoints[id.uuidString] ?? [], targetConversationID: model.conversation.id)
             case .surface, .outputs: EmptyView()
             }
-        }
-        .sheet(isPresented: $model.showConnectedFolders) {
-            NavigationStack { ConnectedFoldersView().toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.showConnectedFolders = false } } } }
         }
         .photosPicker(isPresented: $showPhotos, selection: $photo, matching: .images, preferredItemEncoding: .compatible)
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
@@ -388,6 +406,7 @@ struct ChatView: View {
                     }
                 }.scrollIndicators(.hidden)
             }
+            LocalRecoveryRow()
             if let notice = model.noticeMessage {
                 HStack(alignment: .top) {
                     Text(notice).font(.caption).foregroundStyle(.secondary)
@@ -398,6 +417,7 @@ struct ChatView: View {
             if model.isDownloading {
                 HStack { ProgressView(value: model.downloadProgress).frame(width: 50); Text(model.modelStatus).font(.caption).lineLimit(1); Spacer(); Button("View") { model.showModels = true }.font(.caption) }
             }
+            AttachmentPreparationView()
             if model.isImportingFiles { HStack { ProgressView().controlSize(.small); Text("Adding files to your Library").font(.caption); Spacer() } }
             if importing {
                 HStack { ProgressView().controlSize(.small); Text("Preparing image").font(.caption); Spacer(); Button("Cancel") { photoImportTask?.cancel() }.font(.caption) }

@@ -60,7 +60,7 @@ struct CompanionClient: Sendable {
         var request = URLRequest(url: url); request.httpMethod = method
         if !token.isEmpty { request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
         if let body { request.httpBody = try JSONEncoder().encode(body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.boundedData(for: request, maximumBytes: 41943040)
         guard data.count <= 40 * 1024 * 1024, let response = response as? HTTPURLResponse else { throw AssistantError.provider("The computer returned an invalid response.") }
         guard (200..<300).contains(response.statusCode) else {
             let text = (try? JSONDecoder().decode(JSONValue.self, from: data))?["error"]?.stringValue

@@ -31,6 +31,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
+        if self.path.startswith("/flood/"):
+            try:
+                for _ in range(256):
+                    self.wfile.write(b"A" * 65536)
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         if self.path.endswith("/chat/completions"):
             events = [
                 {"choices": [{"delta": {"content": "Hello 🌎"}, "finish_reason": None}]},

@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     @Published var files: [WorkspaceFile] = []
     @Published var attachedFileIDs: [UUID] = []
     @Published var isImportingFiles = false
+    @Published var attachmentPreparation: [AttachmentDraft] = []
     @Published var captures: [CaptureObservation] = []
     @Published var artifacts: [ArtifactRecord] = []
     @Published var attachedCaptureIDs: [UUID] = []
@@ -36,6 +37,7 @@ final class AppModel: ObservableObject {
     @Published var modelStatus = "Choose a model to begin"
     @Published var activity: String?
     @Published var activeToolCall: ToolCall?
+    @Published var localRecovery: LocalRecovery?
     @Published var errorMessage: String?
     @Published var noticeMessage: String?
     @Published var settings = ModelSettings()
@@ -51,13 +53,14 @@ final class AppModel: ObservableObject {
     private var modelCatalogURL: URL?
     @Published var appleDevice = AppleModelBackend.readiness(.device)
     @Published var appleCloud = AppleModelBackend.readiness(.privateCloud)
-    @Published var showModels = false
+    @Published var presentationState = PresentationState()
+    var showModels: Bool { get { rootPresentation == .models } set { if newValue { present(.models) } else { dismissPresentation(.models) } } }
     @Published var watchRequests: [WatchRequest] = []
     @Published var unfinishedReplies: [WorkTurn] = []
     @Published var inbox: [InboxEntry] = []
     @Published var pendingQuestions: [TaskQuestion] = []
-    @Published var showInbox = false
-    @Published var showPlanningAccess = false
+    var showInbox: Bool { get { rootPresentation == .inbox } set { if newValue { present(.inbox) } else { dismissPresentation(.inbox) } } }
+    var showPlanningAccess: Bool { get { rootPresentation == .planning } set { if newValue { present(.planning) } else { dismissPresentation(.planning) } } }
     var routedInboxID: UUID?
     let planning = PlanningService()
     private var pausedForInput = false
@@ -69,7 +72,7 @@ final class AppModel: ObservableObject {
     var nativeReviewVisible = false
     var questionResumeAfterDismiss: WorkTurn?
     @Published var connectedFolders: [FolderConnection] = []
-    @Published var showConnectedFolders = false
+    var showConnectedFolders: Bool { get { rootPresentation == .folders } set { if newValue { present(.folders) } else { dismissPresentation(.folders) } } }
     private(set) var workspaceService: FolderWorkspaceService?
     var pickedFolderURL: URL?
     private var nativeActionWaiter: CheckedContinuation<String, any Error>?
@@ -171,13 +174,14 @@ final class AppModel: ObservableObject {
     init() {
         do {
             let root = try PrivatePaths.root(); self.root = root
-            let store = try LocalStore(root: root.appendingPathComponent("data"), outputsRoot: PrivatePaths.outputs())
+            let dataRoot = try PrivatePaths.activeData(root: root)
+            let store = try LocalStore(root: dataRoot, outputsRoot: PrivatePaths.outputs())
             self.store = store; engine = AssistantEngine(store: store)
             taskAttention.onOpen = { [weak self] id in await self?.openTaskAttention(id) }
             workspaceService = try FolderWorkspaceService(storage: root.appendingPathComponent("data/workspaces"))
             settingsURL = root.appendingPathComponent("settings.json")
             computerAccountURL = root.appendingPathComponent("computer-account.json")
-            draftURL = root.appendingPathComponent("data/drafts.json")
+            draftURL = dataRoot.appendingPathComponent("drafts.json")
             modelRoot = root.appendingPathComponent("models")
             if let settingsURL, FileManager.default.fileExists(atPath: settingsURL.path) {
                 settings = try JSONDecoder().decode(ModelSettings.self, from: Data(contentsOf: settingsURL))
@@ -399,12 +403,24 @@ final class AppModel: ObservableObject {
         Task {
             defer { isImportingFiles = false }
             for url in urls.prefix(8) {
+                let item = AttachmentDraft(conversationID: targetID, source: url.lastPathComponent)
+                attachmentPreparation.append(item)
                 do {
                     let (file, data) = try await DocumentImporter.shared.read(url)
                     try await store.saveWorkspaceFile(file, data: data)
+                    let partial = file.text.isEmpty || ["truncated", "not extracted", "may omit", "extraction limit"].contains { file.extractionNote.localizedCaseInsensitiveContains($0) }
+                    if let index = attachmentPreparation.firstIndex(where: { $0.id == item.id }) {
+                        attachmentPreparation[index].state = partial ? .partial : .ready
+                        attachmentPreparation[index].fileID = file.id
+                        attachmentPreparation[index].detail = partial ? (file.extractionNote.isEmpty ? "Original saved; readable text could not be extracted. Preview the original before relying on it." : file.extractionNote) : "Ready"
+                        attachmentPreparation[index].containsHealthData = file.containsHealthData
+                    }
                     if attach && conversation.id == targetID && !isRunning { attachFile(file.id) }
-                } catch { errorMessage = error.localizedDescription }
+                } catch {
+                    if let index = attachmentPreparation.firstIndex(where: { $0.id == item.id }) { attachmentPreparation[index].state = .unreadable; attachmentPreparation[index].detail = error.localizedDescription + " Other attachments and your draft are kept. Choose this file again to retry." }
+                }
             }
+            if urls.count > 8 { noticeMessage = "The first eight files were processed. Add the remaining files in another selection." }
             await refresh(); flushDraft()
         }
     }
@@ -419,12 +435,12 @@ final class AppModel: ObservableObject {
     }
     func fileURL(_ id: UUID) async -> URL? {
         do { return try await store?.workspaceFileURL(id) }
-        catch { errorMessage = error.localizedDescription; return nil }
+        catch { localRecovery = LocalRecovery(conversationID: conversation.id, category: .missingSource, title: "Original file unavailable", detail: error.localizedDescription, retained: "Your chat and saved file metadata remain. Inspect the Library or choose the original again."); return nil }
     }
     func removeFile(_ id: UUID) async {
         guard !isRunning else { return }
         do { try await store?.removeWorkspaceFile(id); attachedFileIDs.removeAll { $0 == id }; flushDraft(); await refresh() }
-        catch { errorMessage = error.localizedDescription }
+        catch { localRecovery = LocalRecovery(conversationID: conversation.id, category: .unknownWriteOutcome, title: "Check the file before trying again", detail: error.localizedDescription, retained: "The original removal could not be fully confirmed. Inspect Library; exported copies remain separate.") }
     }
     func shareFile(_ id: UUID, workspace: Bool, connected: Bool) async {
         guard !isRunning else { return }
@@ -973,6 +989,17 @@ final class AppModel: ObservableObject {
                 if !Task.isCancelled { errorMessage = error.localizedDescription }
             }
         }
+    }
+    func modelStorage(_ entry: LocalModelCatalogEntry, cacheOnly: Bool = false, remove: Bool = false) async throws -> Int64 {
+        guard let modelRoot, !isDownloading, !isRunning else { throw AssistantError.busy }
+        let backend: MLXLocalBackend
+        if entry.id == settings.localRepository, let localBackend { backend = localBackend }
+        else { backend = MLXLocalBackend(repository: entry.id, revision: entry.revision, root: modelRoot, responseTokens: settings.localResponseTokens) }
+        if remove {
+            let bytes = try await backend.removeStoredFiles(cacheOnly: cacheOnly)
+            await refreshDownloads(); return bytes
+        }
+        return try await backend.storageBytes(cacheOnly: cacheOnly)
     }
     func stopDownload() { downloadTask?.cancel() }
     func importModel(_ entry: LocalModelCatalogEntry, folder: URL) {

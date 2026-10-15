@@ -11,9 +11,14 @@ struct LibraryView: View {
     @State private var searching = false
     @State private var searchError: String?
     @State private var scope = "All"
-    private var searchKey: String { query + model.files.map { $0.id.uuidString }.joined() + model.artifacts.map { $0.id.uuidString + String($0.revision) }.joined() }
-    private var filteredFiles: [WorkspaceFile] { scope == "Documents" ? [] : model.files.filter { query.isEmpty || searchResult?.fileIDs.contains($0.id) == true } }
-    private var filteredArtifacts: [ArtifactRecord] { scope == "Imported files" ? [] : latestArtifacts.filter { query.isEmpty || searchResult?.artifactIDs.contains($0.id) == true } }
+    @State private var filename = ""
+    @State private var fileType = ""
+    @State private var recentOnly = false
+    @State private var currentChatOnly = false
+    private var hasFilter: Bool { !query.isEmpty || !filename.isEmpty || !fileType.isEmpty || recentOnly || currentChatOnly }
+    private var searchKey: String { query + filename + fileType + String(recentOnly) + String(currentChatOnly) + model.files.map { $0.id.uuidString }.joined() + model.artifacts.map { $0.id.uuidString + String($0.revision) }.joined() }
+    private var filteredFiles: [WorkspaceFile] { scope == "Documents" ? [] : model.files.filter { !hasFilter || searchResult?.fileIDs.contains($0.id) == true } }
+    private var filteredArtifacts: [ArtifactRecord] { scope == "Imported files" ? [] : latestArtifacts.filter { !hasFilter || searchResult?.artifactIDs.contains($0.id) == true } }
     private var latestArtifacts: [ArtifactRecord] {
         let oldVersions = Set(model.artifacts.compactMap(\.previousRevisionID))
         return model.artifacts.filter { !oldVersions.contains($0.id) }
@@ -30,13 +35,20 @@ struct LibraryView: View {
                 }
                 Section("Your files") {
                     Picker("Show", selection: $scope) { ForEach(["All", "Imported files", "Documents"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented)
+                    DisclosureGroup("Filter files") {
+                        TextField("Filename contains", text: $filename)
+                        Picker("File type", selection: $fileType) { Text("Any type").tag(""); ForEach(["pdf", "md", "csv", "txt", "png", "jpg", "xlsx", "docx"], id: \.self) { Text($0.uppercased()).tag($0) } }
+                        Toggle("Added in the last 30 days", isOn: $recentOnly)
+                        Toggle("From current chat", isOn: $currentChatOnly)
+                        if hasFilter { Button("Clear search and filters") { query = ""; filename = ""; fileType = ""; recentOnly = false; currentChatOnly = false } }
+                    }
                     if searching { ProgressView("Searching Library") }
                     if let searchError { Text(searchError).foregroundStyle(.secondary) }
-                    if !query.isEmpty && !searching && searchError == nil && filteredFiles.isEmpty && filteredArtifacts.isEmpty {
+                    if hasFilter && !searching && searchError == nil && filteredFiles.isEmpty && filteredArtifacts.isEmpty {
                         ContentUnavailableView.search(text: query)
                     }
                     ForEach(filteredFiles) { file in
-                        NavigationLink { WorkspaceFileView(id: file.id) } label: { WorkspaceFileRow(file: file) }
+                        NavigationLink { WorkspaceFileView(id: file.id) } label: { VStack(alignment: .leading) { WorkspaceFileRow(file: file); if let excerpt = searchResult?.excerpts[file.id], !query.isEmpty { Text(excerpt).font(.caption).foregroundStyle(.secondary).lineLimit(3) } } }
                     }
                     if latestArtifacts.isEmpty && model.files.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -45,18 +57,19 @@ struct LibraryView: View {
                         }.padding(.vertical, 10)
                     }
                     ForEach(filteredArtifacts) { artifact in
-                        NavigationLink { ArtifactDetailView(artifact: artifact) } label: { ArtifactCard(artifact: artifact) }
+                        NavigationLink { ArtifactDetailView(artifact: artifact) } label: { VStack(alignment: .leading) { ArtifactCard(artifact: artifact); if let excerpt = searchResult?.excerpts[artifact.id], !query.isEmpty { Text(excerpt).font(.caption).foregroundStyle(.secondary).lineLimit(3) } } }
                     }
                 }
             }
             .navigationTitle("Library")
             .searchable(text: $query, prompt: "Search files and contents")
             .task(id: searchKey) {
-                guard !query.isEmpty else { searchResult = nil; searching = false; searchError = nil; return }
+                guard hasFilter else { searchResult = nil; searching = false; searchError = nil; return }
                 searching = true; searchError = nil; searchResult = nil
                 do {
                     try await Task.sleep(for: .milliseconds(200))
-                    let result = try await model.store?.searchLibrary(query)
+                    var filter = LibrarySearchFilter(); filter.filename = filename; filter.fileExtension = fileType; filter.since = recentOnly ? Date().addingTimeInterval(-30 * 86400) : nil; filter.conversationID = currentChatOnly ? model.conversation.id : nil
+                    let result = try await model.store?.searchLibrary(query, filter: filter)
                     try Task.checkCancellation(); searchResult = result; searching = false
                 } catch is CancellationError { }
                 catch { searchError = error.localizedDescription; searching = false }
@@ -76,20 +89,13 @@ struct LibraryView: View {
     }
 }
 struct ArtifactCard: View {
+    @EnvironmentObject private var model: AppModel
     let artifact: ArtifactRecord
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: artifact.filename.hasSuffix(".csv") ? "tablecells" : "doc.text").font(.title2).foregroundStyle(.tint)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(artifact.filename).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
-                Text("\(ByteCountFormatter.string(fromByteCount: Int64(artifact.content.utf8.count), countStyle: .file)) · \(artifact.createdAt.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }.padding(.vertical, 8)
-    }
+    var body: some View { OutputRow(value: OutputPresentation(model.artifacts.first(where: { $0.id == artifact.id }) ?? artifact), symbol: artifact.filename.hasSuffix(".csv") ? "tablecells" : "doc.text") }
 }
 struct ArtifactDetailView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var navigation: ChatNavigation
     @StateObject private var editor: ArtifactEditor
     @State private var exportURL: URL?
     @State private var showExport = false
@@ -133,6 +139,15 @@ struct ArtifactDetailView: View {
                     } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Draft actions")
                     Button("Save revision") { Task { await save() } }.disabled(!editor.canSave)
                 } else {
+                    Button("Ask about this", systemImage: "text.bubble") {
+                        let document = editor.artifact
+                        Task {
+                            guard !model.isRunning else { return }
+                            if model.conversation.id != document.conversationID, let chat = model.histories.first(where: { $0.id == document.conversationID }) { await model.selectConversation(chat) }
+                            let ref = ContextReference(kind: .artifact, sourceID: document.id.uuidString, title: document.filename, conversationID: document.conversationID, revision: document.revision, localOnly: document.containsLocalOnlyContext, health: document.containsHealthData)
+                            navigation.compose(ContextualDraftProposal(reference: ref, prompt: "Help me with this document."), afterDismissal: model.rootPresentation != nil)
+                        }
+                    }.disabled(model.isRunning || editor.loading)
                     Button("Edit", systemImage: "pencil") { editor.beginEditing() }.disabled(editor.loading)
                     Menu {
                         Button("Revision history", systemImage: "clock.arrow.circlepath") {

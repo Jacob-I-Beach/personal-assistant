@@ -3,12 +3,14 @@ import SwiftUI
 
 struct WorkReceiptView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.conversationDisplay) private var display
+    private var displayedChat: Conversation { display?.conversation ?? model.conversation }
     @EnvironmentObject private var navigation: ChatNavigation
     let message: Message
     @State private var memoryUndoNotice: String?
     private var call: ToolCall? {
-        guard let index = model.conversation.messages.firstIndex(where: { $0.id == message.id }) else { return nil }
-        return model.conversation.messages.prefix(index).reversed().flatMap(\.toolCalls).first { $0.id == message.toolCallID }
+        guard let index = displayedChat.messages.firstIndex(where: { $0.id == message.id }) else { return nil }
+        return displayedChat.messages.prefix(index).reversed().flatMap(\.toolCalls).first { $0.id == message.toolCallID }
     }
     private var toolName: String { call?.name == "use_tool" ? call?.arguments["name"]?.stringValue ?? "use_tool" : call?.name ?? "tool" }
     private var output: JSONValue? { try? JSONValue.parse(message.text) }
@@ -85,7 +87,7 @@ struct WorkReceiptView: View {
                 if output?["status"] == .string("skipped") { Text("You skipped this question.").font(.caption).foregroundStyle(.secondary) }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)
         } else if toolName == "prepare_route", let raw = output?["route_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
-            RouteCard(id: id)
+            RouteCard(id: id).disabled(display?.readOnly == true)
         } else if toolName == "present_surface", let raw = output?["surface_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
             WorkingSurfaceView(id: id)
         } else if toolName == "update_plan", let steps = output?["steps"]?.arrayValue, message.toolFailureDescription == nil {
@@ -107,14 +109,14 @@ struct WorkReceiptView: View {
                             VStack(alignment: .leading, spacing: 3) { Text(field.label).font(.caption).foregroundStyle(.secondary); Text(field.value).font(.subheadline) }
                         }
                     }
-                    if message.toolFailureDescription == nil,
+                    if display?.revision == nil, message.toolFailureDescription == nil,
                        let raw = output?["artifact_id"]?.stringValue, let id = UUID(uuidString: raw),
-                       let artifact = model.artifacts.first(where: { $0.id == id && $0.conversationID == model.conversation.id && !model.conversation.excludedArtifactIDs.contains(id) }) {
+                       let artifact = model.artifacts.first(where: { $0.id == id && $0.conversationID == displayedChat.id && !displayedChat.excludedArtifactIDs.contains(id) }) {
                         Button { navigation.destination = .artifact(id) } label: { Label("Open " + artifact.filename, systemImage: "doc.text") }
                     }
                     if message.toolFailureDescription == nil,
                        let raw = output?["file_id"]?.stringValue, let id = UUID(uuidString: raw),
-                       let file = model.files.first(where: { $0.id == id && !model.conversation.excludedFileIDs.contains(id) }) {
+                       let file = model.files.first(where: { $0.id == id && !displayedChat.excludedFileIDs.contains(id) }) {
                         Button { navigation.destination = .file(id) } label: { Label("Open " + file.filename, systemImage: file.icon) }
                     }
                     if ["save_memory", "forget_memory"].contains(toolName), let raw = output?["memory_change_id"]?.stringValue, let id = UUID(uuidString: raw), message.toolFailureDescription == nil {
@@ -124,7 +126,7 @@ struct WorkReceiptView: View {
                                 do { _ = try await model.store?.undoMemoryChange(id); memoryUndoNotice = "Change undone. Future replies use the restored memory state." }
                                 catch { memoryUndoNotice = error.localizedDescription }
                             }
-                        }.font(.footnote).disabled(memoryUndoNotice != nil)
+                        }.font(.footnote).disabled(memoryUndoNotice != nil || display?.readOnly == true)
                         if let memoryUndoNotice { Text(memoryUndoNotice).font(.caption).foregroundStyle(.secondary) }
                     }
                     if toolName == "read_capture", message.toolFailureDescription == nil {

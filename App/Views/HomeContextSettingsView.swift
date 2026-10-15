@@ -22,7 +22,7 @@ struct HomeContextSettingsView: View {
                         Label(model.settings.weatherFollowsLocation ? "Nearby weather" : model.settings.weatherPlace!.name, systemImage: "cloud.sun")
                         Button("Remove weather", role: .destructive) { update { $0.weatherPlace = nil; $0.weatherFollowsLocation = false }; Task { try? await model.store?.cacheHomeWeather(nil) } }
                     }
-                    Text("Weather uses Open-Meteo. Choose a city or allow an approximate area (rounded to about 11 km) to be sent when you open the home screen. Refreshes are limited to twice an hour. Your chat and saved memories are not sent to this service.").font(.footnote).foregroundStyle(.secondary)
+                    Text("Weather uses Open-Meteo. Choose a city or allow an approximate area (rounded to about 11 km) to be sent when you open the home screen. Refreshes automatically about every five minutes while Home is open. Your chat and saved memories are not sent to this service.").font(.footnote).foregroundStyle(.secondary)
                     Button("Use my approximate location", systemImage: "location") {
                         update { $0.locationContextEnabled = true; $0.weatherFollowsLocation = true; $0.weatherPlace = nil }
                         if error == nil { dismiss() }

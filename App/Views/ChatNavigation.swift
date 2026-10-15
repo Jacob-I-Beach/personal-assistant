@@ -11,8 +11,9 @@ enum ChatDestination: Hashable, Identifiable {
 @MainActor
 final class ChatNavigation: ObservableObject {
     @Published var destination: ChatDestination?
-    @Published var showLibrary = false
-    @Published var showConnections = false
+    weak var model: AppModel?
+    var showLibrary: Bool { get { model?.rootPresentation == .library } set { if newValue { model?.present(.library) } else { model?.dismissPresentation(.library) } } }
+    var showConnections: Bool { get { model?.rootPresentation == .connections } set { if newValue { model?.present(.connections) } else { model?.dismissPresentation(.connections) } } }
     @Published var historyQuery = ""
     @Published var historyMatches: [HistoryMatch] = []
     @Published var selectedHistoryMatchID: UUID?

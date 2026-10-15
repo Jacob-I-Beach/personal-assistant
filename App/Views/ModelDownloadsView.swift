@@ -54,6 +54,9 @@ struct ModelDownloadProgress: View {
 }
 
 struct LocalModelDetailsView: View {
+    @State private var storedBytes: Int64 = 0
+    @State private var removal: Bool?
+    @State private var storageNotice: String?
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     let entry: LocalModelCatalogEntry
@@ -105,11 +108,21 @@ struct LocalModelDetailsView: View {
                             Button("Release loaded memory") { model.unloadModel() }.disabled(model.isRunning)
                         }
                     }
+                    LabeledContent("Stored package and cache", value: bytes(storedBytes))
+                    Button("Remove derived text cache") { removal = true }.disabled(model.isRunning || model.isDownloading || storedBytes == 0)
+                    Button(downloaded ? "Remove downloaded model" : "Remove incomplete download", role: .destructive) { removal = false }.disabled(model.isRunning || model.isDownloading || storedBytes == 0)
+                    Text("Removal affects this model's stored files only. Chats, attachments and saved work remain. The selected model is never silently replaced.").font(.caption).foregroundStyle(.secondary)
+                    if let storageNotice { Text(storageNotice).font(.caption).foregroundStyle(.secondary) }
                     if let source = entry.sourceURL { Link("Model information", destination: source) }
                 }
             }
             .navigationTitle("Model details").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .task { storedBytes = (try? await model.modelStorage(entry)) ?? 0 }
+            .confirmationDialog(removal == true ? "Remove the derived cache?" : "Remove this model's files?", isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } })) {
+                Button("Remove files", role: .destructive) { let cache = removal == true; removal = nil; Task { do { let freed = try await model.modelStorage(entry, cacheOnly: cache, remove: true); storedBytes = try await model.modelStorage(entry); storageNotice = "Removed " + bytes(freed) + ". " + (cache ? "The text cache will be rebuilt on next use." : "Download again when you want to use this model.") } catch { storageNotice = error.localizedDescription } } }
+                Button("Cancel", role: .cancel) { removal = nil }
+            }
             .sheet(isPresented: $showResponseSettings) { ReasoningEffortView(focusContext: true) }
             .fileImporter(isPresented: $importFolder, allowedContentTypes: [.folder]) { result in
                 switch result {

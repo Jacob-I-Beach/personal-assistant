@@ -7,6 +7,7 @@ public actor LocalStore {
     public nonisolated let initiallyContainsHealthData: Bool
     private let files = FileManager.default
     let database: SQLiteDatabase
+    private var checkpointCache: (chat: Conversation, mutation: UInt64, external: Double)?
 
     public init(root: URL, outputsRoot: URL? = nil) throws {
         self.root = root
@@ -33,7 +34,10 @@ public actor LocalStore {
     public func save(_ conversation: Conversation) throws {
         var updated = conversation
         updated.updatedAt = Date()
-        try database.transaction { try Self.persist(updated, in: database) }
+        let external = try database.execute("PRAGMA data_version").first?[0].number ?? 0
+        let previous = checkpointCache.flatMap { $0.chat.id == updated.id && $0.mutation == database.mutationVersion && $0.external == external ? $0.chat : nil }
+        try database.transaction { try Self.persist(updated, in: database, previous: previous) }
+        checkpointCache = (updated, database.mutationVersion, external)
     }
     /// Commit an explicit user edit. Search uses the same transaction as the active transcript.
     public func prepareMessageEdit(in original: Conversation, messageID: UUID) throws -> Conversation {
@@ -46,7 +50,7 @@ public actor LocalStore {
         let removed = original.messages[index...]
         let calls = Set(removed.flatMap(\.toolCalls).map(\.id))
         let retainedFiles = Set(original.messages[..<index].flatMap(\.fileIDs))
-        let threshold = original.messages[index].createdAt
+        let threshold = saved.messages[index].createdAt
         for artifact in try artifacts() where artifact.conversationID == original.id {
             if artifact.createdAt >= threshold || artifact.sourceCallID.map(calls.contains) == true
                 || artifact.lastMutationCallID.map(calls.contains) == true || artifact.updatedAt.map({ $0 >= threshold }) == true
@@ -74,7 +78,10 @@ public actor LocalStore {
         revised.modelTitleOverride = "Conversation"
         if revised.titleWasGenerated { revised.title = "New conversation"; revised.needsAutomaticTitle = true }
         revised.updatedAt = Date()
+        try prepareConversationRevisions()
+        let revision = try makeConversationRevision(original, reason: "Before editing a request")
         try database.transaction {
+            try insertConversationRevision(revision)
             try Self.persist(revised, in: database)
             if let project = invalidatedProject {
                 try database.execute("UPDATE project_workspaces SET payload=? WHERE id=?", [.blob(try Self.encode(project)), .text(project.id.uuidString)])
@@ -387,7 +394,7 @@ public actor LocalStore {
             }
         }
     }
-    private static func persist(_ conversation: Conversation, in database: SQLiteDatabase) throws {
+    static func persist(_ conversation: Conversation, in database: SQLiteDatabase, previous: Conversation? = nil) throws {
         guard conversation.schemaVersion == 1 else { throw AssistantError.unsupportedSchema(conversation.schemaVersion) }
         if let folder = conversation.folderID, try database.execute("SELECT 1 FROM folders WHERE id = ?", [.text(folder.uuidString)]).isEmpty {
             throw AssistantError.provider("The selected folder no longer exists. Choose another folder before saving.")
@@ -401,6 +408,7 @@ public actor LocalStore {
             ON CONFLICT(id) DO UPDATE SET title=excluded.title, updated_at=excluded.updated_at, payload=excluded.payload
             """, [.text(conversation.id.uuidString), .text(conversation.title), .real(conversation.updatedAt.timeIntervalSince1970), .blob(try encode(metadata))])
         for (position, message) in conversation.messages.enumerated() {
+            if let previous, position < previous.messages.count, previous.messages[position] == message { continue }
             let identity = try database.execute("SELECT conversation_id FROM messages WHERE id = ?", [.text(message.id.uuidString)]).first?[0].text
             guard identity == nil || identity == conversation.id.uuidString else {
                 throw AssistantError.provider("A message belongs to another conversation.")

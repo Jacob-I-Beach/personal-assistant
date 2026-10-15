@@ -10,7 +10,7 @@ public protocol HTTPStreamingTransport: Sendable {
 public struct URLSessionStreamingTransport: HTTPStreamingTransport {
     public init() {}
     public func stream(_ request: URLRequest) -> AsyncThrowingStream<Data, any Error> {
-        AsyncThrowingStream { continuation in
+        AsyncThrowingStream(bufferingPolicy: .bufferingOldest(64)) { continuation in
             let delegate = StreamDelegate(continuation: continuation)
             let configuration = URLSessionConfiguration.ephemeral
             // A reasoning model can legitimately produce no bytes for several
@@ -43,7 +43,17 @@ private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked
         completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        if (200..<300).contains(statusCode) { continuation.yield(data) }
+        if (200..<300).contains(statusCode) {
+            // Bound a slow consumer to 64 chunks of at most 64 KiB. Stop the
+            // connection on overflow; never silently drop model/tool bytes.
+            for start in stride(from: 0, to: data.count, by: 64 * 1024) {
+                let chunk = data.subdata(in: start..<min(data.count, start + 64 * 1024))
+                if case .dropped = continuation.yield(chunk) {
+                    continuation.finish(throwing: AssistantError.provider("The response arrived faster than it could be saved. Recorded work is kept; reconnect to inspect the latest state."))
+                    dataTask.cancel(); return
+                }
+            }
+        }
         else if errorBody.count < 2048 { errorBody.append(data.prefix(2048 - errorBody.count)) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {

@@ -10,6 +10,7 @@ struct WelcomeWorkspaceView: View {
     @State private var name: String?
     @State private var showContext = false
     @State private var showMemory = false
+    @AppStorage("dismissed-reply-setup") private var setupDismissed = false
     let camera: () -> Void
     let files: () -> Void
     let create: () -> Void
@@ -54,22 +55,21 @@ struct WelcomeWorkspaceView: View {
                     ForEach(resumable.prefix(2)) { SavedWorkCard(work: $0) }
                 }
             }
-            if model.computerAccountNeedsAttention {
-                Button { navigation.showConnections = true } label: {
-                    Label(model.computerAccountDetail, systemImage: "exclamationmark.circle")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }.buttonStyle(.plain)
-            } else if model.shouldOfferChatGPTSignIn {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Choose how to reply").font(.subheadline.weight(.medium))
-                    Button { model.connectChatGPT() } label: { Label(model.isConnecting ? "Connecting…" : "Continue with ChatGPT", systemImage: "person.crop.circle").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading) }
-                        .buttonStyle(.bordered).disabled(model.isConnecting || model.settings.localOnly).accessibilityIdentifier("home-chatgpt-sign-in")
-                    Button { model.showModels = true } label: { Label("Choose an on-device model", systemImage: "iphone").frame(maxWidth: .infinity, minHeight: 44, alignment: .leading) }.buttonStyle(.bordered)
-                    if model.appleDevice.isAvailable { Text("Apple’s on-device model is available without a separate download.").font(.caption).foregroundStyle(.secondary) }
+            if !setupDismissed || model.selectedAvailability.state != .needsSetup {
+                ReadinessRow()
+                if model.shouldOfferChatGPTSignIn && model.settings.choice == .chatGPT {
+                    Button("Continue with ChatGPT") { model.connectChatGPT() }.buttonStyle(.bordered).disabled(model.isConnecting || model.settings.localOnly).frame(minHeight: 44)
+                }
+                if model.selectedAvailability.state == .needsSetup {
+                    Button("Set up later") { setupDismissed = true }.font(.caption).frame(minHeight: 44)
                 }
             }
-            if model.settings.choice == .chatGPT && (model.modelCatalog.phase == .stale || model.modelCatalog.phase == .unavailable) {
-                Button { model.showModels = true } label: { Label("Model availability needs attention", systemImage: "exclamationmark.circle").font(.subheadline) }.buttonStyle(.plain)
+            if returning, let recent = model.histories.first(where: { $0.messageCount > 0 }) {
+                Button {
+                    if model.isRunning { model.present(.savedConversation(recent.id, message: nil)) }
+                    else { Task { await model.selectConversation(recent) } }
+                } label: { VStack(alignment: .leading, spacing: 5) { Label("Recent conversation", systemImage: "clock").font(.caption).foregroundStyle(.secondary); Text(recent.title).font(.subheadline.weight(.medium)) }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading) }.buttonStyle(.plain)
+                if let document = model.artifacts.first { Button { navigation.destination = .artifact(document.id) } label: { ArtifactCard(artifact: document) }.buttonStyle(.plain) }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2), alignment: .leading, spacing: 12) {
                 entry("See & explore", subtitle: "Camera and depth", icon: "viewfinder", action: camera)

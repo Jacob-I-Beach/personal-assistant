@@ -51,9 +51,16 @@ private struct MemoryEditor: View {
     @State private var error: String?
     @State private var hasExpiration = false
     @State private var expiration = Date().addingTimeInterval(30 * 86400)
+    @State private var original: SavedMemory?
+    @State private var discard = false
+    private var dirty: Bool { if let original { note != original || acrossConversations != (original.conversationID == nil) || hasExpiration != (original.expiresAt != nil) || (hasExpiration && expiration != original.expiresAt) } else { false } }
     var body: some View {
         NavigationStack {
             Form {
+                if note.status == .tentative || note.basis == .inferred { Label("Tentative · please correct anything inaccurate", systemImage: "questionmark.circle").font(.subheadline).foregroundStyle(.secondary) }
+                if let conversationID = note.sourceConversationID, let messageID = note.sourceMessageID {
+                    NavigationLink("View the source message") { SavedConversationView(id: conversationID, messageID: messageID) }
+                }
                 TextField("Title", text: $note.title)
                 TextEditor(text: $note.text).frame(minHeight: 160).accessibilityLabel("Memory note")
                 Section {
@@ -80,7 +87,7 @@ private struct MemoryEditor: View {
             }
             .navigationTitle("Memory")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if dirty { discard = true } else { dismiss() } } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         note.conversationID = acrossConversations ? nil : (note.conversationID ?? model.conversation.id)
@@ -92,7 +99,9 @@ private struct MemoryEditor: View {
                     }.disabled(note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            .onAppear { acrossConversations = note.conversationID == nil; hasExpiration = note.expiresAt != nil; expiration = note.expiresAt ?? expiration }
+            .interactiveDismissDisabled(dirty)
+            .confirmationDialog("Discard memory changes?", isPresented: $discard) { Button("Discard changes", role: .destructive) { dismiss() }; Button("Keep editing", role: .cancel) {} }
+            .onAppear { if original == nil { original = note }; acrossConversations = note.conversationID == nil; hasExpiration = note.expiresAt != nil; expiration = note.expiresAt ?? expiration }
         }
     }
 }

@@ -13,6 +13,11 @@ extension AppModel {
             if ProcessInfo.processInfo.arguments.contains("--ui-product117-search") {
                 chat.messages = (0..<240).map { Message(role: .assistant, text: $0 == 9 ? "Exact old result: amber telescope" : "Saved example paragraph \($0).") }
             }
+            if ProcessInfo.processInfo.arguments.contains("--ui-product117-browse") {
+                var other = Conversation(id: UUID(uuidString: "00000000-0120-4000-8000-000000000005")!, title: "Saved reference chat")
+                other.messages = [Message(role: .user, text: "A saved reference request"), Message(role: .assistant, text: "Reference answer stays in its own chat.")]
+                try await store.save(other)
+            }
             try await store.save(chat)
             let artifact = ArtifactRecord(id: UUID(uuidString: "00000000-0117-4000-8000-000000000002")!, conversationID: chat.id, filename: "journey-notes.md", content: "# Saved document\n\nOriginal saved text.")
             if (try? await store.artifactRecord(artifact.id)) == nil { try await store.saveArtifact(artifact) }
@@ -33,6 +38,13 @@ extension AppModel {
                 chat.messages = [Message(role: .user, text: "Prepare an estimate"), Message(role: .assistant, text: "Adjust the estimate below.", toolCalls: [call]), Message(role: .tool, text: try JSONValue.object(["surface_id": .string(surface.id.uuidString)]).jsonString(), toolCallID: call.id)]
                 try await store.save(chat)
             }
+            if ProcessInfo.processInfo.arguments.contains("--ui-product117-branches"), try await store.conversationRevisions(chat.id).isEmpty {
+                chat.messages = [Message(role: .user, text: "Original branch request"), Message(role: .assistant, text: "Original branch answer")]
+                try await store.save(chat)
+                chat = try await store.prepareMessageEdit(in: chat, messageID: chat.messages[0].id)
+                chat.messages = [Message(role: .user, text: "Revised branch request"), Message(role: .assistant, text: "Revised branch answer")]
+                try await store.save(chat)
+            }
             conversation = try await store.loadConversation(chat.id); draft = ""; draftContextReferences = []
         } catch { errorMessage = error.localizedDescription }
     }
@@ -41,7 +53,8 @@ struct UIProductBackend: ModelBackend {
     var id: String { "synthetic-product-journey" }
     var networkDestination: String? { nil }
     func stream(_ request: ModelRequest) -> AsyncThrowingStream<ModelEvent, any Error> {
-        AsyncThrowingStream { output in output.yield(.textDelta("Synthetic response received the selected context.")); output.yield(.completed); output.finish() }
+        if ProcessInfo.processInfo.arguments.contains("--ui-product117-browse") { return UIStreamingBackend().stream(request) }
+        return AsyncThrowingStream { output in output.yield(.textDelta("Synthetic response received the selected context.")); output.yield(.completed); output.finish() }
     }
 }
 #endif

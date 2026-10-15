@@ -1036,7 +1036,7 @@ final class AssistantUITests: XCTestCase {
     }
     func testProduct117PreferenceSavesWithoutGlobalSaveModal() {
         let app = productApp("settings")
-        app.buttons["History"].tap(); app.buttons["Settings & access"].tap()
+        app.buttons["History"].tap(); app.buttons["Settings & access"].tap(); app.buttons["Models"].tap()
         let toggle = app.switches["Allow cellular downloads"]
         for _ in 0..<5 { if toggle.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(toggle.isHittable)
@@ -1047,7 +1047,7 @@ final class AssistantUITests: XCTestCase {
         let changed = toggle.value as? String
         XCTAssertNotEqual(changed, old)
         app.buttons["Done"].tap(); XCTAssertFalse(app.alerts["Settings saved"].exists)
-        app.buttons["History"].tap(); app.buttons["Settings & access"].tap()
+        app.buttons["History"].tap(); app.buttons["Settings & access"].tap(); app.buttons["Models"].tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 5)); XCTAssertEqual(toggle.value as? String, changed)
         saveScreenshot(app, name: "Product117-immediate-preferences")
     }
@@ -1073,6 +1073,76 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Stop response"].tap()
     }
 
+    func testAudit120BrowseSavedChatKeepsResponseAndDraftOwnedByOriginal() {
+        let app = productApp("browse")
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        composer.tap(); composer.typeText("Synthetic active request"); app.buttons["Send message"].tap()
+        XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Line 1. More of the example.")).firstMatch.waitForExistence(timeout: 12))
+        composer.tap(); composer.typeText("Keep my next draft")
+        app.buttons["History"].tap(); app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Saved reference chat")).firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Reference answer stays in its own chat."].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Return"].exists)
+        XCTAssertFalse(app.buttons["Edit message"].isEnabled)
+        saveScreenshot(app, name: "Audit120-browse-while-working")
+        app.buttons["Return"].tap()
+        XCTAssertTrue(app.buttons["Stop response"].waitForExistence(timeout: 5)); XCTAssertEqual(composer.value as? String, "Keep my next draft")
+        app.buttons["Stop response"].tap()
+    }
+    func testAudit120CreateProjectAndContinueWithoutSending() {
+        let app = productApp("projects")
+        app.buttons["History"].tap(); app.buttons["Projects"].tap()
+        XCTAssertTrue(app.buttons["Create project"].waitForExistence(timeout: 5)); app.buttons["Create project"].tap()
+        let title = app.textFields["project-title"]; XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("My synthetic project")
+        app.buttons["Create"].tap()
+        let project = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "My synthetic project")).firstMatch
+        XCTAssertTrue(project.waitForExistence(timeout: 8)); project.tap()
+        XCTAssertTrue(app.buttons["Continue project"].waitForExistence(timeout: 5)); saveScreenshot(app, name: "Audit120-project-detail")
+        app.buttons["Continue project"].tap()
+        let composer = app.descendants(matching: .any).matching(identifier: "message-composer").firstMatch
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "value CONTAINS %@", "Continue this project"), evaluatedWith: composer); waitForExpectations(timeout: 8)
+        XCTAssertFalse(app.buttons["Stop response"].exists)
+    }
+    func testAudit120ConversationRestoreKeepsPriorVersionAndDoesNotExecute() {
+        let app = productApp("branches")
+        XCTAssertTrue(app.staticTexts["Revised branch answer"].waitForExistence(timeout: 5))
+        app.buttons["Assistant menu"].tap(); app.buttons["Conversation history"].tap()
+        XCTAssertTrue(app.buttons["Restore this transcript"].waitForExistence(timeout: 5)); saveScreenshot(app, name: "Audit120-conversation-revisions")
+        app.buttons["Restore this transcript"].firstMatch.tap(); app.buttons["Restore transcript"].tap()
+        app.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Original branch answer"].waitForExistence(timeout: 8)); XCTAssertFalse(app.buttons["Stop response"].exists)
+        saveScreenshot(app, name: "Audit120-restored-transcript")
+    }
+    func testAudit120ArchiveInspectionAndIsolatedRestore() {
+        let app = productApp("recovery")
+        app.buttons["History"].tap(); app.buttons["Settings & access"].tap(); app.buttons["Privacy & recovery"].tap(); app.buttons["Data & recovery"].tap()
+        let restore = app.buttons["Restore to a separate library"]
+        for _ in 0..<9 { if restore.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(restore.waitForExistence(timeout: 8)); restore.tap()
+        XCTAssertTrue(app.staticTexts["Restored library verified"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Use restored library on next launch"].exists)
+        saveScreenshot(app, name: "Audit120-verified-separate-library")
+    }
+    func testAudit120InboxFiltersAndRemovedNoteRecovery() {
+        let app = productApp("inbox")
+        app.buttons["History"].tap(); app.buttons["Inbox"].tap()
+        let field = app.textFields["inbox-note"]; XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText("Synthetic note to keep")
+        app.buttons["inbox-save"].tap()
+        let saved = app.staticTexts["Synthetic note to keep"]; XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        for _ in 0..<4 { if app.buttons["Mark handled"].isHittable { break }; app.swipeUp() }
+        app.buttons["Mark handled"].tap(); app.buttons["Filed"].tap()
+        XCTAssertTrue(saved.waitForExistence(timeout: 5)); saveScreenshot(app, name: "Audit120-filed-inbox-note")
+    }
+
+    func testAudit120LargestTextKeepsPrimaryActionsReachable() {
+        let app = XCUIApplication(); app.launchArguments = ["--ui-empty", "--ui-largest", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch(); XCTAssertTrue(app.buttons["Choose model"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Add to message"].isHittable); XCTAssertTrue(app.buttons["Dictate message"].isHittable)
+        app.buttons["Choose model"].tap(); XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5)); XCTAssertTrue(app.buttons["Done"].isHittable)
+        saveScreenshot(app, name: "Audit120-largest-text-models")
+        app.buttons["Done"].tap(); XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 5))
+    }
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

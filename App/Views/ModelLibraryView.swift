@@ -13,6 +13,7 @@ struct ModelLibraryView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section { ReadinessRow() }
                 if localFirst { phoneModels; chatGPTModels } else { chatGPTModels; phoneModels }
                 if model.appleCloud.isAvailable || model.settings.choice == .appleCloud {
                     Section("Apple cloud") {

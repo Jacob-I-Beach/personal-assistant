@@ -4,6 +4,8 @@ import SwiftUI
 
 struct WorkingSurfaceView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.conversationDisplay) private var display
+    private var displayedChat: Conversation { display?.conversation ?? model.conversation }
     @EnvironmentObject private var navigation: ChatNavigation
     let id: UUID
     var expanded = false
@@ -36,8 +38,8 @@ struct WorkingSurfaceView: View {
                 else if dirty { Text("Unsaved changes · displayed result is a preview").font(.caption).foregroundStyle(.secondary) }
                 if [.scenario, .comparison, .checklist].contains(surface.kind) {
                     HStack {
-                        Button("Reset inputs") { resetInputs() }.disabled(model.isRunning || saving || failure != nil)
-                        if undoValues != nil { Button("Undo change") { restorePrevious() }.disabled(model.isRunning || saving || failure != nil) }
+                        Button("Reset inputs") { resetInputs() }.disabled(display?.readOnly == true || model.isRunning || saving || failure != nil)
+                        if undoValues != nil { Button("Undo change") { restorePrevious() }.disabled(display?.readOnly == true || model.isRunning || saving || failure != nil) }
                     }.font(.subheadline)
                 }
                 if !expanded {
@@ -45,6 +47,7 @@ struct WorkingSurfaceView: View {
                 }
                 if surface.kind == .scenario { Text("Calculated on this iPhone from the displayed assumptions.").font(.caption2).foregroundStyle(.secondary) }
                 else if surface.dataCallID != nil { Text("Values from the saved calculation.").font(.caption2).foregroundStyle(.secondary) }
+                if surface.kind == .comparison { Text("Selected here means selected for comparison. It does not approve an action or mark an option as recommended.").font(.caption).foregroundStyle(.secondary) }
                 if surface.kind == .checklist { Text("Tap an item to track your progress.").font(.caption).foregroundStyle(.secondary) }
                 if [.scenario, .comparison, .checklist].contains(surface.kind) {
                     if surface.revision > 1 { Text("Updated here · the earlier reply may use older inputs").font(.caption2).foregroundStyle(.secondary) }
@@ -55,7 +58,7 @@ struct WorkingSurfaceView: View {
                         if navigation.destination != nil { navigation.compose(ContextualDraftProposal(reference: reference, prompt: prompt), afterDismissal: false) }
                         else { Task { await model.offerContextualDraft(reference: reference, prompt: prompt) } }
                     } label: { Label("Ask about these changes", systemImage: "arrow.turn.up.right").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44) }
-                        .buttonStyle(.bordered).disabled(model.isRunning || saving || dirty || failure != nil)
+                        .buttonStyle(.bordered).disabled(display?.readOnly == true || model.isRunning || saving || dirty || failure != nil)
                 }
             } else if let failure { Text(failure).font(.footnote).foregroundStyle(.secondary) }
             else { ProgressView("Opening working surface").controlSize(.small) }
@@ -63,7 +66,7 @@ struct WorkingSurfaceView: View {
         .padding(18).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
         .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5).allowsHitTesting(false) }
         .accessibilityIdentifier("working-surface")
-        .task(id: "\(id)-\(model.conversation.messages.count)-\(model.isRunning)") {
+        .task(id: "\(id)-\(displayedChat.messages.count)-\(model.isRunning)") {
             if !dirty && !saving { await reload() }
         }
         .sheet(isPresented: Binding(get: { editingInput != nil }, set: { if !$0 { editingInput = nil } })) {
@@ -71,7 +74,7 @@ struct WorkingSurfaceView: View {
                 Form {
                     if let key = editingInput, let input = surface?.inputs.first(where: { $0["id"]?.stringValue == key }) {
                         TextField(input["label"]!.stringValue!, text: $exactValue).keyboardType(.numbersAndPunctuation).accessibilityIdentifier("scenario-exact-value")
-                        Text("From \(input["min"]!.numberValue!.formatted()) to \(input["max"]!.numberValue!.formatted())").font(.caption).foregroundStyle(.secondary)
+                        Text("From \(input["min"]!.numberValue!.formatted()) to \(input["max"]!.numberValue!.formatted()) · step \(input["step"]!.numberValue!.formatted())").font(.caption).foregroundStyle(.secondary)
                         if let inputError { Text(inputError).foregroundStyle(.secondary) }
                     }
                 }.navigationTitle("Exact value").navigationBarTitleDisplayMode(.inline)
@@ -142,7 +145,7 @@ struct WorkingSurfaceView: View {
                         }
                         Spacer(minLength: 0)
                     }.foregroundStyle(.primary).padding(.vertical, 6).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(saving || model.isRunning || failure != nil)
+                }.buttonStyle(.plain).disabled(display?.readOnly == true || saving || model.isRunning || failure != nil)
                     .accessibilityLabel(row["label"]!.stringValue!).accessibilityValue(surface.selectedIDs.contains(key) ? "Selected" : "Not selected")
             }
         case .timeline:
@@ -161,9 +164,9 @@ struct WorkingSurfaceView: View {
                         Button((self.surface?.inputValues[key] ?? 0).formatted(.number.precision(.significantDigits(1...7)))) {
                             exactValue = (self.surface?.inputValues[key] ?? 0).formatted(.number.grouping(.never)); inputError = nil; editingInput = key
                         }.monospacedDigit().frame(minWidth: 44, minHeight: 44).accessibilityLabel("Set exact " + input["label"]!.stringValue!)
-                    }.font(.subheadline).disabled(model.isRunning || saving || failure != nil)
+                    }.font(.subheadline).disabled(display?.readOnly == true || model.isRunning || saving || failure != nil)
                     Slider(value: Binding(get: { self.surface?.inputValues[key] ?? input["value"]!.numberValue! }, set: { self.surface?.inputValues[key] = $0 }), in: input["min"]!.numberValue!...input["max"]!.numberValue!, step: input["step"]!.numberValue!, onEditingChanged: { editing in if !editing { save() } })
-                        .tint(.primary).disabled(model.isRunning || saving || failure != nil).accessibilityLabel(input["label"]!.stringValue!)
+                        .tint(.primary).disabled(display?.readOnly == true || model.isRunning || saving || failure != nil).accessibilityLabel(input["label"]!.stringValue!)
                 }
             }
             if let expression = surface.spec["expression"], let result = try? WorkSurface.evaluate(expression, inputs: surface.inputValues) {
@@ -177,11 +180,11 @@ struct WorkingSurfaceView: View {
             ForEach(Array(surface.rows.enumerated()), id: \.offset) { _, row in
                 let label = row["label"]!.stringValue!, value = row["value"]!.numberValue!, series = row["series"]?.stringValue ?? surface.title
                 if surface.spec["style"] == .string("line") {
-                    LineMark(x: .value("Category", label), y: .value("Value", value)).foregroundStyle(by: .value("Series", series)).symbol(.circle)
+                    LineMark(x: .value("Category", label), y: .value("Value", value)).foregroundStyle(by: .value("Series", series)).symbol(by: .value("Series", series))
                 } else if surface.spec["style"] == .string("area") {
                     AreaMark(x: .value("Category", label), y: .value("Value", value)).foregroundStyle(by: .value("Series", series))
                 } else {
-                    BarMark(x: .value("Category", label), y: .value("Value", value)).foregroundStyle(by: .value("Series", series))
+                    BarMark(x: .value("Category", label), y: .value("Value", value)).foregroundStyle(by: .value("Series", series)).position(by: .value("Series", series))
                 }
             }
         }.chartForegroundStyleScale(range: [Color.primary, Color.gray, Color.secondary])
@@ -194,7 +197,7 @@ struct WorkingSurfaceView: View {
         switch value { case .string(let text): text; case .number(let number): number.formatted(.number.precision(.significantDigits(1...8))); case .bool(let flag): flag ? "Yes" : "No"; default: "—" }
     }
     private func save() {
-        guard let value = surface, let store = model.store, !saving, value.conversationID == model.conversation.id, !model.isRunning else { return }
+        guard let value = surface, let store = model.store, !saving, value.conversationID == model.conversation.id, !model.isRunning, display?.readOnly != true else { return }
         guard dirty else { return }
         saving = true; failure = nil
         Task {
@@ -209,7 +212,10 @@ struct WorkingSurfaceView: View {
     private func reload() async {
         guard let store = model.store else { return }
         do {
-            guard let saved = try await store.surfaces(conversationID: model.conversation.id).first(where: { $0.id == id }) else { throw AssistantError.provider("This surface is no longer in the active conversation.") }
+            let candidate: WorkSurface?
+            if let revision = display?.revision { candidate = revision.surfaces.first(where: { $0.id == id }) }
+            else { candidate = try await store.surfaces(conversationID: displayedChat.id).first(where: { $0.id == id }) }
+            guard let saved = candidate else { throw AssistantError.provider("This surface is no longer in the active conversation.") }
             surface = saved; committed = saved; failure = nil; undoValues = nil; revisionChanged?(saved.revision)
         } catch { failure = error.localizedDescription }
     }
@@ -226,7 +232,7 @@ struct WorkingSurfaceView: View {
     private func applyExactValue() {
         guard let key = editingInput, let input = surface?.inputs.first(where: { $0["id"]?.stringValue == key }),
               let value = try? FloatingPointFormatStyle<Double>.number.parseStrategy.parse(exactValue), value.isFinite,
-              (input["min"]!.numberValue!...input["max"]!.numberValue!).contains(value) else { inputError = "Enter a number within the displayed range."; return }
+              SurfaceInput.accepts(value, specification: input) else { inputError = "Enter a number in the displayed range using its step size."; return }
         surface?.inputValues[key] = value; editingInput = nil; save()
     }
 }

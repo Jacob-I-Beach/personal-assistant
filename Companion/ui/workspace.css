@@ -13,3 +13,11 @@ button,select,summary{min-height:44px}button:focus-visible,select:focus-visible,
 @media(prefers-color-scheme:light){
  :root{color-scheme:light;color:#202124;background:#f6f6f8}article,.push-settings{background:#fff;border-color:#d8d8de}p,header p,.small,.eyebrow,.number,.section-heading span,footer{color:#5b5c65}select,.push-settings input{color:#202124;background:#f5f5f8;border-color:#babbc4}button{color:#fff;background:#292a31;border-color:#292a31}.job button,.device button{color:#292a31;border-color:#babbc4}.job,.device{border-color:#d8d8de}.empty{color:#5b5c65;border-color:#babbc4}#notice{color:#765116}dialog{color:#202124;background:#fff;border-color:#babbc4}.assistant-text p,.tool-receipt summary{color:#202124}.assistant-text a{color:#4d44a8}.assistant-text pre,.tool-receipt{background:#f3f3f6;border-color:#d8d8de}.tool-receipt pre,.task-step,.push-settings label{color:#5b5c65}.review-card{background:#f2f0fa;border-color:#bcb6d4}#task-files button{background:#f3f3f6;color:#202124}.assistant-text th,.assistant-text td{border-color:#d8d8de}.status{color:#4b4679;background:#ebe9f5}
 }
+
+/* Semantic surfaces shared by setup, work, reviews and advanced connections. */
+:root{--pa-surface:#1b1c20;--pa-input:#27282d;--pa-text:#ededf0;--pa-secondary:#acacb7;--pa-border:#48484f;--pa-focus:#aaaaff;--pa-radius:18px;--pa-control:44px}
+.push-settings{background:var(--pa-surface);border-color:var(--pa-border);border-radius:var(--pa-radius)}
+.push-settings label{color:var(--pa-secondary)}.push-settings input,.push-settings select{background:var(--pa-input);color:var(--pa-text);border-color:var(--pa-border);min-height:var(--pa-control)}
+.push-settings input:focus-visible{outline:3px solid var(--pa-focus);outline-offset:3px}
+@media(prefers-color-scheme:light){:root{--pa-surface:#fff;--pa-input:#f5f5f7;--pa-text:#16161b;--pa-secondary:#54545d;--pa-border:#888891;--pa-focus:#4141a4}}
+@media(prefers-contrast:more){:root{--pa-border:currentColor;--pa-secondary:var(--pa-text)}article,.tool-receipt,.review-card,.push-settings{border-width:2px}.small{color:var(--pa-text)}}

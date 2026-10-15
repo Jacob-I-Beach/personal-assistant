@@ -74,7 +74,7 @@ final class HomeWeatherService: ObservableObject {
         }
     }
     private static func json(_ url: URL) async throws -> JSONValue {
-        let (data, response) = try await session.data(from: url)
+        let (data, response) = try await session.boundedData(for: URLRequest(url: url), maximumBytes: 1048576)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200, data.count < 256_000 else { throw AssistantError.provider("The weather service is unavailable.") }
         return try JSONValue.parse(String(decoding: data, as: UTF8.self))
     }

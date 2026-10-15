@@ -38,7 +38,7 @@ extension AppModel {
         draft = proposal.textPreservingExistingDraft(draft)
         draftContextReferences = references
         if proposal.reference.kind == .file, let id = UUID(uuidString: proposal.reference.sourceID) { attachFile(id) }
-        if proposal.reference.kind == .capture, let id = UUID(uuidString: proposal.reference.sourceID) { attach(id) }
+        if proposal.reference.kind == .capture, let id = UUID(uuidString: proposal.reference.sourceID) { attach(id); if let points = proposal.reference.imagePoints { selectedImagePoints[id.uuidString] = points } }
         if proposal.reference.kind == .inbox, let entry = inbox.first(where: { $0.id.uuidString == proposal.reference.sourceID }) {
             for id in entry.captureIDs { attach(id) }
         }

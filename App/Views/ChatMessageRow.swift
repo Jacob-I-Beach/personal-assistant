@@ -4,6 +4,7 @@ import SwiftUI
 
 struct MessageRow: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.conversationDisplay) private var display
     @EnvironmentObject private var voice: VoiceController
     @EnvironmentObject private var chatNavigation: ChatNavigation
     let message: Message
@@ -45,6 +46,8 @@ struct MessageRow: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .accessibilityAction(named: "Copy message") { UIPasteboard.general.string = message.role == .user ? message.text : message.answerText }
+        .accessibilityAction(named: "Read aloud") { voice.speak(MarkdownContent(message.answerText).renderPlainText()) }
         .sheet(item: $selectedImage) { selection in CaptureViewer(captureID: selection.id, initialPoints: selection.points) }
     }
     @ViewBuilder private var attachments: some View {
@@ -98,7 +101,7 @@ struct MessageRow: View {
                     ShareLink(item: message.role == .user ? message.text : message.answerText) { Label("Share message", systemImage: "square.and.arrow.up") }
                 }
                 if message.role == .assistant { Button("Read response aloud", systemImage: "speaker.wave.2") { voice.speak(MarkdownContent(message.answerText).renderPlainText()) } }
-                else if message.isRequest { Button("Edit message", systemImage: "square.and.pencil") { model.beginEditing(message) }.disabled(model.isRunning) }
+                else if message.isRequest { Button("Edit message", systemImage: "square.and.pencil") { model.beginEditing(message) }.disabled(model.isRunning || display?.readOnly == true) }
             } label: { Image(systemName: "ellipsis").font(.subheadline).frame(width: 44, height: 44).foregroundStyle(.secondary) }
                 .accessibilityLabel(message.role == .user ? "Actions for earlier request" : "Actions for earlier reply")
         } else {
@@ -112,7 +115,7 @@ struct MessageRow: View {
                 MessageActionButton(title: "Read response aloud", icon: "speaker.wave.2") { voice.speak(MarkdownContent(message.answerText).renderPlainText()) }
             } else if message.isRequest {
                 MessageActionButton(title: "Edit message", icon: "square.and.pencil") { model.beginEditing(message) }
-                    .accessibilityLabel("Edit message").disabled(model.isRunning)
+                    .accessibilityLabel("Edit message").disabled(model.isRunning || display?.readOnly == true)
             }
         }.buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
             .accessibilityIdentifier(message.role == .assistant ? "final-response-actions" : "user-message-actions")

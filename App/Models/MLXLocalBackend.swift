@@ -223,6 +223,31 @@ actor MLXLocalBackend: ModelBackend {
         return result
     }
 
+    private var textCacheURL: URL { root.appendingPathComponent("text-runtime").appendingPathComponent(recordURL.deletingPathExtension().lastPathComponent) }
+    private func ownedStorage(cacheOnly: Bool) throws -> [URL] {
+        if cacheOnly { return [textCacheURL] }
+        var urls = [textCacheURL, recordURL, root.appendingPathComponent("packages").appendingPathComponent(repository.replacingOccurrences(of: "/", with: "--") + "-" + revision)]
+        if let directory = try? savedDirectory() {
+            let others = (try? FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("records"), includingPropertiesForKeys: nil)) ?? []
+            let shared = others.filter { $0 != recordURL }.contains { url in
+                guard let data = try? Data(contentsOf: url), let record = try? JSONDecoder().decode(DownloadRecord.self, from: data) else { return false }
+                return root.appendingPathComponent(record.relativeDirectory).standardizedFileURL == directory.standardizedFileURL
+            }
+            if !shared { urls.append(directory) } else { urls.removeAll { $0.standardizedFileURL == directory.standardizedFileURL } }
+        }
+        return try OwnedModelFiles.validate(urls, root: root)
+    }
+    func storageBytes(cacheOnly: Bool = false) throws -> Int64 { try OwnedModelFiles.size(ownedStorage(cacheOnly: cacheOnly), root: root) }
+    func removeStoredFiles(cacheOnly: Bool = false) async throws -> Int64 {
+        guard !busy, !preparing, !downloadBusy else { throw AssistantError.busy }
+        try await unload()
+        let bytes = try OwnedModelFiles.remove(ownedStorage(cacheOnly: cacheOnly), root: root)
+        if !cacheOnly {
+            let legacy = root.appendingPathComponent("selected-model.json")
+            if let data = try? Data(contentsOf: legacy), let record = try? JSONDecoder().decode(DownloadRecord.self, from: data), record.repository == repository, record.revision == revision { try FileManager.default.removeItem(at: legacy) }
+        }
+        return bytes
+    }
     private func savedDirectory() throws -> URL {
         let legacyURL = root.appendingPathComponent("selected-model.json")
         let source = FileManager.default.fileExists(atPath: recordURL.path) ? recordURL : legacyURL

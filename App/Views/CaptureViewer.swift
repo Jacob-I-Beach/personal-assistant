@@ -4,6 +4,7 @@ import UIKit
 
 struct CaptureViewer: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.conversationDisplay) private var display
     @EnvironmentObject private var navigation: ChatNavigation
     @Environment(\.dismiss) private var dismiss
     let captureID: UUID
@@ -21,7 +22,6 @@ struct CaptureViewer: View {
             VStack(spacing: 0) {
                 if let image {
                     ZoomableCapture(image: image, points: points) { point in
-                        guard capture?.depth != nil else { return }
                         if points.count == 2 { points = [point] } else { points.append(point) }
                     }.frame(minHeight: 220, idealHeight: 350, maxHeight: 430)
                         .accessibilityLabel(capture?.depth == nil ? "Image. Pinch to zoom." : "Depth image. Pinch to zoom; tap up to two visible surfaces to inspect saved depth.")
@@ -40,20 +40,32 @@ struct CaptureViewer: View {
                                     Text("Use this to explore relative layout or approximate spacing. Measurements come from the saved capture.").font(.caption).foregroundStyle(.secondary)
                                 }
                             }
+                            DisclosureGroup("Choose points precisely") {
+                                if points.count < 2 { Button("Add point at image center") { points.append(ImagePoint(x: 0.5, y: 0.5)) }.frame(minHeight: 44) }
+                                ForEach(points.indices, id: \.self) { index in
+                                    VStack(alignment: .leading) {
+                                        Text("Point \(index + 1)").font(.subheadline.weight(.medium))
+                                        Stepper("Horizontal \((points[index].x * 100).formatted(.number.precision(.fractionLength(0)))) percent", value: $points[index].x, in: 0...1, step: 0.01).accessibilityLabel("Point \(index + 1) horizontal position")
+                                        Stepper("Vertical \((points[index].y * 100).formatted(.number.precision(.fractionLength(0)))) percent", value: $points[index].y, in: 0...1, step: 0.01).accessibilityLabel("Point \(index + 1) vertical position")
+                                    }
+                                }
+                                Text("Coordinates stay attached to the original image when you zoom or rotate. Ordinary photos provide locations only; depth measurements require saved sensor data.").font(.caption).foregroundStyle(.secondary)
+                            }
                             if !capture.recognizedText.isEmpty {
                                 DisclosureGroup("Recognized text") { Text(capture.recognizedText.joined(separator: "\n")).font(.subheadline).textSelection(.enabled).padding(.top, 8) }
                             }
                             Button("Ask about this image", systemImage: "text.bubble") {
                                 guard let draftOwner, draftOwner == model.conversation.id else { failure = "The conversation changed. Reopen the image from the intended chat."; return }
-                                let ref = ContextReference(kind: .capture, sourceID: captureID.uuidString, title: "Selected image", conversationID: draftOwner)
+                                var ref = ContextReference(kind: .capture, sourceID: captureID.uuidString, title: "Selected image", conversationID: draftOwner)
+                                ref.imagePoints = points
                                 navigation.compose(ContextualDraftProposal(reference: ref, prompt: "Help me understand this image."), afterDismissal: true)
                                 dismiss()
-                            }.disabled(model.isRunning || image == nil)
+                            }.disabled(display?.readOnly == true || model.isRunning || image == nil)
                             if !points.isEmpty {
                                 Button("Use selected points in chat", systemImage: "paperclip") {
                                     guard draftOwner == model.conversation.id else { failure = "The conversation changed. Open this image from the intended draft before attaching it."; return }
                                     model.attach(captureID); model.selectedImagePoints[captureID.uuidString] = points; model.flushDraft(); dismiss()
-                                }.disabled(model.isRunning)
+                                }.disabled(display?.readOnly == true || model.isRunning)
                                 Text("Attaches the image and selected coordinates. Your message stays unchanged.").font(.caption).foregroundStyle(.secondary)
                             }
                             if !exportURLs.isEmpty { ShareLink(items: exportURLs) { Label("Share image and observation", systemImage: "square.and.arrow.up") }.font(.subheadline) }

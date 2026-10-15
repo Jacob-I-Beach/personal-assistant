@@ -33,7 +33,31 @@ extension LocalStore {
             .map { try Self.decode(InboxEntry.self, $0[0].data!) }
     }
     public func removeInboxEntry(_ id: UUID) throws {
-        try ensureInbox(); try database.execute("DELETE FROM assistant_inbox WHERE id=?", [.text(id.uuidString)])
+        try ensureInbox()
+        try database.execute("CREATE TABLE IF NOT EXISTS deleted_inbox(id TEXT PRIMARY KEY,deleted_at REAL NOT NULL,payload BLOB NOT NULL)")
+        try database.transaction {
+            try database.execute("INSERT INTO deleted_inbox SELECT id,?,payload FROM assistant_inbox WHERE id=? ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at,payload=excluded.payload", [.real(Date().timeIntervalSince1970), .text(id.uuidString)])
+            try database.execute("DELETE FROM assistant_inbox WHERE id=?", [.text(id.uuidString)])
+        }
+    }
+    public func deletedInboxEntries() throws -> [InboxEntry] {
+        try database.execute("CREATE TABLE IF NOT EXISTS deleted_inbox(id TEXT PRIMARY KEY,deleted_at REAL NOT NULL,payload BLOB NOT NULL)")
+        return try database.execute("SELECT payload FROM deleted_inbox ORDER BY deleted_at DESC LIMIT 300").map { try Self.decode(InboxEntry.self, $0[0].data!) }
+    }
+    public func restoreInboxEntry(_ id: UUID) throws {
+        guard var note = try deletedInboxEntries().first(where: { $0.id == id }) else { throw AssistantError.invalidTool("This removed note is unavailable.") }
+        guard try !inboxEntries().contains(where: { $0.id == id }) else { throw AssistantError.invalidTool("A note with this identity already exists.") }
+        if let chat = note.conversationID, (try? loadConversation(chat)) == nil { note.conversationID = nil }
+        try database.transaction { try saveInboxEntry(note); try database.execute("DELETE FROM deleted_inbox WHERE id=?", [.text(id.uuidString)]) }
+    }
+    public func moveInboxEntry(_ id: UUID, to conversationID: UUID?) throws {
+        guard var note = try inboxEntries().first(where: { $0.id == id }) else { throw AssistantError.invalidTool("The note is no longer available.") }
+        if let conversationID {
+            let chat = try loadConversation(conversationID)
+            guard chat.archivedAt == nil else { throw AssistantError.invalidTool("Choose an unarchived conversation.") }
+            note.containsLocalOnlyContext = note.containsLocalOnlyContext || chat.networkDisabled || chat.messages.contains(where: \.containsLocalOnlyContext)
+        }
+        note.conversationID = conversationID; try saveInboxEntry(note)
     }
     public func inboxContext(conversationID: UUID, remote: Bool, workspaceEnabled: Bool, query: String) throws -> JSONValue {
         guard query.utf8.count <= 1000 else { throw AssistantError.invalidTool("Use a short search phrase.") }

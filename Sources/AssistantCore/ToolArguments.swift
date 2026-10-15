@@ -25,7 +25,7 @@ public enum ToolArguments {
         if let text = value.stringValue, kind != "string" {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if kind == "boolean", ["true", "false"].contains(trimmed.lowercased()) { value = .bool(trimmed.lowercased() == "true") }
-            else if kind == "integer" || kind == "number", let number = Double(trimmed), number.isFinite { value = .number(number) }
+            else if kind == "integer" || kind == "number", trimmed.range(of: #"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression) != nil, let number = Double(trimmed), number.isFinite { value = .number(number) }
             else if kind == "object" || kind == "array", let decoded = try? JSONValue.parse(text) { value = decoded }
         }
         switch kind {
@@ -58,7 +58,7 @@ public enum ToolArguments {
             guard case .bool = value else { throw AssistantError.invalidTool("\(path) needs true or false.") }
         case "string":
             guard let text = value.stringValue else { throw AssistantError.invalidTool("\(path) needs text.") }
-            if let maximum = schema["maxLength"]?.numberValue, Double(text.count) > maximum { throw AssistantError.invalidTool("\(path) is too long.") }
+            if let maximum = schema["maxLength"]?.numberValue, Double(text.unicodeScalars.count) > maximum { throw AssistantError.invalidTool("\(path) is too long.") }
         case "null":
             guard value == .null else { throw AssistantError.invalidTool("\(path) must be omitted.") }
         default: throw AssistantError.invalidTool("The tool has an unsupported parameter schema.")

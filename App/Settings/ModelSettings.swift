@@ -150,7 +150,7 @@ enum PrivatePaths {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-empty") { folder = "PersonalAssistant-UITests-Empty" }
         if ProcessInfo.processInfo.arguments.contains("--ui-product117") {
-            let modes = ["editor", "attachments", "search", "surfaces", "settings"]
+            let modes = ["editor", "attachments", "search", "surfaces", "settings", "browse", "branches", "projects", "recovery", "inbox"]
             let mode = modes.first(where: { ProcessInfo.processInfo.arguments.contains("--ui-product117-" + $0) }) ?? "default"
             folder = "PersonalAssistant-UITests-Product117-" + mode
         }
@@ -175,13 +175,29 @@ enum PrivatePaths {
         try FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: directory.path)
         return directory
     }
+    static func activeData(root: URL) throws -> URL {
+        let pointer = root.appendingPathComponent("active-library.txt")
+        guard FileManager.default.fileExists(atPath: pointer.path) else { return root.appendingPathComponent("data") }
+        let raw = try String(contentsOf: pointer, encoding: .utf8)
+        guard let id = UUID(uuidString: raw) else { throw AssistantError.provider("The library selection is invalid. Your original data is preserved.") }
+        let target = root.appendingPathComponent("restored-libraries").appendingPathComponent(id.uuidString)
+        guard target.resolvingSymlinksInPath().deletingLastPathComponent() == root.appendingPathComponent("restored-libraries").resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: target.appendingPathComponent("restore-verified").path) else { throw AssistantError.provider("The selected restored library is not verified. Your original data is preserved.") }
+        return target
+    }
+    static func activateData(_ restored: URL?) throws {
+        let root = try root(), pointer = root.appendingPathComponent("active-library.txt")
+        guard let restored else { if FileManager.default.fileExists(atPath: pointer.path) { try FileManager.default.removeItem(at: pointer) }; return }
+        guard let id = UUID(uuidString: restored.lastPathComponent), restored.resolvingSymlinksInPath().deletingLastPathComponent() == root.appendingPathComponent("restored-libraries").resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: restored.appendingPathComponent("restore-verified").path) else { throw AssistantError.provider("Choose a verified restored library.") }
+        try Data(id.uuidString.utf8).write(to: pointer, options: .atomic)
+    }
     static func configureBackup(root: URL, includeUserData: Bool) throws {
-        // Preserve the original private default. Only an explicit preference includes user data in device backups.
-        for (url, exclude) in [(root, false), (root.appendingPathComponent("data"), !includeUserData),
-                                (root.appendingPathComponent("models"), true), (try outputs(), !includeUserData)] {
+        let active = try activeData(root: root)
+        // Inactive datasets stay excluded. Switching libraries must not silently
+        // include an older protected library in the device backup.
+        for (url, exclude) in [(root, false), (root.appendingPathComponent("data"), active.lastPathComponent == "data" ? !includeUserData : true),
+                              (root.appendingPathComponent("restored-libraries"), true), (root.appendingPathComponent("models"), true), (try outputs(), !includeUserData)] {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            var target = url
-            var values = URLResourceValues(); values.isExcludedFromBackup = exclude
+            var target = url; var values = URLResourceValues(); values.isExcludedFromBackup = exclude
             try target.setResourceValues(values)
         }
     }

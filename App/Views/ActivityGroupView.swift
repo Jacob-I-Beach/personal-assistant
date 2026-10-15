@@ -3,6 +3,8 @@ import SwiftUI
 
 struct ActivityGroupView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.conversationDisplay) private var display
+    private var displayedChat: Conversation { display?.conversation ?? model.conversation }
     let messages: [Message]
     private struct Category: Identifiable {
         var name: String
@@ -12,7 +14,7 @@ struct ActivityGroupView: View {
     private var categories: [Category] {
         var groups: [Category] = []
         for message in messages {
-            let name = ChatTimeline.category(ChatTimeline.toolName(for: message, in: model.conversation.messages))
+            let name = ChatTimeline.category(ChatTimeline.toolName(for: message, in: displayedChat.messages))
             if let index = groups.firstIndex(where: { $0.name == name }) { groups[index].messages.append(message) }
             else { groups.append(Category(name: name, messages: [message])) }
         }
@@ -28,13 +30,13 @@ struct ActivityGroupView: View {
                                 ForEach(group.messages) { WorkReceiptView(message: $0) }
                             }.padding(.top, 10)
                         } label: {
-                            ActivitySummaryLabel(summary: ActivitySummaries.tools(group.messages, in: model.conversation.messages))
+                            ActivitySummaryLabel(summary: ActivitySummaries.tools(group.messages, in: displayedChat.messages))
                         }
                     } else { ForEach(group.messages) { WorkReceiptView(message: $0) } }
                 }
             }.padding(.top, 12)
         } label: {
-            ActivitySummaryLabel(summary: ActivitySummaries.tools(messages, in: model.conversation.messages))
+            ActivitySummaryLabel(summary: ActivitySummaries.tools(messages, in: displayedChat.messages))
         }
         .tint(.secondary).foregroundStyle(.secondary).transaction { $0.animation = nil }
     }

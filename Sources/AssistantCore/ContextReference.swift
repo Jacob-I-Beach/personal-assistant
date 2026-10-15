@@ -8,6 +8,7 @@ public struct ContextReference: Codable, Equatable, Sendable, Identifiable {
     public var conversationID: UUID
     public var revision: Int?
     public var snapshot: String?
+    public var imagePoints: [ImagePoint]?
     public var containsLocalOnlyContext: Bool
     public var containsHealthData: Bool
     public var id: String { kind.rawValue + ":" + sourceID }
@@ -68,6 +69,7 @@ extension LocalStore {
             case .capture:
                 guard let id = UUID(uuidString: original.sourceID) else { throw AssistantError.invalidTool("Invalid photo reference.") }
                 _ = try loadCapture(id)
+                guard (original.imagePoints?.count ?? 0) <= 2, original.imagePoints?.allSatisfy(\.isValid) != false else { throw AssistantError.invalidTool("Choose up to two valid image coordinates.") }
             case .project:
                 guard let value = try projectWorkspace(conversationID: conversationID, remote: false), value.id.uuidString == original.sourceID else { throw AssistantError.invalidTool("This project is outside the current chat or folder.") }
                 try requireRevision(value.revision); result.title = value.title

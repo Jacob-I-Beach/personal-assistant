@@ -52,15 +52,15 @@ public enum MemoryContext {
         notes.filter { $0.isCurrent() && ($0.conversationID == nil || $0.conversationID == conversationID) && (!remote || $0.allowsConnectedModels) }
     }
     public static func instructions(_ notes: [SavedMemory], query: String, conversationID: UUID, remote: Bool, maximumBytes: Int = 1800) -> String {
-        let terms = Set(query.lowercased().split { !$0.isLetter && !$0.isNumber }.filter { $0.count >= 3 }.map(String.init))
-        let ranked = eligible(notes, conversationID: conversationID, remote: remote).sorted { left, right in
-            func score(_ note: SavedMemory) -> Int {
-                let content = (note.title + " " + note.text).lowercased()
-                return terms.reduce(0) { $0 + (content.contains($1) ? 1 : 0) }
+        let terms = RetrievalTerms.terms(query)
+        func score(_ note: SavedMemory) -> Int { RetrievalTerms.score(note.title + " " + note.text, query: terms) }
+        let explicitlyReadingMemory = ["saved note", "saved context", "remember", "memory", "about me"].contains { query.localizedCaseInsensitiveContains($0) }
+        let ranked = eligible(notes, conversationID: conversationID, remote: remote)
+            .filter { terms.isEmpty || explicitlyReadingMemory || $0.conversationID == conversationID || score($0) > 0 || [.identity, .preference].contains($0.kind) }
+            .sorted { left, right in
+                let lhs = score(left), rhs = score(right)
+                return lhs == rhs ? left.updatedAt > right.updatedAt : lhs > rhs
             }
-            let lhs = score(left), rhs = score(right)
-            return lhs == rhs ? left.updatedAt > right.updatedAt : lhs > rhs
-        }
         var selected: [JSONValue] = []
         for note in ranked.prefix(8) {
             let value: JSONValue = .object(["memory_id": .string(note.id.uuidString), "title": .string(note.title),

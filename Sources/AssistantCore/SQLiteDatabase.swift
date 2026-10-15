@@ -13,6 +13,7 @@ enum SQLValue: Sendable {
 /// Owned by LocalStore. All use after construction is serialized by that actor.
 final class SQLiteDatabase: @unchecked Sendable {
     private let handle: OpaquePointer
+    private(set) var mutationVersion: UInt64 = 0
     init(url: URL) throws {
         var pointer: OpaquePointer?
         let status = sqlite3_open_v2(url.path, &pointer, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil)
@@ -30,6 +31,9 @@ final class SQLiteDatabase: @unchecked Sendable {
 
     @discardableResult
     func execute(_ sql: String, _ parameters: [SQLValue] = []) throws -> [[SQLValue]] {
+        // Invalidate cached checkpoints for any possible write, including a
+        // rollback or a cascading delete. Reads do not invalidate the cache.
+        if !sql.hasPrefix("SELECT") && !sql.hasPrefix("PRAGMA data_version") { mutationVersion &+= 1 }
         var statement: OpaquePointer?
         let status = sqlite3_prepare_v2(handle, sql, -1, &statement, nil)
         guard status == SQLITE_OK, let statement else { throw failure(status) }

@@ -172,7 +172,7 @@ extension LocalStore {
         let allowed = Set(surface.rows.compactMap { $0["id"]?.stringValue })
         guard selected.isSubset(of: allowed), (surface.kind == .checklist || selected.count <= 1), Set(inputs.keys) == Set(surface.inputValues.keys) else { throw AssistantError.invalidTool("The selection is outside this surface.") }
         for input in surface.inputs {
-            guard let number = inputs[input["id"]!.stringValue!], number.isFinite, (input["min"]!.numberValue!...input["max"]!.numberValue!).contains(number) else { throw AssistantError.invalidTool("A parameter is outside its allowed range.") }
+            guard let number = inputs[input["id"]!.stringValue!], SurfaceInput.accepts(number, specification: input) else { throw AssistantError.invalidTool("A parameter is outside its allowed range.") }
         }
         let previous = surface
         surface.selectedIDs = selected; surface.inputValues = inputs; surface.updatedAt = Date(); surface.revision += 1

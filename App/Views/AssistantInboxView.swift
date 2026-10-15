@@ -10,6 +10,11 @@ struct AssistantInboxView: View {
     @State private var handling: InboxHandling = .saveOnly
     @State private var saving = false
     @State private var notice: String?
+    @State private var query = ""
+    @State private var filter = "Unhandled"
+    @State private var removed: [InboxEntry] = []
+    @State private var projects: [ProjectWorkspace] = []
+    private var visible: [InboxEntry] { model.inbox.filter { (filter == "All" || (filter == "Filed" ? $0.handledAt != nil : $0.handledAt == nil)) && (query.isEmpty || $0.text.localizedCaseInsensitiveContains(query)) } }
     var body: some View {
         NavigationStack {
             List {
@@ -35,9 +40,17 @@ struct AssistantInboxView: View {
                 }
                 if !model.inbox.isEmpty {
                     Section("Your captures") {
-                        ForEach(model.inbox) { entry in
+                        Picker("Show notes", selection: $filter) { ForEach(["Unhandled", "Filed", "All"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented)
+                        if visible.isEmpty { Text("No notes match this view.").foregroundStyle(.secondary) }
+                        ForEach(visible) { entry in
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(entry.text).font(.subheadline).textSelection(.enabled)
+                                Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption2).foregroundStyle(.secondary)
+                                Menu("Move note") {
+                                    Button("Inbox") { Task { await move(entry, to: nil) } }
+                                    ForEach(projects) { project in Button("Project: " + project.title) { Task { await move(entry, to: project.sourceConversationID) } } }
+                                    ForEach(model.histories.filter { $0.archivedAt == nil }) { chat in Button(chat.title) { Task { await move(entry, to: chat.id) } } }
+                                }.font(.caption).frame(minHeight: 44)
                                 HStack {
                                     Label(entry.handledAt != nil ? "Filed" : entry.handling.title, systemImage: entry.handledAt != nil ? "checkmark.circle" : "tray")
                                     if let id = entry.conversationID, let chat = model.histories.first(where: { $0.id == id }) { Text("· " + chat.title).lineLimit(1) }
@@ -58,12 +71,17 @@ struct AssistantInboxView: View {
                                 }.font(.caption).buttonStyle(.borderless)
                             }.padding(.vertical, 6)
                         }.onDelete { indices in
-                            let ids = indices.map { model.inbox[$0].id }
-                            Task { for id in ids { try? await model.store?.removeInboxEntry(id) }; await model.refresh() }
+                            let ids = indices.map { visible[$0].id }
+                            Task { do { for id in ids { try await model.store?.removeInboxEntry(id) }; await model.refresh(); removed = try await model.store?.deletedInboxEntries() ?? []; notice = "Note removed. Restore it from Recently removed." } catch { notice = error.localizedDescription } }
                         }
                     }
                 }
-            }.scrollDismissesKeyboard(.interactively).navigationTitle("Assistant inbox")
+                if !removed.isEmpty { Section { DisclosureGroup("Recently removed") {
+                    ForEach(removed) { entry in HStack { Text(entry.text).lineLimit(2); Spacer(); Button("Restore") { Task { do { try await model.store?.restoreInboxEntry(entry.id); await model.refresh(); removed = try await model.store?.deletedInboxEntries() ?? [] } catch { notice = error.localizedDescription } } }.frame(minHeight: 44) } }
+                } } }
+            }.searchable(text: $query, prompt: "Find a saved thought")
+                .task { removed = (try? await model.store?.deletedInboxEntries()) ?? []; projects = (try? await model.store?.projectWorkspaces()) ?? [] }
+                .scrollDismissesKeyboard(.interactively).navigationTitle("Assistant inbox")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
