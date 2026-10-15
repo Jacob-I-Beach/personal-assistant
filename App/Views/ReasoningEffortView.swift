@@ -53,7 +53,7 @@ struct ReasoningEffortView: View {
                                 .accessibilityElement(children: .ignore).accessibilityLabel("Reply and reasoning")
                                 .accessibilityValue("Up to " + plan.outputReserve.formatted() + " tokens").accessibilityIdentifier("connected-reply-allowance")
                             Text(plan.limitSource).font(.caption).foregroundStyle(.secondary)
-                            Text("Reasoning shares the reply allowance. Images and tools also use context. The connection enforces the final limit.").font(.caption).foregroundStyle(.secondary)
+                            Text("Per model response, not for the whole task. Long tasks continue across responses and compactions. Images and tools also use context; the connection enforces its limits.").font(.caption).foregroundStyle(.secondary)
                             Text("The 30% reserve is headroom, not occupied history. Reply space is based on active input. Compaction runs separately with its own allowance; these amounts are not added together. Full history and exact tool results remain saved.").font(.caption).foregroundStyle(.secondary)
                         }
                     } else if model.settings.choice == .localMLX {

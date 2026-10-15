@@ -12,6 +12,7 @@ Prepared in response to the installed 1.3.0 report: GPT-6.1-Sol with the largest
 - Reply allowance now uses active input after the 30% headroom calculation. The old formula subtracted all 855,616 tokens from 872,000 even though normal request assembly only uses 598,931 active input tokens. It displayed 16,384 instead of the 128,000 normal reply/reasoning allowance.
 - Compaction retains its own calculation because it may use more source input. At the reported selection, the separate compaction request has 855,616 input tokens and 16,384 output tokens; the normal request has 598,931 active input and up to 128,000 output. Those are separate passes, not additive reservations.
 - Settings now say "Reply and reasoning: Up to ..." and explain that the reserve is headroom rather than occupied conversation. The connection enforces its actual limits, and token accounting remains an estimate until the provider/native tokenizer measures it.
+- The reply figure is explicitly per model response, not a whole-task limit. PC work can span multiple model responses and compactions. Existing cancellation/authority checks, provider limits and genuine pending dependencies still apply.
 - API-key/compatible requests choose the output allowance for the request type. ChatGPT-plan requests continue to omit the unsupported `max_output_tokens` field, including the requests forwarded through the PC. The incorrect 16K display was not an app-imposed 16K cap on the user's ChatGPT connection.
 
 ## Removed

@@ -1202,6 +1202,7 @@ final class AssistantUITests: XCTestCase {
         XCTAssertEqual(reply.value as? String, "Up to 128,000 tokens")
         XCTAssertTrue(app.staticTexts["598,931 tokens"].exists)
         XCTAssertTrue(app.staticTexts["256,685 tokens"].exists)
+        XCTAssertTrue(app.staticTexts["Per model response, not for the whole task. Long tasks continue across responses and compactions. Images and tools also use context; the connection enforces its limits."].exists)
         saveScreenshot(app, name: "ReplyBudget131-855K-with-full-reply-room")
     }
     func testContinuity130ReserveAndMobileFallbackAreVisible() {
