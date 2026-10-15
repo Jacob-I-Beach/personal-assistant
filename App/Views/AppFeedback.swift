@@ -40,7 +40,7 @@ enum AppFeedback {
 struct QuietPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        configuration.label.contentShape(Rectangle())
             .opacity(configuration.isPressed ? 0.58 : 1)
             .background(configuration.isPressed ? Color.primary.opacity(0.065) : .clear, in: RoundedRectangle(cornerRadius: 11))
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)

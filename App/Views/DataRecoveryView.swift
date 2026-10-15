@@ -15,7 +15,8 @@ struct DataRecoveryView: View {
     @State private var selectedURL: URL?
     @State private var staged: URL?
     @State private var lastExport: String?
-    @State private var pendingActivation = false
+    @State private var pendingSelection: String?
+    @State private var libraries: [RestoredLibraryChoice] = []
     var body: some View {
         List {
             Section("On this iPhone") {
@@ -43,13 +44,22 @@ struct DataRecoveryView: View {
                 }
                 if let staged {
                     Label("Restored library verified", systemImage: "checkmark.circle")
-                    Button(pendingActivation ? "Selected for next launch" : "Use restored library on next launch") {
-                        do { try PrivatePaths.activateData(staged); pendingActivation = true; error = nil } catch { self.error = error.localizedDescription }
-                    }.disabled(model.isRunning || pendingActivation)
+                    Button(pendingSelection == staged.lastPathComponent ? "Selected for next launch" : "Use restored library on next launch") {
+                        do { try PrivatePaths.activateData(staged); pendingSelection = staged.lastPathComponent; error = nil } catch { self.error = error.localizedDescription }
+                    }.disabled(model.isRunning || pendingSelection == staged.lastPathComponent)
                     Text("Close and reopen the app when ready. The current library remains available below.").font(.caption).foregroundStyle(.secondary)
                 }
+                if !libraries.isEmpty {
+                    DisclosureGroup("Kept libraries") {
+                        ForEach(libraries) { library in
+                            Button { do { try PrivatePaths.activateData(library.url); pendingSelection = library.id; error = nil } catch { self.error = error.localizedDescription } } label: {
+                                VStack(alignment: .leading, spacing: 4) { Text(library.title); Text(library.detail + (pendingSelection == library.id ? " · selected for next launch" : "")).font(.caption).foregroundStyle(.secondary) }
+                            }.disabled(busy || model.isRunning)
+                        }
+                    }
+                }
                 Button("Use original library on next launch") {
-                    do { try PrivatePaths.activateData(nil); pendingActivation = true; error = nil } catch { self.error = error.localizedDescription }
+                    do { try PrivatePaths.activateData(nil); pendingSelection = "data"; error = nil } catch { self.error = error.localizedDescription }
                 }.disabled(busy || model.isRunning)
             }
             if busy { ProgressView("Checking and preserving your work") }
@@ -71,7 +81,7 @@ struct DataRecoveryView: View {
                     do { let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".paarchive"); inspected = try await store.exportPersonalArchive(to: file, includePrivate: true); selectedURL = file } catch { self.error = error.localizedDescription }
                 }
                 #endif
-                if let root = try? PrivatePaths.root() { lastExport = try? String(contentsOf: root.appendingPathComponent("last-archive-export.txt"), encoding: .utf8) } }
+                if let root = try? PrivatePaths.root() { lastExport = try? String(contentsOf: root.appendingPathComponent("last-archive-export.txt"), encoding: .utf8); libraries = (try? RestoredLibraryChoice.list(root)) ?? []; pendingSelection = (try? String(contentsOf: root.appendingPathComponent("pending-library.txt"), encoding: .utf8)) ?? (try? PrivatePaths.activeData(root: root))?.lastPathComponent } }
     }
     private func export() async {
         guard let store = model.store, !busy, !model.isRunning else { return }
@@ -97,6 +107,25 @@ struct DataRecoveryView: View {
         do {
             let parent = try PrivatePaths.root().appendingPathComponent("restored-libraries")
             staged = try await Task.detached { try await PersonalArchive.stageRestore(selectedURL, in: parent) }.value
+            libraries = try RestoredLibraryChoice.list(parent.deletingLastPathComponent())
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+private struct RestoredLibraryChoice: Identifiable {
+    let id: String
+    let url: URL
+    let title: String
+    let detail: String
+    static func list(_ root: URL) throws -> [RestoredLibraryChoice] {
+        let parent = root.appendingPathComponent("restored-libraries")
+        guard FileManager.default.fileExists(atPath: parent.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: [.creationDateKey]).compactMap { path in
+            guard UUID(uuidString: path.lastPathComponent) != nil, path.resolvingSymlinksInPath().deletingLastPathComponent() == parent.resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: path.appendingPathComponent("restore-verified").path) else { return nil }
+            let date = (try? path.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            let summary = (try? Data(contentsOf: path.appendingPathComponent("restore-summary.json"))).flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0) }
+            let count = summary?["conversations"]?.numberValue.flatMap { Int(exactly: $0) }.map { $0.formatted() + " conversations" } ?? "Verified saved library"
+            return RestoredLibraryChoice(id: path.lastPathComponent, url: path, title: "Restored " + date.formatted(date: .abbreviated, time: .standard), detail: count)
+        }.sorted { $0.title > $1.title }
     }
 }

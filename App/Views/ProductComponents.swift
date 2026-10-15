@@ -11,13 +11,13 @@ extension AppModel {
             return .init(capability: title, route: route, state: value.isAvailable ? .ready : .unavailable, detail: value.isAvailable ? "Ready for a conversation" : value.detail, recovery: value.isAvailable ? nil : .models)
         case .localMLX:
             guard downloadedModelIDs.contains(settings.localRepository) else { return .init(capability: title, route: route, state: .needsSetup, detail: "Download or import this model before using it.", recovery: .models) }
-            if let budget = localRuntimeBudget(memoryGiB: settings.localMemoryGiB, contextTokens: settings.localContextTokens, availableBytes: localMemoryHeadroom), !budget.fits { return .init(capability: title, route: route, state: .blocked, detail: "The selected context needs more memory headroom. Your model and context choice are kept.", recovery: .models) }
+            if !localContextBudget().fits { return .init(capability: title, route: route, state: .blocked, detail: "The selected context needs more memory headroom. Your model and context choice are kept.", recovery: .models) }
             return .init(capability: title, route: route, state: .ready, detail: "Downloaded on this iPhone. Memory is checked again when loading.")
         case .chatGPT:
             if isConnecting || modelCatalog.phase == .refreshing { return .init(capability: title, route: route, state: .checking, detail: "Checking the connected account and model catalog", recovery: .models) }
             if shouldOfferChatGPTSignIn { return .init(capability: title, route: route, state: .needsSetup, detail: "Connect ChatGPT or choose an on-device model.", recovery: .models) }
             if computerAccountNeedsAttention { return .init(capability: title, route: route, state: .unavailable, detail: computerAccountDetail, recovery: .connections) }
-            guard modelCatalog.phase == .ready, !settings.chatGPTModel.isEmpty else { return .init(capability: title, route: route, state: .unavailable, detail: "The account is saved; current model availability could not be confirmed.", recovery: .models) }
+            guard modelCatalog.phase == .ready, !settings.chatGPTModel.isEmpty, chatGPTModels.contains(where: { $0.id == settings.chatGPTModel }) else { return .init(capability: title, route: route, state: .unavailable, detail: "The account is saved; current model availability could not be confirmed.", recovery: .models) }
             return .init(capability: title, route: route, state: .ready, detail: "Account connected · model catalog available", observedAt: modelCatalog.updatedAt)
         case .openAI, .compatibleServer:
             return .init(capability: title, route: route, state: settings.endpoint == nil ? .needsSetup : .checking, detail: "The configured service is checked when you send a request.", recovery: .settings)

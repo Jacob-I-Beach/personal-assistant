@@ -22,6 +22,7 @@ final class AssistantUITests: XCTestCase {
         let settings = app.buttons["Settings & access"]
         for _ in 0..<8 { if settings.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(settings.isHittable); settings.tap()
+        app.buttons["Privacy & recovery"].tap()
         let paused = app.staticTexts["Notifications and Live Activities are paused in this build. Questions and task status remain available in chat."]
         for _ in 0..<6 { if paused.exists { break }; app.swipeUp() }
         XCTAssertTrue(paused.waitForExistence(timeout: 5))
@@ -1091,7 +1092,7 @@ final class AssistantUITests: XCTestCase {
     }
     func testAudit120CreateProjectAndContinueWithoutSending() {
         let app = productApp("projects")
-        app.buttons["History"].tap(); app.buttons["Projects"].tap()
+        app.buttons["History"].tap(); app.buttons["sidebar-projects"].tap()
         XCTAssertTrue(app.buttons["Create project"].waitForExistence(timeout: 5)); app.buttons["Create project"].tap()
         let title = app.textFields["project-title"]; XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("My synthetic project")
         app.buttons["Create"].tap()
@@ -1126,7 +1127,7 @@ final class AssistantUITests: XCTestCase {
     }
     func testAudit120InboxFiltersAndRemovedNoteRecovery() {
         let app = productApp("inbox")
-        app.buttons["History"].tap(); app.buttons["Inbox"].tap()
+        app.buttons["History"].tap(); app.buttons["sidebar-inbox"].tap()
         let field = app.textFields["inbox-note"]; XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText("Synthetic note to keep")
         app.buttons["inbox-save"].tap()
         let saved = app.staticTexts["Synthetic note to keep"]; XCTAssertTrue(saved.waitForExistence(timeout: 5))
@@ -1142,6 +1143,9 @@ final class AssistantUITests: XCTestCase {
         app.buttons["Choose model"].tap(); XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5)); XCTAssertTrue(app.buttons["Done"].isHittable)
         saveScreenshot(app, name: "Audit120-largest-text-models")
         app.buttons["Done"].tap(); XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 5))
+        app.buttons["History"].tap(); XCTAssertTrue(app.buttons["sidebar-settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["sidebar-settings"].isHittable); XCTAssertTrue(app.buttons["sidebar-models"].isHittable)
+        saveScreenshot(app, name: "Audit120-largest-text-sidebar")
     }
     func testAudit120ChartCategoryShowsEverySeriesAndDataTable() {
         let app = productApp("charts")

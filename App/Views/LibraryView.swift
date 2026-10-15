@@ -91,7 +91,7 @@ struct LibraryView: View {
 struct ArtifactCard: View {
     @EnvironmentObject private var model: AppModel
     let artifact: ArtifactRecord
-    var body: some View { OutputRow(value: OutputPresentation(model.artifacts.first(where: { $0.id == artifact.id }) ?? artifact), symbol: artifact.filename.hasSuffix(".csv") ? "tablecells" : "doc.text") }
+    var body: some View { OutputRow(value: OutputPresentation(model.artifacts.first(where: { $0.id == artifact.id }) ?? artifact, conversation: model.conversation.id == artifact.conversationID ? model.conversation : nil), symbol: artifact.filename.hasSuffix(".csv") ? "tablecells" : "doc.text") }
 }
 struct ArtifactDetailView: View {
     @EnvironmentObject private var model: AppModel

@@ -31,9 +31,11 @@ final class SQLiteDatabase: @unchecked Sendable {
 
     @discardableResult
     func execute(_ sql: String, _ parameters: [SQLValue] = []) throws -> [[SQLValue]] {
-        // Invalidate cached checkpoints for any possible write, including a
-        // rollback or a cascading delete. Reads do not invalidate the cache.
-        if !sql.hasPrefix("SELECT") && !sql.hasPrefix("PRAGMA data_version") { mutationVersion &+= 1 }
+        // Journal/index writes are independent of transcript payloads. A failed
+        // transcript write still invalidates the cache, as does its later rollback.
+        let command = sql.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let writes = ["INSERT", "UPDATE", "DELETE", "REPLACE", "DROP", "ALTER"].contains { command.hasPrefix($0) }
+        if writes && (command.contains("MESSAGES") || command.contains("CONVERSATIONS")) { mutationVersion &+= 1 }
         var statement: OpaquePointer?
         let status = sqlite3_prepare_v2(handle, sql, -1, &statement, nil)
         guard status == SQLITE_OK, let statement else { throw failure(status) }

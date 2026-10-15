@@ -185,11 +185,31 @@ enum PrivatePaths {
         guard target.resolvingSymlinksInPath().deletingLastPathComponent() == root.appendingPathComponent("restored-libraries").resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: target.appendingPathComponent("restore-verified").path) else { throw AssistantError.provider("The selected restored library is not verified. Your original data is preserved.") }
         return target
     }
-    static func activateData(_ restored: URL?) throws {
-        let root = try root(), pointer = root.appendingPathComponent("active-library.txt")
-        guard let restored else { if FileManager.default.fileExists(atPath: pointer.path) { try FileManager.default.removeItem(at: pointer) }; return }
-        guard let id = UUID(uuidString: restored.lastPathComponent), restored.resolvingSymlinksInPath().deletingLastPathComponent() == root.appendingPathComponent("restored-libraries").resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: restored.appendingPathComponent("restore-verified").path) else { throw AssistantError.provider("Choose a verified restored library.") }
-        try Data(id.uuidString.utf8).write(to: pointer, options: .atomic)
+    static func activateData(_ restored: URL?, at suppliedRoot: URL? = nil) throws {
+        let root = try suppliedRoot ?? self.root()
+        let id: String
+        if let restored {
+            guard let validID = UUID(uuidString: restored.lastPathComponent), restored.resolvingSymlinksInPath().deletingLastPathComponent() == root.appendingPathComponent("restored-libraries").resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: restored.appendingPathComponent("restore-verified").path) else { throw AssistantError.provider("Choose a verified restored library.") }
+            id = validID.uuidString
+        } else { id = "data" }
+        // A pending choice cannot redirect exports or backup policy in the
+        // still-running app. It becomes active only during initialization.
+        try Data(id.utf8).write(to: root.appendingPathComponent("pending-library.txt"), options: .atomic)
+    }
+    static func applyPendingLibrary(root: URL) throws {
+        let pending = root.appendingPathComponent("pending-library.txt")
+        guard FileManager.default.fileExists(atPath: pending.path) else { return }
+        let id = try String(contentsOf: pending, encoding: .utf8)
+        let active = root.appendingPathComponent("active-library.txt")
+        if id == "data" {
+            if FileManager.default.fileExists(atPath: active.path) { try FileManager.default.removeItem(at: active) }
+        } else {
+            guard let uuid = UUID(uuidString: id) else { throw AssistantError.provider("The pending library choice is invalid. Existing work is preserved.") }
+            let target = root.appendingPathComponent("restored-libraries").appendingPathComponent(uuid.uuidString)
+            guard target.resolvingSymlinksInPath().deletingLastPathComponent() == root.appendingPathComponent("restored-libraries").resolvingSymlinksInPath(), FileManager.default.fileExists(atPath: target.appendingPathComponent("restore-verified").path), FileManager.default.fileExists(atPath: target.appendingPathComponent("assistant.sqlite").path) else { throw AssistantError.provider("The pending restored library is unavailable. Existing work is preserved.") }
+            try Data(uuid.uuidString.utf8).write(to: active, options: .atomic)
+        }
+        try FileManager.default.removeItem(at: pending)
     }
     static func configureBackup(root: URL, includeUserData: Bool) throws {
         let active = try activeData(root: root)

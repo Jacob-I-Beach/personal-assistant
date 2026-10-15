@@ -36,7 +36,7 @@ struct RootView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("History", systemImage: "sidebar.left") { voice.stopAll(); withAnimation(sidebarAnimation) { showHistory = true } }
+                        Button("History", systemImage: "sidebar.left") { voice.stopAll(); chatNavigation.dismissKeyboard(); withAnimation(sidebarAnimation) { showHistory = true } }
                     }
                     ToolbarItem(placement: .principal) {
                         Button { voice.stopAll(); model.showModels = true } label: {
@@ -145,7 +145,7 @@ struct RootView: View {
         }
         .onChange(of: chatNavigation.routingReady) { _, _ in if !awaitingRootDismissal { finishPendingNavigation() } }
         .onChange(of: model.nativeAction?.id) { _, value in if value == nil { finishPendingNavigation() } }
-        .onChange(of: chatNavigation.showHistoryRequest) { _, _ in showHistory = true }
+        .onChange(of: chatNavigation.showHistoryRequest) { _, _ in chatNavigation.dismissKeyboard(); showHistory = true }
         .onChange(of: model.conversation.id) { _, _ in chatNavigation.destination = nil }
         // Sheets and sidebar overlays share the same router as the transcript.
         // Keep this outside the presentation modifiers so their destinations
@@ -293,6 +293,7 @@ struct ChatView: View {
         }
         composer
         }
+        .onChange(of: chatNavigation.keyboardDismissalRequest) { _, _ in composerFocused = false }
         .onChange(of: model.conversation.id) { _, _ in
             photoImportTask?.cancel(); voice.stopAll(); voicePrefix = ""; visibleMessageCount = 100
             if let target = chatNavigation.searchLanding, target.conversationID == model.conversation.id {

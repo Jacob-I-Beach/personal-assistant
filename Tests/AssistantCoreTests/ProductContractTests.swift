@@ -106,7 +106,9 @@ final class ProductContractTests: XCTestCase, @unchecked Sendable {
             let start = Date(); try await independent.save(chat); cold.append(Date().timeIntervalSince(start) * 1000)
         }
         var times: [Double] = []
+        let journal = WorkTurn(id: UUID(), conversationID: chat.id, userMessageID: chat.messages[0].id, backendID: "benchmark", goal: "Synthetic checkpoint")
         for index in 0..<12 {
+            try await store.saveWorkTurn(journal)
             chat.messages[4999].text += " chunk\(index)"
             let start = Date(); try await store.save(chat); times.append(Date().timeIntervalSince(start) * 1000)
         }

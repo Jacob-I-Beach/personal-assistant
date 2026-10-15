@@ -125,6 +125,8 @@ public enum PersonalArchive {
         guard second.manifest.id == checked.manifest.id,
               try LocalStore.encode(second.manifest) == LocalStore.encode(checked.manifest) else { throw AssistantError.invalidTool("The archive changed while restoring. It was not activated.") }
         try await store.verifyRestoredArchive(checked.manifest)
+        let summary: JSONValue = .object(["archived_at": .string(ISO8601DateFormatter().string(from: checked.manifest.createdAt)), "conversations": .number(Double(checked.manifest.conversations.count)), "documents": .number(Double(checked.manifest.artifacts.count))])
+        try JSONEncoder().encode(summary).write(to: target.appendingPathComponent("restore-summary.json"), options: .atomic)
         try Data(checked.manifest.id.uuidString.utf8).write(to: target.appendingPathComponent("restore-verified"), options: .atomic)
         return target
     }
@@ -141,10 +143,15 @@ public enum PersonalArchive {
         guard Set(value.binaries.filter { $0.kind == "file" }.map(\.id)) == files,
               Set(value.binaries.filter { $0.kind == "capture" }.map(\.id)) == captures else { throw AssistantError.invalidTool("The archive is missing original files.") }
         for file in value.files { try WorkspaceFile.validateFilename(file.filename); guard file.text.utf8.count <= 2 * 1024 * 1024, value.binaries.contains(where: { $0.kind == "file" && $0.id == file.id && $0.bytes == file.byteCount }) else { throw AssistantError.invalidTool("Invalid file metadata.") } }
-        for item in value.artifacts + value.artifactHistory { try WorkspaceFile.validateFilename(item.filename); guard chats.contains(item.conversationID), item.content.utf8.count <= 2 * 1024 * 1024, item.revision >= 1 else { throw AssistantError.invalidTool("Invalid document owner or revision.") } }
+        for item in value.artifacts + value.artifactHistory + value.revisions.flatMap(\.artifacts) { try WorkspaceFile.validateFilename(item.filename); guard chats.contains(item.conversationID), item.content.utf8.count <= 2 * 1024 * 1024, item.revision >= 1 else { throw AssistantError.invalidTool("Invalid document owner or revision.") } }
         guard value.artifactHistory.allSatisfy({ artifacts.contains($0.id) }), value.revisions.allSatisfy({ chats.contains($0.conversation.id) }), value.projects.allSatisfy({ chats.contains($0.sourceConversationID) }), value.surfaces.allSatisfy({ chats.contains($0.conversationID) }) else { throw AssistantError.invalidTool("An archive record has no owning conversation.") }
         for capture in value.captures { try capture.validate() }
-        for surface in value.surfaces + value.surfaceHistory { try WorkSurface.validate(surface.spec) }
+        for surface in value.surfaces + value.surfaceHistory + value.revisions.flatMap(\.surfaces) { try WorkSurface.validate(surface.spec) }
+        let memoryIDs = Set(value.memories.map(\.id)), surfaceIDs = Set(value.surfaces.map(\.id))
+        guard unique(value.artifactHistory.map { $0.id.uuidString + ":" + String($0.revision) }), unique(value.surfaceHistory.map { $0.id.uuidString + ":" + String($0.revision) }), unique(value.memoryHistory.map(\.id)), unique(value.memoryHistory.map(\.operationID)), value.memoryHistory.allSatisfy({ memoryIDs.contains($0.memoryID) && $0.after.id == $0.memoryID && ($0.before == nil || $0.before?.id == $0.memoryID) }), value.surfaceHistory.allSatisfy({ surfaceIDs.contains($0.id) }), value.revisions.allSatisfy({ $0.conversation.schemaVersion == 1 && unique($0.conversation.messages.map(\.id)) }) else { throw AssistantError.invalidTool("The archive contains inconsistent revision history.") }
+        for revision in value.revisions {
+            guard revision.artifacts.allSatisfy({ $0.conversationID == revision.conversation.id }), revision.surfaces.allSatisfy({ $0.conversationID == revision.conversation.id }) else { throw AssistantError.invalidTool("An earlier transcript contains another conversation's outputs.") }
+        }
         let folderIDs = Set(value.folders.map(\.id))
         guard value.conversations.allSatisfy({ $0.schemaVersion == 1 && ($0.folderID == nil || folderIDs.contains($0.folderID!)) }) else { throw AssistantError.invalidTool("A conversation references a missing folder.") }
         // Draft keys are chat UUIDs, not arbitrary filesystem locations.

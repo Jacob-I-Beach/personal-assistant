@@ -43,7 +43,7 @@ struct WorkingSurfaceView: View {
                     }.font(.subheadline)
                 }
                 if !expanded {
-                    Button("Open full view", systemImage: "arrow.up.left.and.arrow.down.right") { navigation.destination = .surface(id, selectedRevision: surface.revision) }.font(.subheadline)
+                    Button { navigation.destination = .surface(id, selectedRevision: surface.revision) } label: { Label("Open full view", systemImage: "arrow.up.left.and.arrow.down.right").font(.subheadline).frame(minHeight: 44) }
                 }
                 if surface.kind == .scenario { Text("Calculated on this iPhone from the displayed assumptions.").font(.caption2).foregroundStyle(.secondary) }
                 else if surface.dataCallID != nil { Text("Values from the saved calculation.").font(.caption2).foregroundStyle(.secondary) }
@@ -65,7 +65,6 @@ struct WorkingSurfaceView: View {
         }
         .padding(18).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
         .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5).allowsHitTesting(false) }
-        .accessibilityIdentifier("working-surface")
         .task(id: "\(id)-\(displayedChat.messages.count)-\(model.isRunning)") {
             if !dirty && !saving { await reload() }
         }
@@ -117,11 +116,11 @@ struct WorkingSurfaceView: View {
                     Text("\(selectedChartLabel) · \(row["series"]?.stringValue ?? surface.title): \(cell(row["value"]!))").font(.caption).monospacedDigit()
                 }
             }
-            DisclosureGroup("Data table", isExpanded: $showChartData) {
+            DisclosureGroup(isExpanded: $showChartData) {
                 ForEach(Array(surface.rows.enumerated()), id: \.offset) { _, row in
                     LabeledContent((row["label"]?.stringValue ?? "") + (row["series"]?.stringValue.map { " · " + $0 } ?? ""), value: cell(row["value"]!)).font(.subheadline).monospacedDigit().padding(.vertical, 4)
                 }
-            }
+            } label: { Text("Data table").frame(minHeight: 44) }
         case .table:
             ScrollView(.horizontal) {
                 Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {

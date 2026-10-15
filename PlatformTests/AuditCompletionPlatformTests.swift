@@ -16,11 +16,28 @@ final class AuditCompletionPlatformTests: XCTestCase {
     func testArchiveSelectionRejectsAnUnverifiedLibrary() throws {
         XCTAssertThrowsError(try PrivatePaths.activateData(FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)))
     }
+    func testLibrarySelectionIsDeferredAndOriginalRemainsReversible() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let staged = root.appendingPathComponent("restored-libraries").appendingPathComponent(UUID().uuidString)
+        let store = try LocalStore(root: staged)
+        try Data(UUID().uuidString.utf8).write(to: staged.appendingPathComponent("restore-verified"))
+        try PrivatePaths.activateData(staged, at: root)
+        XCTAssertEqual(try PrivatePaths.activeData(root: root), root.appendingPathComponent("data"))
+        try PrivatePaths.applyPendingLibrary(root: root)
+        XCTAssertEqual(try PrivatePaths.activeData(root: root), staged)
+        try PrivatePaths.activateData(nil, at: root)
+        XCTAssertEqual(try PrivatePaths.activeData(root: root), staged)
+        try PrivatePaths.applyPendingLibrary(root: root)
+        XCTAssertEqual(try PrivatePaths.activeData(root: root), root.appendingPathComponent("data"))
+        let chats = try await store.conversationSummaries(); XCTAssertTrue(chats.isEmpty)
+    }
     func testReadinessDoesNotTurnSavedAuthenticationIntoReadyModelService() async throws {
         let model = AppModel(); try await model.waitUntilReady()
         model.settings.choice = .chatGPT; model.settings.localOnly = true
         XCTAssertEqual(model.selectedAvailability.state, .blocked)
         model.settings.localOnly = false; model.modelCatalog.phase = .unavailable
+        XCTAssertNotEqual(model.selectedAvailability.state, .ready)
+        model.modelCatalog.phase = .ready; model.chatGPTModels = []; model.settings.chatGPTModel = "model-not-in-catalog"
         XCTAssertNotEqual(model.selectedAvailability.state, .ready)
     }
     func testBoundedReadRejectsOversizedAdvertisedAndActualBodies() async throws {

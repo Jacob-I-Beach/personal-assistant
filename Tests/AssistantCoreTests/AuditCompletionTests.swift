@@ -90,6 +90,37 @@ final class AuditCompletionTests: XCTestCase, @unchecked Sendable {
         let explicit = try await store.exportPersonalArchive(to: store.root.appendingPathComponent("private.paarchive"), includePrivate: true, includeHealth: false)
         XCTAssertEqual(explicit.manifest.conversations.map(\.id), [privateChat.id]); XCTAssertEqual(explicit.manifest.projects.count, 1)
     }
+    func testArchiveRejectsDuplicateIdentitiesAndPathTraversalBeforeActivation() async throws {
+        let store = try makeTestStore(); let chat = Conversation(title: "Preserved")
+        try await store.save(chat)
+        let file = WorkspaceFile(filename: "source.txt", mediaType: "text/plain", byteCount: 4, text: "safe", allowsConnectedModels: true)
+        try await store.saveWorkspaceFile(file, data: Data("safe".utf8))
+        let original = try await store.exportPersonalArchive(to: store.root.appendingPathComponent("good.paarchive"))
+        var duplicate = original.manifest; duplicate.conversations += duplicate.conversations
+        let dup = store.root.appendingPathComponent("duplicate.paarchive")
+        try PersonalArchive.write(manifest: duplicate, to: dup) { _ in Data("safe".utf8) }
+        XCTAssertThrowsError(try PersonalArchive.inspect(dup))
+        var traversal = original.manifest; traversal.files[0].filename = "../escape.txt"
+        let bad = store.root.appendingPathComponent("traversal.paarchive")
+        try PersonalArchive.write(manifest: traversal, to: bad) { _ in Data("safe".utf8) }
+        do { _ = try await PersonalArchive.stageRestore(bad, in: store.root.appendingPathComponent("restores")); XCTFail("Accepted a path outside the library") } catch { }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.root.appendingPathComponent("escape.txt").path))
+        let saved = try await store.loadConversation(chat.id); XCTAssertEqual(saved.title, "Preserved")
+    }
+    func testOutputPresentationRetainsDistinctIdentityAndOriginAcrossRevisions() throws {
+        var chat = Conversation(); let user = Message(role: .user, text: "Create a report")
+        let call = ToolCall(id: "source-create", name: "create_artifact", arguments: .object([:]))
+        chat.messages = [user, Message(role: .assistant, text: "", toolCalls: [call])]
+        var artifact = ArtifactRecord(conversationID: chat.id, filename: "report.md", content: "First", sourceCallID: call.id, containsLocalOnlyContext: true)
+        let first = OutputPresentation(artifact, conversation: chat)
+        artifact.revision = 2; artifact.content = "Second"
+        let current = OutputPresentation(artifact, conversation: chat)
+        XCTAssertEqual(first.id, current.id); XCTAssertEqual(current.revision, 2); XCTAssertEqual(current.originTurnID, user.id); XCTAssertTrue(current.localOnly)
+        let sameName = WorkspaceFile(filename: "report.md", mediaType: "text/markdown", byteCount: 5, text: "Other")
+        let input = OutputPresentation(sameName)
+        XCTAssertNotEqual(input.id, current.id); XCTAssertTrue(input.isInput); XCTAssertTrue(input.restrictedDiscovery)
+        XCTAssertEqual(current.preview, .textAvailable); XCTAssertEqual(input.preview, .originalNeedsCheck)
+    }
     func testCheckpointCacheInvalidatesAfterEditAndExternalStoreMutation() async throws {
         let store = try makeTestStore(); var chat = Conversation(); chat.messages = (0..<1000).map { Message(role: .assistant, text: "Saved message \($0)") }
         try await store.save(chat)

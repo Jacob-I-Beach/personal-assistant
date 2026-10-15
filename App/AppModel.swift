@@ -174,6 +174,7 @@ final class AppModel: ObservableObject {
     init() {
         do {
             let root = try PrivatePaths.root(); self.root = root
+            try PrivatePaths.applyPendingLibrary(root: root)
             let dataRoot = try PrivatePaths.activeData(root: root)
             let store = try LocalStore(root: dataRoot, outputsRoot: PrivatePaths.outputs())
             self.store = store; engine = AssistantEngine(store: store)

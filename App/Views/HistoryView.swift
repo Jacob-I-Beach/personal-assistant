@@ -4,6 +4,7 @@ import MarkdownUI
 
 struct HistoryView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
     @EnvironmentObject private var navigation: ChatNavigation
     var close: () -> Void = {}
     var open: (String) -> Void = { _ in }
@@ -24,16 +25,10 @@ struct HistoryView: View {
             List {
                 Section {
                     Button { model.newConversation(folderID: selectedFolder); close() } label: { rowLabel("New chat", icon: "square.and.pencil").fontWeight(.medium) }.disabled(model.isRunning)
-                    Button { close(); open("projects") } label: { rowLabel("Projects", icon: "square.stack.3d.up") }
-                    Button { close(); open("memory") } label: { rowLabel("Memory", icon: "brain.head.profile") }
-                    Button { close(); open("models") } label: { rowLabel("Models", icon: "brain") }
-                    Button { close(); open("library") } label: { rowLabel("Library", icon: "square.stack") }
-                    Button { close(); open("inbox") } label: { rowLabel("Inbox", icon: "tray") }
-                    Button { close(); open("connections") } label: { rowLabel("Connections", icon: "point.3.connected.trianglepath.dotted") }
-                    Button { close(); open("activity") } label: { rowLabel("Task activity", icon: "list.bullet.rectangle") }
                 }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                 if query.isEmpty {
                     Section {
+                        DisclosureGroup("Folders") {
                         Button { selectedFolder = nil; archived = false } label: { selectionRow("All chats", icon: "bubble.left.and.bubble.right", selected: selectedFolder == nil && !archived) }
                         ForEach(model.folders) { folder in
                             HStack {
@@ -45,7 +40,8 @@ struct HistoryView: View {
                             }
                         }
                         Button { editingFolder = ChatFolder(name: "") } label: { rowLabel("New folder", icon: "folder.badge.plus").foregroundStyle(.secondary) }.disabled(model.isRunning)
-                    } header: { Text("Folders") }.listRowSeparator(.hidden).listRowBackground(Color.clear)
+                        }
+                    }.listRowSeparator(.hidden).listRowBackground(Color.clear)
                     Section(title) {
                         if visible.isEmpty { Text(archived ? "Archived chats will appear here." : "Your conversations will appear here.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 12).listRowSeparator(.hidden) }
                         ForEach(visible) { chat in
@@ -84,7 +80,6 @@ struct HistoryView: View {
                 }
                 Section {
                     Button { selectedFolder = nil; archived.toggle(); navigation.historyQuery = "" } label: { rowLabel(archived ? "Back to chats" : "Archived chats", icon: archived ? "bubble.left.and.bubble.right" : "archivebox") }
-                    Button { close(); open("settings") } label: { rowLabel("Settings & access", icon: "gearshape") }
                     Button { close(); open("watch") } label: { rowLabel("Watch requests", icon: "applewatch") }
                 }.listRowSeparator(.hidden).listRowBackground(Color.clear)
             }
@@ -92,7 +87,11 @@ struct HistoryView: View {
             .buttonStyle(.plain)
             .background(Color(uiColor: .secondarySystemBackground))
             .navigationTitle("Personal Assistant").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Close sidebar", systemImage: "sidebar.left") { close() }.labelStyle(.iconOnly) } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Settings & access", systemImage: "gearshape") { close(); open("settings") }.labelStyle(.iconOnly).accessibilityIdentifier("sidebar-settings") }
+                ToolbarItem(placement: .topBarTrailing) { Button("Close sidebar", systemImage: "sidebar.left") { close() }.labelStyle(.iconOnly) }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) { if query.isEmpty { workspaceFooter } }
             .searchable(text: $navigation.historyQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search chats")
             .task(id: query) {
                 guard !query.isEmpty else { navigation.historyMatches = []; return }
@@ -113,6 +112,25 @@ struct HistoryView: View {
             } message: { Text("Its chats will remain in All chats. The folder's instructions will be removed.") }
             }
         }
+    }
+    private var workspaceFooter: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Workspace").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
+                shortcut("Library", icon: "square.stack", route: "library")
+                shortcut("Projects", icon: "square.stack.3d.up", route: "projects")
+                shortcut("Memory", icon: "brain.head.profile", route: "memory")
+                shortcut("Inbox", icon: "tray", route: "inbox")
+                shortcut("Models", icon: "brain", route: "models")
+                shortcut("Connections", icon: "point.3.connected.trianglepath.dotted", route: "connections")
+            }
+        }.padding(16).background(Color(uiColor: .secondarySystemBackground))
+    }
+    private func shortcut(_ title: String, icon: String, route: String) -> some View {
+        Button { close(); open(route) } label: {
+            Label(title, systemImage: icon).font(.subheadline).fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).padding(.horizontal, 8)
+                .background(AssistantStyle.quietSurface, in: RoundedRectangle(cornerRadius: 10))
+        }.buttonStyle(.plain).accessibilityIdentifier("sidebar-" + route)
     }
     private func openMatch(_ match: HistoryMatch) async {
         guard let store = model.store else { return }

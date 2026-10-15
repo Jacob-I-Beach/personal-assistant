@@ -85,7 +85,7 @@ struct SavedConversationView: View {
                 }
             }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }.environmentObject(voice).environmentObject(navigation)
+        }.environmentObject(voice).environmentObject(navigation).onDisappear { voice.stopAll() }
     }
 }
 struct ConversationRevisionsView: View {
@@ -93,25 +93,26 @@ struct ConversationRevisionsView: View {
     let conversationID: UUID
     @State private var revisions: [ConversationRevision] = []
     @State private var restoring: ConversationRevision?
+    @State private var showRestoreConfirmation = false
     @State private var failure: String?
     var body: some View {
         NavigationStack {
             List {
                 Section { Text("Earlier transcripts and output versions are kept when you edit a request. Restoring changes this chat's transcript only. Sent messages, calendar changes and files outside the app remain unchanged.").font(.subheadline).foregroundStyle(.secondary) }
                 ForEach(revisions) { revision in
-                    VStack(alignment: .leading, spacing: 10) {
+                    Section {
                         NavigationLink { SavedConversationView(id: conversationID, revision: revision) } label: { VStack(alignment: .leading) { Text(revision.reason); Text(revision.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary) } }
-                        Button("Restore this transcript") { restoring = revision }.disabled(model.isRunning)
-                    }.padding(.vertical, 6)
+                        Button("Restore this transcript") { restoring = revision; showRestoreConfirmation = true }.buttonStyle(.borderless).disabled(model.isRunning).frame(minHeight: 44)
+                    }
                 }
                 if revisions.isEmpty { Text("Earlier versions appear here after you edit a request.").foregroundStyle(.secondary) }
                 if let failure { Text(failure).foregroundStyle(.secondary) }
             }.navigationTitle("Conversation history")
                 .task { await reload() }
-                .confirmationDialog("Restore this transcript?", isPresented: Binding(get: { restoring != nil }, set: { if !$0 { restoring = nil } })) {
-                    Button("Restore transcript") { if let revision = restoring { Task { await restore(revision) } } }
+                .confirmationDialog("Restore this transcript?", isPresented: $showRestoreConfirmation, presenting: restoring) { revision in
+                    Button("Restore transcript") { Task { await restore(revision) } }
                     Button("Cancel", role: .cancel) { restoring = nil }
-                } message: { Text("Your current version will also be saved. No model request or external action will run.") }
+                } message: { _ in Text("Your current version will also be saved. No model request or external action will run.") }
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { model.dismissPresentation(.revisions(conversationID)) } } }
         }
     }
