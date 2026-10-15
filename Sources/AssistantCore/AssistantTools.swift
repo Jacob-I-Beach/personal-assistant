@@ -142,6 +142,7 @@ public struct AssistantTools: Sendable {
             guard !remote || (!prior.localOnly && (!prior.health || healthData)) else { throw AssistantError.invalidTool("This unfinished operation contains protected context.") }
             if prior.awaitingReview == true {
                 let result = try await executeUnrecorded(call)
+                if result.output["status"] == .string("pending_input") { return result }
                 try await store.finishToolOperation(call, turnID: scope, result: result)
                 return result
             }
@@ -151,6 +152,7 @@ public struct AssistantTools: Sendable {
             ])))
         }
         let result = try await executeUnrecorded(call)
+        if result.output["status"] == .string("pending_input") { return result }
         try await store.finishToolOperation(call, turnID: scope, result: result)
         return result
     }

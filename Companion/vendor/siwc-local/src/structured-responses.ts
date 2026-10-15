@@ -38,7 +38,13 @@ export async function streamStructuredResponse(accessToken: string, options: Str
       if (event.type === "response.failed" || event.type === "error") {
         throw apiError(event.type === "response.failed" ? event.response : event, response.status, result.request_id);
       }
-      if (event.type === "response.incomplete") throw new ChatGPTError("response_incomplete", "The model stopped before this step completed. Saved progress remains available.", true);
+      if (event.type === "response.incomplete") {
+        const partial=isObject(event.response)?event.response:null;
+        if(isObject(partial?.incomplete_details)&&partial.incomplete_details.reason==='max_output_tokens'){
+          throw Object.assign(new ChatGPTError('output_limit','The reply reached its output allowance; saved text can continue.'),{partialOutput:assembly.partialText(partial)});
+        }
+        throw new ChatGPTError("response_incomplete", "The model stopped before this step completed. Saved progress remains available.", true);
+      }
       await options.onEvent?.(event);
       const completed = assembly.accept(event);
       if (completed) return completed;

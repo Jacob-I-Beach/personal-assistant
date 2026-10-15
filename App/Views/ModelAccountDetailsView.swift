@@ -30,6 +30,14 @@ struct ModelAccountDetailsView: View {
                         .disabled(model.modelCatalog.phase == .refreshing || model.settings.localOnly)
                     Text("A saved sign-in and model-service availability are checked separately. Saved choices remain available when a refresh fails.").font(.caption).foregroundStyle(.secondary)
                 }
+                if model.usesComputerChatGPT {
+                    Section("Mobile fallback") {
+                        Label(model.mobileChatGPTConnected ? "ChatGPT connected on this iPhone" : "Connect ChatGPT on this iPhone", systemImage: "iphone")
+                        Text("New requests use this separate sign-in when the computer is off or unreachable. Accepted computer tasks stay on the computer and sync when it returns. Mobile replies may need Continue reply after iOS suspends the app.").font(.caption).foregroundStyle(.secondary)
+                        Button(model.mobileChatGPTConnected ? "Reconnect mobile ChatGPT" : "Connect mobile ChatGPT") { model.connectChatGPT(clientID: model.settings.chatGPTAccountID) }
+                            .disabled(model.isConnecting || model.isRunning || model.settings.localOnly)
+                    }
+                }
                 if !model.appleCloud.isAvailable {
                     Section("Other connections") {
                         LabeledContent("Apple Private Cloud Compute", value: "Not configured")

@@ -61,10 +61,11 @@ public enum ActivitySummaries {
 
     public static func tools(_ receipts: [Message], in messages: [Message]) -> ActivitySummary {
         var actions: [String] = [], counts: [String: Int] = [:]
-        var attention = 0
+        var attention = 0, pending = 0
         for receipt in receipts {
             let call = messages.reversed().flatMap(\.toolCalls).first { $0.id == receipt.toolCallID }
             let output = (try? JSONValue.parse(receipt.text)) ?? .null
+            if output["status"] == .string("pending") { pending += 1; continue }
             if receipt.toolFailureDescription != nil || ["outcome_unknown", "interrupted", "failed"].contains(output["status"]?.stringValue ?? "") { attention += 1; continue }
             let title = receiptTitle(call: call, output: output)
             if counts[title] == nil { actions.append(title) }
@@ -81,9 +82,10 @@ public enum ActivitySummaries {
             default: return title
             }
         }
-        let title = actions.isEmpty ? "Work needs attention" : actions.prefix(2).joined(separator: " · ")
+        let title = actions.isEmpty ? (pending > 0 ? "Waiting for input or iPhone" : "Work needs attention") : actions.prefix(2).joined(separator: " · ")
         var details = ["\(receipts.count) \(receipts.count == 1 ? "step" : "steps")"]
         if attention > 0 { details.append("\(attention) needs attention") }
+        else if pending > 0 { details.append("\(pending) pending") }
         else if actions.count > 2 { details.append("\(actions.count - 2) more actions") }
         else if receipts.count == 1, let receipt = receipts.first,
                 let call = messages.reversed().flatMap(\.toolCalls).first(where: { $0.id == receipt.toolCallID }),
@@ -91,11 +93,12 @@ public enum ActivitySummaries {
                 let context = ["query", "filename", "title"].compactMap({ argument[$0]?.stringValue }).first, !context.isEmpty {
             details = [compact(context, limit: 95)]
         }
-        return ActivitySummary(title: title, detail: details.joined(separator: " · "), symbol: attention > 0 ? "exclamationmark.circle" : "checkmark.circle", needsAttention: attention > 0)
+        return ActivitySummary(title: title, detail: details.joined(separator: " · "), symbol: attention > 0 ? "exclamationmark.circle" : pending > 0 ? "clock" : "checkmark.circle", needsAttention: attention > 0 || pending > 0)
     }
 
     public static func receiptTitle(call: ToolCall?, output: JSONValue) -> String {
         switch output["status"]?.stringValue {
+        case "pending": return "Waiting for input or iPhone"
         case "cancelled": return "Review cancelled"
         case "outcome_unknown": return "Outcome needs checking"
         case "interrupted": return "Review paused"

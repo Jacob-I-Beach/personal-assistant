@@ -35,7 +35,7 @@ struct MessageRow: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if !message.text.isEmpty || !message.displayParts.isEmpty { ResponseContentView(message: message) }
                     if message.state == .interrupted || message.state == .failed {
-                        Label(message.state == .interrupted ? "Stopped · partial response saved" : "Incomplete response", systemImage: "pause.circle")
+                        Label(interruptionTitle, systemImage: message.providerID?.hasPrefix("companion:") == true ? "desktopcomputer" : "pause.circle")
                             .font(.caption).foregroundStyle(.secondary)
                         if let reason = message.failureReason { Text(reason).font(.footnote).foregroundStyle(.secondary).textSelection(.enabled) }
                     }
@@ -49,6 +49,13 @@ struct MessageRow: View {
         .accessibilityAction(named: "Copy message") { UIPasteboard.general.string = message.role == .user ? message.text : message.answerText }
         .accessibilityAction(named: "Read aloud") { voice.speak(MarkdownContent(message.answerText).renderPlainText()) }
         .sheet(item: $selectedImage) { selection in CaptureViewer(captureID: selection.id, initialPoints: selection.points) }
+    }
+    private var interruptionTitle: String {
+        if message.providerID?.hasPrefix("companion:") == true {
+            if message.failureReason == "Stopped by you" { return "Stopped by you · work saved" }
+            return message.state == .failed ? "Computer task needs attention" : "Saved on your computer"
+        }
+        return message.state == .interrupted ? "Stopped · partial response saved" : "Incomplete response"
     }
     @ViewBuilder private var attachments: some View {
         if !message.captureIDs.isEmpty {

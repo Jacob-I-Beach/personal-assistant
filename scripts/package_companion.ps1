@@ -7,7 +7,7 @@ $allowedRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot '..\PersonalAssistant
 if (-not $target.StartsWith($allowedRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'The package destination must be inside outputs\PersonalAssistant-Computer.' }
 if (Test-Path -LiteralPath $target) { throw 'Choose a new package directory; existing packages are preserved.' }
 New-Item -ItemType Directory -Path $target -Force | Out-Null
-foreach ($entry in @('src','ui','scripts','vendor','package.json','package-lock.json','README.md','PROTOCOL.md','Update-Companion.cmd')) {
+foreach ($entry in @('src','ui','scripts','skills','vendor','package.json','package-lock.json','README.md','PROTOCOL.md','Update-Companion.cmd')) {
     Copy-Item -LiteralPath (Join-Path $source $entry) -Destination $target -Recurse
 }
 New-Item -ItemType Directory -Path (Join-Path $target 'Runtime') | Out-Null

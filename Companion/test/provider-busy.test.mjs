@@ -18,11 +18,11 @@ test('provider overload retries the same request before any tool effects, then c
   }finally{store.close();}
 });
 
-test('temporary direct-route HTTP520 is retried without losing its actual diagnostic',async()=>{
+test('scheduled HTTP520 retries remain bounded without losing the actual diagnostic',async()=>{
   const store=new JobStore(':memory:',new Vault(randomBytes(32)));const waits=[];let attempts=0;
   const provider={streamTurn:async()=>{attempts++;throw apiError({type:'about:blank',status:520,detail:'private response content'},520,'req_fixture_520');}};
   const runner=new JobRunner(store,provider,{definitions:[]},undefined,{sleep:async n=>waits.push(n)});
-  try{const job=store.create('phone','request520',{body:{model:'synthetic',input:[]},catalog:[]}).job;
+  try{const job=store.create('phone','request520',{schedule_id:'bounded-schedule',body:{model:'synthetic',input:[]},catalog:[]}).job;
     await runner.start(job.id,'phone');assert.equal(attempts,3);assert.deepEqual(waits,[5000,15000]);
     const last=store.events(job.id,'phone').at(-1);assert.equal(last.error.code,'provider_unavailable');
     assert.equal(last.error.diagnostic.status,520);assert.equal(last.error.diagnostic.request_id,'req_fixture_520');
@@ -46,10 +46,10 @@ test('temporary subscription availability can recover; sharing limits and permis
   }
 });
 
-test('persistent overload is bounded and remains distinct from a local task failure',async()=>{
+test('scheduled persistent overload is bounded and remains distinct from a local task failure',async()=>{
   const store=new JobStore(':memory:',new Vault(randomBytes(32)));let attempts=0;
   const runner=new JobRunner(store,{streamTurn:async()=>{attempts++;throw Object.assign(new Error('private raw body'),{code:'server_is_overloaded',status:200});}},{definitions:[]},undefined,{sleep:async()=>{}});
-  try{const job=store.create('phone','request',{body:{model:'synthetic',input:[]},catalog:[]}).job;
+  try{const job=store.create('phone','request',{schedule_id:'bounded-schedule',body:{model:'synthetic',input:[]},catalog:[]}).job;
     await runner.start(job.id,'phone');assert.equal(attempts,3);
     const last=store.events(job.id,'phone').at(-1);assert.equal(last.error.code,'server_is_overloaded');assert.match(last.text,/ChatGPT is busy/);assert.equal(JSON.stringify(last).includes('private raw body'),false);
   }finally{store.close();}

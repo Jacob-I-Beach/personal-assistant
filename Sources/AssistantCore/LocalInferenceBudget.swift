@@ -11,6 +11,8 @@ public struct LocalInferenceBudget: Equatable, Sendable {
     public let selectedContextTokens: Int
     public let inputTokens: Int
     public let responseTokens: Int
+    public var compactionReserveTokens: Int { ContextReserve.amount(in: selectedContextTokens) }
+    public var workingInputTokens: Int { max(0, inputTokens - compactionReserveTokens) }
     /// nil preserves the model's native cache; otherwise passed to MLX verbatim.
     public let attentionCacheBits: Int?
     public let automaticContextTokens: Int

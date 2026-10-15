@@ -88,7 +88,7 @@ export class JobStore {
     else{const old=this.get(row.id,row.owner).payload;payload={title:old.title??'Assistant task',body:{model:old.body?.model??''},execution_only:old.execution_only===true};this.db.prepare('UPDATE jobs SET summary=? WHERE id=?').run(this.vault.sealJSON(payload,'summary:'+row.id),row.id);}
     return {id:row.id,owner:row.owner,requestKey:row.request_key,status:row.status,createdAt:row.created,updatedAt:row.updated,cursor:row.cursor,payload};
   }
-  incomplete(owner){return this.db.prepare("SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status IN ('queued','running','waiting_for_phone','waiting_for_input')"+(owner?' AND owner=?':'')).all(...(owner?[owner]:[])).map(row=>this.metadataRow(row));}
+  incomplete(owner){return this.db.prepare("SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status IN ('queued','running','retrying','interrupted','waiting_for_phone','waiting_for_input')"+(owner?' AND owner=?':'')).all(...(owner?[owner]:[])).map(row=>this.metadataRow(row));}
   controlled(id){const row=this.db.prepare('SELECT id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE id=?').get(id);if(!row)throw new Error('Task not found.');return this.metadataRow(row);}
   queued(after=0,limit=100){return this.db.prepare("SELECT rowid AS queue_cursor,id,owner,request_key,status,created,updated,cursor,summary FROM jobs WHERE status='queued' AND rowid>? ORDER BY rowid LIMIT ?").all(after,limit).map(row=>({...this.metadataRow(row),queueCursor:row.queue_cursor}));}
   transaction(action){this.db.exec('BEGIN IMMEDIATE');try{const value=action();this.db.exec('COMMIT');return value;}catch(error){this.db.exec('ROLLBACK');throw error;}}
@@ -113,7 +113,7 @@ export class JobStore {
   }
   status(id, status, text, extra = {}) {
     return this.transaction(()=>{
-    const allowed = ['queued','running','waiting_for_phone','waiting_for_input','completed','failed','cancelled','interrupted'];
+    const allowed = ['queued','running','retrying','waiting_for_phone','waiting_for_input','completed','failed','cancelled','interrupted'];
     if (!allowed.includes(status)) throw new Error('Invalid task status.');
     const current = this.db.prepare('SELECT status FROM jobs WHERE id=?').get(id)?.status;
     if (!current) throw new Error('The task no longer exists.');
@@ -127,8 +127,9 @@ export class JobStore {
   }
   contextBudget(id,owner,bytes){
     if(!Number.isSafeInteger(bytes)||bytes<4096||bytes>4000000)throw new Error('Choose a supported context allowance.');
-    const job=this.get(id,owner);job.payload.limits={...job.payload.limits,context_text_bytes:bytes};
+    const job=this.get(id,owner);job.payload.limits={...job.payload.limits,context_text_bytes:bytes,context_window_tokens:Math.floor(bytes/3)};
     this.db.prepare('UPDATE jobs SET data=? WHERE id=?').run(this.vault.sealJSON(job.payload,'job:'+id),id);
+    if(job.checkpoint){delete job.checkpoint.contextBudget;job.checkpoint.contextRecoveries=0;this.checkpoint(id,job.checkpoint);}
   }
   beginOperation(id, operationId, request, location) {
     const hash = digest(stableJSON(request));
@@ -146,6 +147,12 @@ export class JobStore {
     if (!row) throw new Error('The requested operation does not exist.');
     return {id: row.id, status: row.status, request: this.vault.openJSON(row.request, `operation:${id}:${operationId}`),
       result: row.result ? this.vault.openJSON(row.result, `result:${id}:${operationId}`) : null};
+  }
+  pendingOperations(id) {
+    return this.db.prepare("SELECT id FROM operations WHERE job_id=? AND result IS NULL AND status IN ('waiting_for_phone','awaiting_review') ORDER BY rowid").all(id).map(row=>this.operation(id,row.id));
+  }
+  operationIndex(id,limit=40) {
+    return this.db.prepare('SELECT id,status FROM operations WHERE job_id=? ORDER BY rowid DESC LIMIT ?').all(id,limit);
   }
   finishOperation(id, operationId, result) {
     const prior = this.operation(id, operationId);

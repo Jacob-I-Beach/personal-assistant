@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     @Published var draftContainsHealthData = false
     @Published var libraryContainsHealthData = false
     @Published var isRunning = false
+    @Published private(set) var isPreparingRoute = false
     @Published private(set) var isApplyingTranscriptRevision = false
     @Published private(set) var isInitialized = false
     @Published private(set) var isRestoringBackgroundRoute = false
@@ -89,7 +90,7 @@ final class AppModel: ObservableObject {
     private var responseTask: Task<Void, Never>?
     private let completionWindow = ResponseCompletionWindow.shared
     private let replyActivity = ReplyLiveActivity()
-    private var responseOnComputer = false
+    private(set) var responseOnComputer = false
     private var handingOffToComputer = false
     private var computerHandoff: Task<Void, Never>?
     private let taskAttention = TaskAttentionService.shared
@@ -110,6 +111,8 @@ final class AppModel: ObservableObject {
     private var modelRoot: URL?
     private var root: URL?
     private var pendingText: String?
+    private var pendingRoute: ModelSettings?
+    private var pendingRoutePreferences: ModelSettings?
     private var accountService: ChatGPTAccountService?
     private let signIn = ChatGPTSignIn()
     private var drafts: [String: String] = [:]
@@ -122,6 +125,7 @@ final class AppModel: ObservableObject {
     private let healthService = HealthOverviewService()
 
     var usesComputerChatGPT: Bool { settings.useComputer && settings.companion != nil }
+    var mobileChatGPTConnected: Bool { accounts.contains { $0.id == settings.chatGPTAccountID && $0.isConnected } }
     private var modelCatalogOwner: String? {
         if usesComputerChatGPT, let connection = settings.companion { return "computer:\(connection.serverID):\(connection.profileID)" }
         return settings.chatGPTAccountID.map { "account:" + $0 }
@@ -164,6 +168,8 @@ final class AppModel: ObservableObject {
         switch settings.choice {
         case .localMLX, .appleOnDevice: return "On this iPhone"
         case .chatGPT:
+            if isRunning { return responseOnComputer ? "ChatGPT · computer owns this task" : "ChatGPT · mobile connection" }
+            if usesComputerChatGPT && computerAccountReachability == .unavailable && mobileChatGPTConnected { return "ChatGPT · mobile fallback ready" }
             if modelCatalog.phase == .unavailable || modelCatalog.phase == .stale { return "Model availability needs a refresh" }
             return usesComputerChatGPT ? (computerAccountNeedsAttention ? "Check your computer connection" : "Using your ChatGPT plan") : (accounts.contains(where: \.isConnected) ? "Using your ChatGPT plan" : "Connect your account")
         case .appleCloud: return "Apple Private Cloud Compute"
@@ -493,15 +499,51 @@ final class AppModel: ObservableObject {
     }
 
     func send(_ suppliedText: String? = nil) {
+        guard !isPreparingRoute else { return }
+        let selected = settings
+        guard selected.choice == .chatGPT, selected.useComputer, selected.companion != nil, !selected.localOnly else {
+            sendPrepared(suppliedText, selection: selected); return
+        }
+        guard isInitialized, !isRunning, !isApplyingTranscriptRevision else { return }
+        let chatID = conversation.id, entered = suppliedText ?? draft, originalDraft = draft
+        let captures = attachedCaptureIDs, files = attachedFileIDs, references = draftContextReferences, editID = editingMessageID
+        guard !entered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !captures.isEmpty || !files.isEmpty || !references.isEmpty else { return }
+        isPreparingRoute = true
+        Task {
+            defer { isPreparingRoute = false }
+            var routed = selected
+            if let accountService { accounts = await accountService.summaries() }
+            do {
+                let resolution = try await ChatGPTRouting.select(selected, mobileReady: mobileChatGPTConnected) { connection in
+                    do {
+                        let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
+                        let info = try await client.json("/v1/capabilities", timeout: 4)
+                        try applyComputerAccount(info["profile"] ?? .null, connection: connection)
+                        return info
+                    } catch { computerAccountReachability = .unavailable; throw error }
+                }
+                routed = resolution.selection
+                if let info = resolution.observation, let connection = selected.companion { try applyComputerAccount(info["profile"] ?? .null, connection: connection) }
+                else { computerAccountReachability = .unavailable }
+                guard settings == selected, conversation.id == chatID, draft == originalDraft, attachedCaptureIDs == captures,
+                      attachedFileIDs == files, draftContextReferences == references, editingMessageID == editID, !isRunning else { return }
+                sendPrepared(entered, selection: routed)
+            } catch {
+                guard settings == selected, conversation.id == chatID else { return }
+                noticeMessage = error.localizedDescription; showModels = true
+            }
+        }
+    }
+    private func sendPrepared(_ suppliedText: String?, selection: ModelSettings) {
         let enteredText = suppliedText ?? draft
         let hasAttachments = !attachedCaptureIDs.isEmpty || !attachedFileIDs.isEmpty || !draftContextReferences.isEmpty
         let text = enteredText
         guard isInitialized, !isRunning, !isApplyingTranscriptRevision, hasAttachments || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        if settings.networkDestination != nil && draftContextReferences.contains(where: \.containsLocalOnlyContext) {
+        if selection.networkDestination != nil && draftContextReferences.contains(where: \.containsLocalOnlyContext) {
             noticeMessage = "This selected context stays on this iPhone. Choose an on-device model or remove its context chip before sending."; showModels = true; return
         }
         if isManagingAccount && settings.choice == .chatGPT { noticeMessage = "The account change is finishing. Your draft is saved."; return }
-        if settings.choice == .chatGPT && ((settings.chatGPTAccountID == nil && !(settings.useComputer && settings.companion != nil)) || settings.chatGPTModel.isEmpty) {
+        if selection.choice == .chatGPT && ((selection.chatGPTAccountID == nil && !(selection.useComputer && selection.companion != nil)) || selection.chatGPTModel.isEmpty) {
             showModels = true; noticeMessage = "Connect ChatGPT or choose an on-device model. Your draft is saved."; return
         }
         conversation.networkDisabled = settings.localOnly
@@ -511,25 +553,27 @@ final class AppModel: ObservableObject {
         if settings.choice == .localMLX, !downloadedModelIDs.contains(settings.localRepository) {
             showModels = true; noticeMessage = "Download or import a model, or choose an available connection. Your draft is saved."; return
         }
-        if let destination = settings.networkDestination {
+        if let destination = selection.networkDestination {
             if ConversationSharing.needsReview(conversation, destination: destination, includesHealth: draftContainsHealthData, confirmNewChats: settings.confirmNewConnectedChats) {
-                pendingText = text; needsNetworkConsent = true; return
+                pendingText = text; pendingRoute = selection; pendingRoutePreferences = settings; needsNetworkConsent = true; return
             }
             // Pressing Send with an explicitly selected connection authorizes this
             // chat's ordinary content. Health sharing remains a separate decision.
             conversation.allowedNetworkDestinations.insert(destination)
         }
         AppFeedback.play(.sent)
-        startResponse(text)
+        startResponse(text, routedSelection: selection)
     }
     func approveNetworkConversation() {
-        guard let destination = settings.networkDestination, let text = pendingText else { return }
+        let selection = pendingRoute ?? settings
+        guard pendingRoutePreferences == nil || pendingRoutePreferences == settings,
+              let destination = selection.networkDestination, let text = pendingText else { declineNetworkConversation(); return }
         conversation.allowedNetworkDestinations.insert(destination)
         conversation.requiresNetworkReview = false
         if draftContainsHealthData || conversation.containsHealthData { conversation.allowedHealthDestinations.insert(destination) }
-        pendingText = nil; needsNetworkConsent = false; startResponse(text)
+        pendingText = nil; pendingRoute = nil; pendingRoutePreferences = nil; needsNetworkConsent = false; startResponse(text, routedSelection: selection)
     }
-    func declineNetworkConversation() { pendingText = nil; needsNetworkConsent = false }
+    func declineNetworkConversation() { pendingText = nil; pendingRoute = nil; pendingRoutePreferences = nil; needsNetworkConsent = false }
     func revokeNetworkConsent() {
         guard !isRunning else { return }
         titleTask?.cancel()
@@ -618,10 +662,10 @@ final class AppModel: ObservableObject {
         if let prior = draftBeforeEditing { draft = prior.text; attachedCaptureIDs = prior.captures; attachedFileIDs = prior.files; draftContainsHealthData = prior.health; selectedImagePoints = prior.selections; draftContextReferences = prior.references }
         editingMessageID = nil; draftBeforeEditing = nil; flushDraft()
     }
-    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false) {
+    private func startResponse(_ text: String, resuming savedWork: WorkTurn? = nil, automaticResume: Bool = false, reconnectOnly: Bool = false, routedSelection: ModelSettings? = nil) {
         guard !isApplyingTranscriptRevision, let engine else { return }
         conversationSelectionID = UUID()
-        let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = settings, healthData = draftContainsHealthData
+        let original = conversation, editID = editingMessageID, attachments = attachedCaptureIDs, fileAttachments = attachedFileIDs, selection = routedSelection ?? settings, healthData = draftContainsHealthData
         let imageSelections = selectedImagePoints.filter { key, _ in attachments.contains { $0.uuidString == key } }
         let contextReferences = draftContextReferences
         let previousIDs = Set(original.messages.map(\.id))
@@ -755,7 +799,8 @@ final class AppModel: ObservableObject {
                     else if pausedForInput || responseAwaitingAttention { try? await store?.finishWork(id, phase: .interrupted, reason: "Waiting for your answer or review", kind: "waiting_for_input") }
                     else if computerReply, work.interruptionKind != "computer_sync_attention", let run = try? await store?.companionRun(id),
                             !["failed", "cancelled", "interrupted", "completed"].contains(run.status) {
-                        try? await store?.finishWork(id, phase: .interrupted, reason: "Your task is saved. The chat will catch up when the connection returns.", kind: "computer_detached")
+                        let waiting = run.status == "waiting_for_input"
+                        try? await store?.finishWork(id, phase: .interrupted, reason: waiting ? "Independent work is ready. Your answer or review will continue this saved task." : "Your task is saved. The chat will catch up when the connection returns.", kind: waiting ? "waiting_for_input" : "computer_detached")
                     }
                     else if responseWasBackgrounded && (systemEndedBackgroundWork || work.phase == .cancelled) { try? await store?.finishWork(id, phase: .interrupted, reason: "Background processing ended or was cancelled. Your progress is saved.", kind: "system_ended") }
                 }
@@ -765,7 +810,7 @@ final class AppModel: ObservableObject {
             let computerStillWorking = !completedTurn && !userRequestedStop && computerReply && savedComputerRun?.jobID != nil && !["failed", "interrupted", "cancelled", "completed"].contains(savedComputerRun?.status ?? "unknown")
             if computerStillWorking { requiresManualResume = false }
             await replyActivity.finish(completed: completedTurn, detached: computerStillWorking,
-                handingOff: handingOffToComputer && !completedTurn, waiting: pausedForInput || responseAwaitingAttention,
+                handingOff: handingOffToComputer && !completedTurn, waiting: pausedForInput || responseAwaitingAttention || savedComputerRun?.status == "waiting_for_input",
                 keepReady: UIApplication.shared.applicationState != .active)
             if completedTurn && UIApplication.shared.applicationState == .active {
                 ReplyReturnRoute.clear(); await replyActivity.viewed(conversationID: current.id)
@@ -1052,7 +1097,9 @@ final class AppModel: ObservableObject {
                 let id = try await signIn.connect(service: accountService, clientID: clientID)
                 settings.chatGPTAccountID = id
                 await refreshAccounts()
-                if !isRunning, let first = chatGPTModels.first { chooseChatGPTModel(first) }
+                accounts = await accountService.summaries()
+                if !isRunning, settings.chatGPTModel.isEmpty, let first = chatGPTModels.first { chooseChatGPTModel(first) }
+                if let settingsURL { try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic) }
                 noticeMessage = "ChatGPT is connected. Requests here use your ChatGPT plan and its app usage settings."
             } catch {
                 if !(error is CancellationError) { localRecovery = LocalRecovery(conversationID: nil, category: .connection, title: "ChatGPT connection needs attention", detail: error.localizedDescription, retained: "Your account records, pairing, saved chats and unsent draft are kept.") }
@@ -1319,64 +1366,16 @@ final class AppModel: ObservableObject {
     private func attachRemoteActivity(jobID: String, client: CompanionClient, provider: String? = nil) {
         replyActivity.attach(jobID: jobID, client: client, notifications: settings.taskNotifications, externalPresentation: provider == "pushward")
     }
-    private func handoffResponseToComputer() {
-        guard computerHandoff == nil, let connection = settings.companion, let store else { return }
-        computerHandoff = Task {
-            defer {
-                if handingOffToComputer && !isRunning { completionWindow.end(success: false) }
-                computerHandoff = nil; handingOffToComputer = false
-            }
-            do {
-                let selection = settings
-                let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
-                // Probe before disturbing a healthy direct response. This makes
-                // an unavailable PC irrelevant to ordinary phone conversations.
-                let info = try await client.json("/v1/capabilities")
-                // A just-sent request may still be obtaining the direct account
-                // connection. Wait for its durable turn before handing it over.
-                while activeTurnID == nil && isRunning && !userRequestedStop && settings == selection && UIApplication.shared.applicationState != .active {
-                    try await Task.sleep(for: .milliseconds(100))
-                }
-                guard info["profile"]?["status"] == .string("connected"), info["profile"]?["sharing"] == .bool(true),
-                      isRunning, !responseOnComputer, !userRequestedStop, !pausedForInput, !responseAwaitingAttention,
-                      activeToolCall == nil || ComputerTools.names.contains(activeToolCall?.arguments["name"]?.stringValue ?? activeToolCall?.name ?? ""),
-                      UIApplication.shared.applicationState != .active, settings == selection,
-                      let turn = activeTurnID, let prior = responseTask else { return }
-                let chat = try await store.loadConversation(conversation.id)
-                guard !chat.networkDisabled, !chat.messages.contains(where: \.containsLocalOnlyContext),
-                      !chat.containsHealthData || chat.allowedHealthDestinations.contains(connection.destination) else { return }
-                let owner = try await backend(for: selection, onComputer: true)
-                handingOffToComputer = true
-                completionWindow.handoff()
-                prior.cancel(); await prior.value
-                guard !userRequestedStop, settings == selection, var work = try await store.workTurn(turn), work.phase != .completed,
-                      let latest = try? await store.loadConversation(chat.id), latest.messages.last(where: \.isRequest)?.id == work.userMessageID else { return }
-                var transferred = latest
-                transferred.allowedNetworkDestinations.insert(connection.destination)
-                try await store.save(transferred)
-                work.backendID = owner.id; work.destination = owner.networkDestination; work.phase = .interrupted
-                work.reason = "Continuing your saved task"; work.interruptionKind = "computer_handoff"; work.automaticResumes = 0
-                var configuration = work.configuration.objectValue ?? [:]
-                configuration["handoff_message_count"] = .number(Double(transferred.messages.count))
-                work.configuration = .object(configuration)
-                try await store.saveWorkTurn(work)
-                try Task.checkCancellation()
-                guard !userRequestedStop else { try await store.finishWork(turn, phase: .cancelled, reason: "Stopped by the user", kind: "cancelled"); return }
-                conversation = transferred
-                startResponse("", resuming: work, reconnectOnly: true)
-            } catch {
-                // Keep the direct request running when the PC cannot accept a
-                // handoff. Its existing iOS completion window remains in use.
-                if handingOffToComputer { noticeMessage = "Your latest progress is saved. Reopen this chat to continue when the connection is available." }
-            }
-        }
-    }
     func refreshAccounts(force: Bool = false) async {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-coherence") { return }
         if ProcessInfo.processInfo.arguments.contains("--ui-product117") { return }
         #endif
         let refreshID = UUID(); accountRefreshID = refreshID
+        if let accountService {
+            accounts = await accountService.summaries()
+            if settings.chatGPTAccountID == nil { settings.chatGPTAccountID = await accountService.selectedID() }
+        }
         guard !settings.localOnly else { modelCatalog = .init(); return }
         if settings.useComputer, !settings.localOnly, let connection = settings.companion {
             guard let owner = modelCatalogOwner else { return }
@@ -1457,8 +1456,11 @@ final class AppModel: ObservableObject {
         do {
             let confirmed = try await accountService.signOut(account.id, revokeRemotely: !settings.localOnly)
             if settings.chatGPTAccountID == account.id {
-                settings.chatGPTAccountID = nil; settings.chatGPTModel = ""; chatGPTModels = []
-                if settings.choice == .chatGPT { settings.choice = appleDevice.isAvailable ? .appleOnDevice : .localMLX }
+                settings.chatGPTAccountID = nil
+                if !usesComputerChatGPT {
+                    settings.chatGPTModel = ""; chatGPTModels = []
+                    if settings.choice == .chatGPT { settings.choice = appleDevice.isAvailable ? .appleOnDevice : .localMLX }
+                }
             }
             accounts = await accountService.summaries()
             try saveSettings(settings)

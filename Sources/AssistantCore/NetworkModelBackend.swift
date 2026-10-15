@@ -19,6 +19,8 @@ public struct NetworkModelBackend: ModelBackend {
     public var id: String { "\(wireProtocol.rawValue):\(baseURL.absoluteString):\(model)" + (chatGPTAccountID.map { ":account:\($0)" } ?? "") + (webSearchEnabled ? ":web-search" : "") }
     public var networkDestination: String? { chatGPTAccountID.map { "chatgpt-account:" + $0 } ?? baseURL.absoluteString }
     public var supportsFileInputs: Bool { wireProtocol == .responses && baseURL.absoluteString == "https://api.openai.com/v1" }
+    public var supportsContextCheckpoints: Bool { true }
+    public var selectedInputTokens: Int? { contextBudget?.selectedInputTokens }
     public var contextLimits: ContextLimits {
         ContextLimits(maximumTextBytes: contextBudget?.textByteBudget ?? (chatGPTAccountID == nil ? 32_768 : 128_000), maximumImages: 4)
     }

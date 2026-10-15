@@ -1189,6 +1189,25 @@ final class AssistantUITests: XCTestCase {
         saveScreenshot(app, name: "Audit120-surface-save-conflict")
         revert.tap(); XCTAssertTrue(app.staticTexts["Points, 70"].waitForExistence(timeout: 8)); XCTAssertFalse(app.buttons["Stop response"].exists)
     }
+    func testContinuity130ReserveAndMobileFallbackAreVisible() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-coherence", "--ui-computer-account", "--ui-dark", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Response settings"].waitForExistence(timeout: 15))
+        app.buttons["Response settings"].tap()
+        let reserve = app.staticTexts["Compaction reserve · 30%"]
+        for _ in 0..<10 { if reserve.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(reserve.exists)
+        XCTAssertTrue(app.staticTexts["Active working context"].exists)
+        saveScreenshot(app, name: "Continuity130-context-reserve")
+        app.navigationBars["Response settings"].buttons["Cancel"].tap()
+        app.buttons["Choose model"].tap(); app.buttons["model-account-details"].tap()
+        let mobile = app.buttons["Connect mobile ChatGPT"]
+        for _ in 0..<6 { if mobile.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(mobile.exists)
+        saveScreenshot(app, name: "Continuity130-mobile-fallback")
+    }
     private func saveScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

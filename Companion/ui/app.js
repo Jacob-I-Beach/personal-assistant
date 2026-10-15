@@ -1,7 +1,7 @@
 const byId=id=>document.getElementById(id),csrf=document.querySelector('meta[name="csrf-token"]').content;
 async function api(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Assistant-CSRF':csrf},body:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw new Error(value.error??'The request could not finish.');return value;}
 function notice(error){byId('notice').textContent=error?.message??'';}
-const labels={queued:'Waiting to start',running:'Working',waiting_for_phone:'Needs your iPhone',waiting_for_input:'Needs your answer',completed:'Ready',failed:'Needs attention',cancelled:'Stopped',interrupted:'Ready to continue'};
+const labels={queued:'Waiting to start',running:'Working',retrying:'Reconnecting automatically',waiting_for_phone:'Needs your iPhone',waiting_for_input:'Needs your answer',completed:'Ready',failed:'Needs attention',cancelled:'Stopped',interrupted:'Saved task reconnecting'};
 function action(text,handler){const button=document.createElement('button');button.textContent=text;button.addEventListener('click',()=>handler().catch(notice));return button;}
 let addressesKey='',jobsKey='',bridgeDevicesKey='',checkingModels=false,layoutInitialized=false;
 async function refresh(){
@@ -56,6 +56,7 @@ async function refreshTask(){
           const content=(item.content??[]).map(part=>part.text??part.refusal??'').join('');if(!content)continue;
           let node=view.nodes.get(item.id);if(!node){node=element('div','','assistant-text');view.nodes.set(item.id,node);root.append(node);}node.sourceText=content;dirty.add(node);
         }
+        if(event.type==='pending_decisions')root.append(element('p',event.text+' '+(event.items??[]).map(item=>item.title).join(' · '),'task-step'));
         if(event.type==='activity')root.append(element('p',event.title,'task-step'));
         if(event.type==='phone_request'){
           const card=element('section','','review-card');view.nodes.set('review-'+event.call.id,card);
@@ -63,10 +64,10 @@ async function refreshTask(){
           card.append(element('p',args.detail??'Open this chat on your iPhone to continue.'));
           if(event.call.name==='review_computer_action')for(const approved of [true,false])card.append(action(approved?'Approve this action':'Cancel',async()=>{await api('/api/review',{job_id:view.id,operation_id:event.call.id,approved});card.querySelectorAll('button').forEach(button=>button.disabled=true);await refreshTask();}));root.append(card);
         }
-        if(event.type==='executed_tool'){
+        if(event.type==='pending_tool'||event.type==='executed_tool'){
           const prior=view.nodes.get('review-'+event.call.id);if(prior)prior.replaceChildren(element('p',event.result.output?.status==='approved'?'Action approved':'Review recorded'));
           const tool=event.call.name==='use_tool'?event.call.arguments?.name??event.call.name:event.call.name;
-          const details=document.createElement('details');details.className='tool-receipt';details.append(element('summary',(event.result.succeeded?'Completed · ':'Needs attention · ')+tool.replaceAll('_',' ')));
+          const receiptKey='receipt-'+event.call.id;view.nodes.get(receiptKey)?.remove();const details=document.createElement('details');view.nodes.set(receiptKey,details);details.className='tool-receipt';details.append(element('summary',(event.type==='pending_tool'?'Pending · ':event.result.succeeded?'Completed · ':'Needs attention · ')+tool.replaceAll('_',' ')));
           const result=event.result.output??{};const text=result.output??result.stdout??result.text??result.error??result.verification??result.status??'Outcome saved';details.append(element('pre',String(text).slice(0,12000)));root.append(details);
         }
       }

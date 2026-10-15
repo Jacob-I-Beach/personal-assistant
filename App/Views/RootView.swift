@@ -470,8 +470,11 @@ struct ChatView: View {
                 if model.isRunning {
                     Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 13, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle()) }.accessibilityLabel("Stop response")
                 } else {
-                    Button { voice.stopRecording(); composerFocused = false; viewport.jumpToLatest(); model.send() } label: { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle()) }
-                        .accessibilityLabel("Send message").disabled((model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty && model.draftContextReferences.isEmpty) || importing || model.isImportingFiles || voice.isPreparing || voice.isRecording || voice.isFinalizing)
+                    Button { voice.stopRecording(); composerFocused = false; viewport.jumpToLatest(); model.send() } label: {
+                        Group { if model.isPreparingRoute { ProgressView().controlSize(.small) } else { Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)) } }
+                            .frame(width: 38, height: 38).background(Color.primary, in: Circle()).foregroundStyle(Color(uiColor: .systemBackground)).frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                        .accessibilityLabel("Send message").disabled((model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.attachedCaptureIDs.isEmpty && model.attachedFileIDs.isEmpty && model.draftContextReferences.isEmpty) || importing || model.isImportingFiles || model.isPreparingRoute || voice.isPreparing || voice.isRecording || voice.isFinalizing)
                 }
                 }.buttonStyle(QuietPressStyle())
             }.padding(.horizontal, 10).padding(.vertical, 6).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 25))

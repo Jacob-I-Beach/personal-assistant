@@ -20,5 +20,7 @@ public struct ModelContextBudget: Equatable, Sendable {
         outputReserve = min(documented != nil ? 128_000 : min(32_768, modelWindow / 4), modelWindow - selectedInputTokens)
     }
     public var textByteBudget: Int { selectedInputTokens * 3 }
+    public var compactionReserveTokens: Int { ContextReserve.amount(in: selectedInputTokens) }
+    public var activeInputTokens: Int { selectedInputTokens - compactionReserveTokens }
     public var presets: [Int] { Array(Set([16_000, 32_000, 64_000, 128_000, 256_000, 512_000, 1_000_000, maximumInputTokens].filter { $0 <= maximumInputTokens })).sorted() }
 }

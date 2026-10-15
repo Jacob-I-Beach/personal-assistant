@@ -4,10 +4,13 @@ public struct ContextLimits: Sendable {
     /// Conservative UTF-8 text budget, not a claim of exact token counting. Backends can lower it further.
     public var maximumTextBytes: Int
     public var maximumImages: Int
+    public var compactionReserveBytes: Int
+    public var workingTextBytes: Int { max(0, maximumTextBytes - compactionReserveBytes) }
     public static let appleOnDevice = ContextLimits(maximumTextBytes: 10_000, maximumImages: 0)
-    public var needsCompactInstructions: Bool { maximumTextBytes < 20_000 }
-    public init(maximumTextBytes: Int = 32_768, maximumImages: Int = 2) {
+    public var needsCompactInstructions: Bool { workingTextBytes < 20_000 }
+    public init(maximumTextBytes: Int = 32_768, maximumImages: Int = 2, compactionReserveBytes: Int? = nil) {
         self.maximumTextBytes = maximumTextBytes; self.maximumImages = maximumImages
+        self.compactionReserveBytes = compactionReserveBytes ?? ContextReserve.amount(in: maximumTextBytes)
     }
 }
 public struct ContextSelection: Sendable {
@@ -18,6 +21,7 @@ public struct ContextSelection: Sendable {
 }
 public enum ContextPlanner {
     public static let responseReserveBytes = 2048
+    public static func responseReserve(for limits: ContextLimits) -> Int { min(responseReserveBytes, max(512, limits.workingTextBytes / 12)) }
     public static func toolTextCost(_ tools: [ToolDefinition]) throws -> Int {
         try tools.reduce(0) { $0 + $1.name.utf8.count + $1.description.utf8.count + (try $1.parameters.jsonString()).utf8.count + 100 }
     }
@@ -25,7 +29,7 @@ public enum ContextPlanner {
         request.instructions.utf8.count + (try toolTextCost(request.tools)) + (try textCost(request.messages.map(\.message)))
     }
     public static func select(_ messages: [Message], instructions: String, tools: [ToolDefinition], limits: ContextLimits, reservedMetadataBytes: Int = 0) throws -> ContextSelection {
-        let budget = limits.maximumTextBytes - instructions.utf8.count - (try toolTextCost(tools)) - responseReserveBytes - max(0, reservedMetadataBytes)
+        let budget = limits.workingTextBytes - instructions.utf8.count - (try toolTextCost(tools)) - responseReserve(for: limits) - max(0, reservedMetadataBytes)
         guard budget > 0 else { throw AssistantError.provider("The app's instructions and tools leave no room for this model's input. Your request is saved; this is a context-configuration problem, not a connection failure.") }
         var turns: [[Message]] = []
         for message in messages {

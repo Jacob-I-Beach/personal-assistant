@@ -53,7 +53,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 "presentation": .object(["notifications": .bool(notificationsEnabled)]),
                 "expected_file_ids": .array(Array(Set(request.messages.flatMap(\.files).compactMap(\.id))).map { .string($0.uuidString) }),
                 "catalog": .array(request.toolCatalog.map { .object(["name": .string($0.name), "description": .string($0.description), "parameters": $0.parameters]) }),
-                "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40), "context_text_bytes": .number(Double(contextLimits.maximumTextBytes))])
+                "limits": .object(["maximum_seconds": .number(3600), "maximum_tool_calls": .number(40), "context_text_bytes": .number(Double(contextLimits.maximumTextBytes)), "context_window_tokens": .number(Double(wire.selectedInputTokens ?? contextLimits.maximumTextBytes / 3))])
             ]
             if let workspace = try await store.computerToolWorkspace(identity.turnID), workspace["destination"] == connection.destination, let job = workspace["job_id"] { fields["source_tool_session_id"] = .string(job) }
             if let context = request.serverContext { fields["server_context"] = context }
@@ -64,7 +64,7 @@ struct CompanionModelBackend: RemoteTaskBackend {
             try await store.saveCompanionRun(record)
         }
         if record.jobID == nil {
-            let value = try await client.json("/v1/jobs", method: "POST", body: record.payload)
+            let value = try await observe("/v1/jobs", method: "POST", body: record.payload, output: output)
             guard let id = value["id"]?.stringValue, UUID(uuidString: id) != nil else { throw AssistantError.provider("The computer did not return a saved task identifier.") }
             record.jobID = id; record.status = value["status"]?.stringValue ?? "queued"
             // The original request is needed only until the durable job ID is
@@ -85,15 +85,31 @@ struct CompanionModelBackend: RemoteTaskBackend {
         if status == "queued" {
             for file in request.messages.flatMap(\.files) {
                 guard let id = file.id else { continue }
-                _ = try await client.json(path + "/files", method: "POST", body: .object([
+                _ = try await observe(path + "/files", method: "POST", body: .object([
                     "id": .string(id.uuidString), "filename": .string(file.filename), "data_base64": .string(file.data.base64EncodedString()),
                     "contains_health_data": .bool(file.containsHealthData)
-                ]))
+                ]), output: output)
             }
         }
         if status == "queued" || (allowJobRestart && ["failed", "interrupted"].contains(status)) {
-            _ = try await client.json(path + "/start", method: "POST", body: .object(["context_text_bytes": .number(Double(contextLimits.maximumTextBytes))]))
+            _ = try await observe(path + "/start", method: "POST", body: .object(["context_text_bytes": .number(Double(contextLimits.maximumTextBytes))]), output: output)
         }
+        let phone = RemotePhoneOperations { call in
+            let operation = try await client.json(path + "/operations/" + call.id)
+            if operation["result"] != nil && operation["result"] != .null { return }
+            guard let execute = request.toolExecutor else { throw AssistantError.invalidTool("The phone action handler is unavailable.") }
+            let result = try await execute(call)
+            if result.output["status"] == .string("pending_input") { return }
+            guard result.containsLocalOnlyContext != true else { throw AssistantError.networkNotAuthorized }
+            let json = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(result))
+            _ = try await client.json(path + "/operations/" + call.id + "/result", method: "POST", body: json)
+        }
+        do { try await followEvents(request, identity: identity, initialRecord: record, jobID: jobID, path: path, phone: phone, output: output); await phone.stop() }
+        catch { await phone.stop(); throw error }
+    }
+    private func followEvents(_ request: ModelRequest, identity: ModelWorkIdentity, initialRecord: CompanionRunRecord, jobID: String, path: String,
+                              phone: RemotePhoneOperations, output: AsyncThrowingStream<RemoteTaskEvent, any Error>.Continuation) async throws {
+        var record = initialRecord
         var transcript = CompanionTranscript(jobID: UUID(uuidString: jobID)!, providerID: id, health: identity.containsHealthData)
         var pending: [String: ToolCall] = [:], answered = Set<String>()
         var latestActivity = "Continuing your reply"
@@ -101,7 +117,8 @@ struct CompanionModelBackend: RemoteTaskBackend {
         var pendingReceipts: [(ToolCall, ToolResult)] = []
         while true {
             try Task.checkCancellation()
-            let batch = try await observe(path + "/events?after=\(transcript.cursor)&wait_ms=25000", output: output)
+            let wait = record.status == "waiting_for_input" ? 1000 : 25000
+            let batch = try await observe(path + "/events?after=\(transcript.cursor)&wait_ms=\(wait)", output: output)
             let events = batch["events"]?.arrayValue ?? []
             var observedActivity: String?
             for event in events {
@@ -156,23 +173,18 @@ struct CompanionModelBackend: RemoteTaskBackend {
                 if events.last(where: { $0["type"] == .string("status") })?["error"]?["code"] == .string("context_limit") { throw AssistantError.contextCapacity }
                 throw AssistantError.provider(events.last(where: { $0["type"] == .string("status") })?["text"]?.stringValue ?? "Your computer saved this task. Continue when ready.")
             }
-            for call in pending.values.sorted(by: { $0.id < $1.id }) where !answered.contains(call.id) {
-                let operation = try await client.json(path + "/operations/" + call.id)
-                if operation["result"] != nil && operation["result"] != .null { answered.insert(call.id); continue }
-                guard let execute = request.toolExecutor else { throw AssistantError.invalidTool("The phone action handler is unavailable.") }
-                let result = try await execute(call)
-                guard result.containsLocalOnlyContext != true else { throw AssistantError.networkNotAuthorized }
-                let json = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(result))
-                _ = try await client.json(path + "/operations/" + call.id + "/result", method: "POST", body: json)
-                answered.insert(call.id)
+            try await phone.check()
+            await phone.enqueue(pending.values.filter { !answered.contains($0.id) }.sorted(by: { $0.id < $1.id }))
+            if record.status == "waiting_for_input", await phone.isIdle {
+                output.yield(.waitingForInput); return
             }
         }
     }
-    private func observe(_ path: String, output: AsyncThrowingStream<RemoteTaskEvent, any Error>.Continuation) async throws -> JSONValue {
+    private func observe(_ path: String, method: String = "GET", body: JSONValue? = nil, output: AsyncThrowingStream<RemoteTaskEvent, any Error>.Continuation) async throws -> JSONValue {
         var retries = 0
         while true {
             try Task.checkCancellation()
-            do { return try await client.json(path) }
+            do { return try await client.json(path, method: method, body: body) }
             catch {
                 try Task.checkCancellation()
                 guard CompanionObservationPolicy.shouldRetry(error) else { throw error }

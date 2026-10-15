@@ -14,6 +14,7 @@ public enum RemoteTaskEvent: Sendable {
     case activity(String)
     case transportProgress(Int)
     case completed
+    case waitingForInput
 }
 /// The remote owner keeps running when this subscriber is cancelled. Only an
 /// explicit stop request cancels the saved job on that computer.
@@ -23,6 +24,7 @@ public protocol RemoteTaskBackend: ModelBackend {
 public enum CompanionObservationPolicy {
     public static func shouldRetry(_ error: any Error) -> Bool {
         let value = error as NSError
+        if value.domain == "PersonalAssistant.CompanionHTTP" { return value.code == 429 || (500...599).contains(value.code) }
         return value.domain == NSURLErrorDomain && [NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost,
             NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost,
             NSURLErrorDNSLookupFailed].contains(value.code)
@@ -38,7 +40,7 @@ public struct CompanionRunRecord: Codable, Sendable {
     public var lastSyncedCursor: Int?
     /// These states need observation of the same job, never a new model run.
     /// A completed job may still have unseen events or files on the phone.
-    public var canReconnect: Bool { !stopRequested && !["failed", "cancelled", "interrupted"].contains(status) }
+    public var canReconnect: Bool { !stopRequested && !["failed", "cancelled"].contains(status) }
     public init(turnID: UUID, connectionID: String, payload: JSONValue) {
         self.turnID = turnID; self.connectionID = connectionID; self.payload = payload
         self.status = "queued"; self.stopRequested = false; self.lastSyncedCursor = 0
@@ -175,13 +177,15 @@ public struct CompanionTranscript: Sendable {
             // A multi-call turn has one provider output list; attach it once.
             messages[index].continuation = ProviderContinuation(providerID: providerID, items: items)
             messages[index].state = .complete
-        case "executed_tool":
+        case "pending_tool", "executed_tool":
             guard let callData = event["call"], let raw = event["result"], let succeeded = raw["succeeded"]?.boolValue else { throw AssistantError.invalidTool("The computer returned an incomplete action receipt.") }
             let call = try JSONDecoder().decode(ToolCall.self, from: JSONEncoder().encode(callData))
             guard raw["callID"]?.stringValue == call.id, raw["name"]?.stringValue == call.name else {
                 throw AssistantError.invalidTool("The computer action receipt does not match its request.")
             }
-            guard toolIDs.insert(call.id).inserted else { break }
+            let isPending = event["type"] == .string("pending_tool")
+            guard !toolIDs.contains(call.id) else { break }
+            if !isPending { toolIDs.insert(call.id) }
             var result = ToolResult(callID: call.id, name: call.name, succeeded: succeeded, output: raw["output"] ?? .null)
             result.completedAt = date
             if let completed = raw["completedAt"], completed != .null {
@@ -197,8 +201,15 @@ public struct CompanionTranscript: Sendable {
                 result.authorizedWorkspaceID = id
             }
             if let response = raw["userResponse"], response != .null { result.userResponse = try JSONDecoder().decode(Message.self, from: JSONEncoder().encode(response)) }
+            if let prior = messages.firstIndex(where: { $0.role == .tool && $0.toolCallID == call.id }) {
+                messages[prior].text = try result.modelText(); messages[prior].state = succeeded ? .complete : .failed
+                messages[prior].containsHealthData = health || result.containsHealthData == true
+                if let response = result.userResponse, !messages.contains(where: { $0.id == response.id }) { messages.append(response) }
+                return isPending ? nil : (call, result)
+            }
             let index = ensureAssistant(sequence: sequence, date: date)
-            messages[index].toolCalls.append(call); messages[index].state = .complete
+            if !messages[index].toolCalls.contains(where: { $0.id == call.id }) { messages[index].toolCalls.append(call) }
+            messages[index].state = .complete
             var receipt = Message(id: identifier(sequence, role: 1), role: .tool, text: try result.modelText(), state: succeeded ? .complete : .failed, toolCallID: call.id, containsHealthData: health || result.containsHealthData == true, containsLocalOnlyContext: result.containsLocalOnlyContext == true)
             receipt.createdAt = date; messages.append(receipt)
             if let response = result.userResponse { messages.append(response) }
@@ -213,13 +224,20 @@ public struct CompanionTranscript: Sendable {
                 }
             }
             activeIndex = nil
-            return (call, result)
+            return isPending ? nil : (call, result)
+        case "pending_decisions":
+            let items = event["items"]?.arrayValue ?? []
+            let titles = items.compactMap { $0["title"]?.stringValue }.map { "• " + $0 }
+            var message = Message(id: identifier(sequence, role: 2), role: .assistant,
+                                  text: (event["text"]?.stringValue ?? "Your input is needed") + (titles.isEmpty ? "" : "\n\n" + titles.joined(separator: "\n")), providerID: providerID, containsHealthData: health)
+            message.createdAt = date; messages.append(message); activeIndex = nil
         case "status":
             if let index = activeIndex {
                 switch event["status"]?.stringValue {
                 case "completed": messages[index].state = .complete
                 case "failed": messages[index].state = .failed; messages[index].failureReason = event["text"]?.stringValue
-                case "cancelled", "interrupted": messages[index].state = .interrupted
+                case "cancelled": messages[index].state = .interrupted; messages[index].failureReason = "Stopped by you"
+                case "interrupted": messages[index].state = .interrupted; messages[index].failureReason = event["text"]?.stringValue
                 default: break
                 }
             }

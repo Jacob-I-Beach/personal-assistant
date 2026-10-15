@@ -16,6 +16,7 @@ import os
 actor MLXLocalBackend: ModelBackend {
     nonisolated let id: String
     nonisolated let networkDestination: String? = nil
+    nonisolated var supportsContextCheckpoints: Bool { true }
     private let repository: String
     private let revision: String
     private let root: URL
@@ -35,7 +36,7 @@ actor MLXLocalBackend: ModelBackend {
             responseTokens: responseTokens, supportsEfficientKV: repository.contains("Qwen3.5-4B"), optimizedTextRuntime: !vision && textWeightBytes != nil)
     }
     nonisolated var contextLimits: ContextLimits {
-        ContextLimits(maximumTextBytes: max(4_096, memoryBudget.inputTokens * 3), maximumImages: footprint.vision == true ? 1 : 0)
+        ContextLimits(maximumTextBytes: max(4_096, memoryBudget.inputTokens * 3), maximumImages: footprint.vision == true ? 1 : 0, compactionReserveBytes: memoryBudget.compactionReserveTokens * 3)
     }
     private var container: ModelContainer?
     private var busy = false
@@ -338,7 +339,7 @@ actor MLXLocalBackend: ModelBackend {
                 let prepared = try await context.processor.prepare(input: input)
                 return prepared.text.tokens.size
             }
-        guard tokenCount <= budget.inputTokens else { throw AssistantError.contextCapacity }
+        guard tokenCount <= (request.isCompaction ? budget.inputTokens : budget.workingInputTokens) else { throw AssistantError.contextCapacity }
         let parameters = GenerateParameters(maxTokens: budget.responseTokens, kvBits: budget.attentionCacheBits,
             kvGroupSize: 64, quantizedKVStart: 0, temperature: 0.4,
             prefill: .init(stepSize: ProcessInfo.processInfo.thermalState == .serious ? 16 : 32))

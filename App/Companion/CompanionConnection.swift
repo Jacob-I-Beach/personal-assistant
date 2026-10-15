@@ -60,22 +60,23 @@ struct CompanionClient: Sendable {
         config.httpCookieStorage = nil; config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
         self.session = URLSession(configuration: config, delegate: CompanionTLS(host: host, fingerprint: fingerprint.lowercased()), delegateQueue: nil)
     }
-    func data(_ path: String, method: String = "GET", body: JSONValue? = nil) async throws -> Data {
+    func data(_ path: String, method: String = "GET", body: JSONValue? = nil, timeout: TimeInterval? = nil) async throws -> Data {
         guard path.hasPrefix("/v1/"), !path.contains(".."), let url = URL(string: path, relativeTo: baseURL)?.absoluteURL,
               url.host == baseURL.host, url.port == baseURL.port else { throw AssistantError.provider("The computer request is invalid.") }
         var request = URLRequest(url: url); request.httpMethod = method
+        if let timeout { request.timeoutInterval = timeout }
         if !token.isEmpty { request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
         if let body { request.httpBody = try JSONEncoder().encode(body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         let (data, response) = try await session.boundedData(for: request, maximumBytes: 41943040)
         guard data.count <= 40 * 1024 * 1024, let response = response as? HTTPURLResponse else { throw AssistantError.provider("The computer returned an invalid response.") }
         guard (200..<300).contains(response.statusCode) else {
             let text = (try? JSONDecoder().decode(JSONValue.self, from: data))?["error"]?.stringValue
-            throw AssistantError.provider(text ?? "The computer connection needs attention (\(response.statusCode)).")
+            throw NSError(domain: "PersonalAssistant.CompanionHTTP", code: response.statusCode, userInfo: [NSLocalizedDescriptionKey: text ?? "The computer connection needs attention (\(response.statusCode))."])
         }
         return data
     }
-    func json(_ path: String, method: String = "GET", body: JSONValue? = nil) async throws -> JSONValue {
-        try JSONDecoder().decode(JSONValue.self, from: await data(path, method: method, body: body))
+    func json(_ path: String, method: String = "GET", body: JSONValue? = nil, timeout: TimeInterval? = nil) async throws -> JSONValue {
+        try JSONDecoder().decode(JSONValue.self, from: await data(path, method: method, body: body, timeout: timeout))
     }
     static func pair(_ text: String, deviceName: String) async throws -> (CompanionConnection, String) {
         guard text.utf8.count < 8192, let payload = try? JSONValue.parse(text),

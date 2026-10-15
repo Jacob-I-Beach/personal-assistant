@@ -47,9 +47,12 @@ struct ReasoningEffortView: View {
                         }
                         Section {
                             LabeledContent("Total model capacity", value: plan.modelWindow.formatted() + " tokens")
+                            LabeledContent("Active working context", value: plan.activeInputTokens.formatted() + " tokens")
+                            LabeledContent("Compaction reserve · 30%", value: plan.compactionReserveTokens.formatted() + " tokens")
                             LabeledContent("Room for the reply", value: plan.outputReserve.formatted() + " tokens")
                             Text(plan.limitSource).font(.caption).foregroundStyle(.secondary)
                             Text("Reasoning shares the reply allowance. Images and tools also use context. The connection enforces the final limit.").font(.caption).foregroundStyle(.secondary)
+                            Text("The selected working allowance keeps 30% available for compaction and continuation. Full history and exact tool results remain saved; older material is retrieved when needed.").font(.caption).foregroundStyle(.secondary)
                         }
                     } else if model.settings.choice == .localMLX {
                         let local = model.localContextBudget(memoryGiB: memoryGiB, tokens: context)
@@ -59,6 +62,9 @@ struct ReasoningEffortView: View {
                                 LabeledContent("Requested working context", value: local.selectedContextTokens.formatted() + " tokens")
                                     .accessibilityElement(children: .ignore).accessibilityLabel("Requested working context")
                                     .accessibilityValue(local.selectedContextTokens.formatted() + " tokens").accessibilityIdentifier("local-working-context")
+                            LabeledContent("Active input", value: local.workingInputTokens.formatted() + " tokens")
+                            LabeledContent("Compaction reserve · 30%", value: local.compactionReserveTokens.formatted() + " tokens")
+                            LabeledContent("Reply allowance", value: local.responseTokens.formatted() + " tokens")
                             if local.fits {
                                 LabeledContent("Attention cache", value: local.attentionCacheBits.map { "\($0)-bit" } ?? "Native precision")
                             } else {
@@ -80,6 +86,7 @@ struct ReasoningEffortView: View {
                         }
                     } else {
                         Section("Working context") {
+                            Text("30% of the app's working allowance is reserved for compaction and continuation. Apple controls the final token limit.").font(.caption).foregroundStyle(.secondary)
                             Text(model.settings.choice == .appleOnDevice ? "Apple sets this model's context window. The app keeps a compact working conversation, loads tool details as needed, and preserves the full chat." : "Apple manages this cloud model's context window. The full chat and completed tool results stay saved.").foregroundStyle(.secondary)
                         }
                     }

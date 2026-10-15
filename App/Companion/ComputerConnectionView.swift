@@ -24,11 +24,13 @@ struct ComputerConnectionView: View {
                 if let connection = model.settings.companion {
                     Section("Connected computer") {
                         Label(connection.name, systemImage: "checkmark.shield")
-                        Toggle("Keep connected tasks on this computer", isOn: Binding(get: { model.settings.useComputer }, set: { enabled in
+                        Toggle("Use computer for new ChatGPT tasks", isOn: Binding(get: { model.settings.useComputer }, set: { enabled in
                             var next = model.settings; next.useComputer = enabled
                             do { try model.saveSettings(next); AppFeedback.play(.selection) } catch { self.error = error.localizedDescription }
                         })).disabled(model.isRunning)
-                        Text("The selected GPT stays the same. This computer keeps each accepted task running, saves its progress and supplies computer tools when needed. Keep it awake and online. Local models run on this iPhone.").font(.footnote).foregroundStyle(.secondary)
+                        Text("When available, this computer owns new ChatGPT tasks and adds its tools. When off, unreachable, or disabled here, new requests use your iPhone's ChatGPT sign-in. Existing tasks keep their original owner; this switch does not stop or migrate them. Keep the PC awake and online for continuous work.").font(.footnote).foregroundStyle(.secondary)
+                        Label(model.mobileChatGPTConnected ? "Mobile fallback connected" : "Mobile fallback needs sign-in", systemImage: "iphone")
+                        if !model.mobileChatGPTConnected { Button("Connect mobile ChatGPT") { model.connectChatGPT() }.disabled(model.isConnecting || model.isRunning || model.settings.localOnly) }
                         Button(checking ? "Checking connection…" : "Check connection", systemImage: "arrow.clockwise") { Task { await check(connection) } }.disabled(checking || model.settings.localOnly)
                         Button("Update network connection", systemImage: "qrcode.viewfinder") { showScanner = true }
                             .disabled(pairing || !DataScannerViewController.isSupported || model.isRunning)

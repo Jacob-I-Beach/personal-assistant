@@ -12,14 +12,23 @@ extension AppModel {
               values.allSatisfy({ $0.stringValue != nil }) else { throw AssistantError.invalidTool("Use a supported question type and a JSON list of choices.") }
         let proposed = try TaskQuestion(conversationID: conversationID, turnID: identity.turnID, callID: identity.callID, title: call.arguments["question"]!.stringValue!, detail: call.arguments["why"]!.stringValue!, kind: kind, choices: values.compactMap(\.stringValue))
         var question = try await store.saveQuestion(proposed)
+        let computerOwned = try await store.workTurn(identity.turnID).map { TaskRoutePolicy.savedOwner(backendID: $0.backendID, destination: $0.destination) == .computer } ?? false
         await refresh()
+        if question.state == .pending, computerOwned {
+            try await store.setOperationWaitingForReview(turnID: identity.turnID, callID: identity.callID, waiting: true)
+            return ToolResult(callID: call.id, name: call.name, succeeded: true, output: .object(["status": .string("pending_input"), "question_id": .string(question.id.uuidString)]))
+        }
         if question.state == .pending {
             _ = try await reviewNativeAction(.init(kind: .question, title: "Your answer is needed", detail: question.title, arguments: call.arguments, questionID: question.id))
             try Task.checkCancellation()
             question = try await store.question(question.id)
         }
         guard question.state != .pending else { throw AssistantError.invalidTool("This question is still waiting for an answer.") }
-        var result = ToolResult(callID: call.id, name: call.name, succeeded: true, output: .object([
+        if computerOwned { return try await computerQuestionResult(question) }
+        return Self.questionResult(question, callID: call.id, name: call.name)
+    }
+    static func questionResult(_ question: TaskQuestion, callID: String, name: String) -> ToolResult {
+        var result = ToolResult(callID: callID, name: name, succeeded: true, output: .object([
             "status": .string(question.state == .skipped ? "skipped" : "answered"), "question": .string(question.title),
             "answer": question.answer.map { .string($0.text) } ?? .null,
             "source_message_id": question.answer.map { .string($0.id.uuidString) } ?? .null,
@@ -30,8 +39,28 @@ extension AppModel {
         result.containsHealthData = question.answer?.containsHealthData
         return result
     }
+    private func computerQuestionResult(_ question: TaskQuestion) async throws -> ToolResult {
+        guard let store, let run = try await store.companionRun(question.turnID), let jobID = run.jobID,
+              let connection = settings.companion, run.connectionID == connection.destination,
+              settings.useComputer, !settings.localOnly else { throw AssistantError.networkNotAuthorized }
+        var result = Self.questionResult(question, callID: question.callID, name: "request_input")
+        guard result.containsLocalOnlyContext != true else { throw AssistantError.networkNotAuthorized }
+        let chat = try await store.loadConversation(question.conversationID)
+        guard result.containsHealthData != true || chat.allowedHealthDestinations.contains(connection.destination) else { throw AssistantError.networkNotAuthorized }
+        let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
+        var photos: [JSONValue] = []
+        for capture in question.answer?.captureIDs ?? [] {
+            let data = try await store.imageData(capture)
+            let file = try await client.json("/v1/jobs/" + jobID + "/files", method: "POST", body: .object(["id": .string(capture.uuidString), "filename": .string(capture.uuidString + ".jpg"), "data_base64": .string(data.base64EncodedString()), "contains_health_data": .bool(result.containsHealthData == true)]))
+            photos.append(file)
+        }
+        if !photos.isEmpty, var values = result.output.objectValue {
+            values["files"] = .array(photos); values["answer_image_ids"] = .array(photos.compactMap { $0["id"] })
+            result.output = .object(values)
+        }
+        return result
+    }
     func openQuestion(_ question: TaskQuestion) {
-        guard !isRunning || conversation.id == question.conversationID else { return }
         if nativeAction != nil { return }
         nativeReviewVisible = true
         AppFeedback.play(.question)
@@ -40,10 +69,20 @@ extension AppModel {
     func submitQuestion(_ id: UUID, text: String, captureIDs: [UUID], skip: Bool) async throws {
         guard let store else { throw AssistantError.provider("App storage is unavailable.") }
         let question = try await store.answerQuestion(id, text: text, captureIDs: captureIDs, skip: skip)
+        if let run = try await store.companionRun(question.turnID), let jobID = run.jobID,
+           let connection = settings.companion, run.connectionID == connection.destination, !settings.localOnly, settings.useComputer {
+            let client = try CompanionClient(baseURL: connection.baseURL, fingerprint: connection.certificateSHA256, token: CredentialStore.read(account: connection.credentialAccount))
+            let path = "/v1/jobs/" + jobID, operation = try await client.json(path + "/operations/" + question.callID)
+            if operation["result"] == nil || operation["result"] == .null {
+                let result = try await computerQuestionResult(question)
+                let value = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(result))
+                _ = try await client.json(path + "/operations/" + question.callID + "/result", method: "POST", body: value)
+            }
+        }
         if let request = nativeAction, request.questionID == id, isPendingNativeAction(request.id) {
             resolveNativeAction(skip ? "skipped" : "answered", for: request.id)
         } else {
-            questionResumeAfterDismiss = try await store.workTurn(question.turnID)
+            if !isRunning || conversation.id == question.conversationID { questionResumeAfterDismiss = try await store.workTurn(question.turnID) }
             nativeAction = nil
         }
         await refresh()

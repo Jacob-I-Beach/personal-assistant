@@ -21,3 +21,10 @@ test('an ended stream or incomplete tool never authorizes a call',async()=>{
   await assert.rejects(stream([{type:'response.output_item.done',output_index:0,item:call}]),{code:'stream_interrupted'});
   await assert.rejects(stream([{type:'response.completed',response:{status:'completed',output:[{...call,status:'in_progress'}]}}]),{code:'response_incomplete'});
 });
+
+test('an output limit retains only public text and never authorizes incomplete tool calls',async()=>{
+  await assert.rejects(stream([{type:'response.output_item.done',output_index:0,item:message},{type:'response.output_item.done',output_index:1,item:call},
+    {type:'response.incomplete',response:{status:'incomplete',incomplete_details:{reason:'max_output_tokens'},output:[]}}]),error=>{
+      assert.equal(error.code,'output_limit');assert.equal(error.partialOutput.length,1);assert.equal(error.partialOutput[0].type,'message');assert.equal(error.partialOutput[0].content[0].text,message.content[0].text);return true;
+    });
+});

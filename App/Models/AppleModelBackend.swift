@@ -11,6 +11,7 @@ struct AppleModelReadiness: Sendable {
 struct AppleModelBackend: ModelBackend {
     enum Location: Sendable { case device, privateCloud }
     let location: Location
+    var supportsContextCheckpoints: Bool { true }
     var id: String { location == .device ? "apple:on-device" : "apple:private-cloud-compute" }
     var networkDestination: String? { location == .privateCloud ? "apple-private-cloud-compute" : nil }
     var contextLimits: ContextLimits { location == .device ? .appleOnDevice : ContextLimits(maximumTextBytes: 48_000, maximumImages: 0) }
@@ -50,7 +51,8 @@ struct AppleModelBackend: ModelBackend {
                     guard request.messages.allSatisfy({ $0.images.isEmpty }) else {
                         throw AssistantError.provider("Use a vision-capable downloaded or connected model for images. Apple's selected text model can still read saved OCR through tools.")
                     }
-                    let gate = AppleToolGate(executor: request.toolExecutor, resultText: request.toolResultText, output: output)
+                    let gate = AppleToolGate(executor: request.toolExecutor, resultText: request.toolResultText, output: output,
+                                             initialBytes: try ContextPlanner.requestTextCost(request), workingBytes: request.isCompaction ? contextLimits.maximumTextBytes : contextLimits.workingTextBytes)
                     let tools = try request.tools.map { try AppleToolProxy(definition: $0, gate: gate) }
                     let session: LanguageModelSession
                     if location == .device {
@@ -65,12 +67,14 @@ struct AppleModelBackend: ModelBackend {
                         let model = SystemLanguageModel.default
                         let transcriptTokens = try await model.tokenCount(for: session.transcript)
                         let promptTokens = try await model.tokenCount(for: latest)
-                        guard transcriptTokens + promptTokens + 512 <= model.contextSize else { throw AssistantError.contextCapacity }
+                        let capacity = request.isCompaction ? model.contextSize : ContextReserve.working(in: model.contextSize)
+                        guard transcriptTokens + promptTokens + 512 <= capacity else { throw AssistantError.contextCapacity }
                     }
                     var previous = ""
                     do {
                         for try await snapshot in session.streamResponse(to: latest) {
                             try Task.checkCancellation()
+                            if await gate.needsRollover { output.yield(.contextWindowRollover); output.finish(); return }
                             let current = snapshot.content
                             guard current.hasPrefix(previous) else { throw AssistantError.malformedStream("Apple's response changed an already displayed prefix.") }
                             let delta = String(current.dropFirst(previous.count))
@@ -80,6 +84,9 @@ struct AppleModelBackend: ModelBackend {
                     } catch LanguageModelError.contextSizeExceeded {
                         guard await gate.completedCount > 0 else { throw AssistantError.contextCapacity }
                         output.yield(.contextWindowRollover); output.finish(); return
+                    } catch {
+                        if await gate.needsRollover { output.yield(.contextWindowRollover); output.finish(); return }
+                        throw error
                     }
                     try Task.checkCancellation()
                     output.yield(.completed); output.finish()
@@ -129,22 +136,31 @@ private struct AppleToolProxy: Tool {
         return try await gate.execute(ToolCall(id: UUID().uuidString, name: name, arguments: JSONValue.parse(arguments.jsonString)))
     }
 }
+private enum AppleCheckpointBoundary: Error { case reached }
 private actor AppleToolGate {
     let executor: (@Sendable (AssistantCore.ToolCall) async throws -> ToolResult)?
     let resultText: (@Sendable (ToolResult) throws -> String)?
     let output: AsyncThrowingStream<ModelEvent, any Error>.Continuation
     var count = 0
     var completedCount = 0
-    init(executor: (@Sendable (AssistantCore.ToolCall) async throws -> ToolResult)?, resultText: (@Sendable (ToolResult) throws -> String)?, output: AsyncThrowingStream<ModelEvent, any Error>.Continuation) {
+    var usedBytes: Int
+    let workingBytes: Int
+    var needsRollover = false
+    init(executor: (@Sendable (AssistantCore.ToolCall) async throws -> ToolResult)?, resultText: (@Sendable (ToolResult) throws -> String)?, output: AsyncThrowingStream<ModelEvent, any Error>.Continuation, initialBytes: Int, workingBytes: Int) {
         self.executor = executor; self.resultText = resultText; self.output = output
+        self.usedBytes = initialBytes; self.workingBytes = workingBytes
     }
     func execute(_ call: AssistantCore.ToolCall) async throws -> String {
         try Task.checkCancellation()
+        guard !needsRollover else { throw AppleCheckpointBoundary.reached }
         guard count < 12, let executor else { throw AssistantError.invalidTool("This Apple model session reached its tool limit.") }
         count += 1
         let result = try await executor(call)
         completedCount += 1
         output.yield(.executedTool(call, result))
-        return try resultText?(result) ?? result.modelText()
+        let text = try resultText?(result) ?? result.modelText()
+        usedBytes += text.utf8.count + (try call.arguments.jsonString()).utf8.count + 200
+        if usedBytes >= workingBytes { needsRollover = true; throw AppleCheckpointBoundary.reached }
+        return text
     }
 }

@@ -35,3 +35,26 @@ export function compactWorkingContext(input,{budget=750000,protectedStart=0,inst
   if(contextWeight(result)>ceiling)throw capacityError();
   return {input:result,compacted:true,protectedStart:input.slice(0,recent).filter(item=>item.type!=='reasoning').length};
 }
+
+// Rollover is a new working view, never destruction of the full task record.
+// Every removed byte has an encrypted source handle available through a tool.
+// No orphan call/output pairs or opaque reasoning state cross this boundary.
+export function rolloverWorkingContext(input,{budget=750000,instructions='',tools=[],archive,state={},originalInput=input}){
+  const ceiling=Math.min(4000000,budget)-contextWeight(instructions)-contextWeight(tools);
+  if(ceiling<6000)throw Object.assign(new Error('The selected model cannot fit its essential tool instructions.'),{code:'context_limit'});
+  const source=archive(input);
+  const textOf=item=>typeof item.content==='string'?item.content:(item.content??[]).map(part=>part.text??'').join('\n');
+  const requests=originalInput.filter(item=>item.role==='user'&&!textOf(item).startsWith('[Runtime task update]'));
+  const allowance=Math.max(1000,Math.floor(ceiling/6));
+  const excerpt=text=>{const chars=Math.floor(allowance/4);return text.length<=chars?text:text.slice(0,Math.floor(chars*.75))+'\n[Full source saved; read_task_context provides omitted requirements.]\n'+text.slice(-Math.floor(chars*.25));};
+  const origin=requests[0],latest=requests.at(-1);
+  const notes=JSON.stringify(state);
+  const content='[Runtime task update]\nThe same saved task is continuing in a fresh working context. This is a source summary, not a new user instruction or permission. Do not repeat completed or uncertain effects. Read the archived context for any omitted requirement or needed evidence.\n'+
+    JSON.stringify({archive:source,original_request:origin?excerpt(textOf(origin)):null,latest_request:latest&&latest!==origin?excerpt(textOf(latest)):null,work_state:notes.length>Math.floor(ceiling/8)?notes.slice(0,Math.floor(ceiling/8))+' [Read read_work_state for full current state]':state});
+  const result=[{role:'user',content:[{type:'input_text',text:content}]}];
+  // Keep the most recent complete message as a useful public progress anchor.
+  const answer=[...input].reverse().find(item=>item.role==='assistant'&&item.type==='message');
+  if(answer){const copy={role:'assistant',type:'message',content:[{type:'output_text',text:excerpt(textOf(answer))}]};if(contextWeight([...result,copy])<ceiling)result.push(copy);}
+  if(contextWeight(result)>ceiling)throw Object.assign(new Error('The saved working summary cannot fit this model.'),{code:'context_limit'});
+  return {input:result,compacted:true,protectedStart:result.length,source};
+}

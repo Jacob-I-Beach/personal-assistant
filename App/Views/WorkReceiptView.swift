@@ -25,6 +25,7 @@ struct WorkReceiptView: View {
         return ToolResultPresentation.fields(value)
     }
     private var title: String {
+        if output?["status"]?.stringValue == "pending" { return "Waiting for your input or iPhone" }
         if output?["status"]?.stringValue == "cancelled" { return "Action cancelled" }
         if output?["status"]?.stringValue == "outcome_unknown" { return "Outcome not confirmed" }
         if output?["status"]?.stringValue == "interrupted" { return "Review interrupted" }
@@ -201,6 +202,7 @@ struct WorkReceiptView: View {
     }
     private var receiptIcon: String {
         switch output?["status"]?.stringValue {
+        case "pending": "clock"
         case "cancelled": "xmark.circle"
         case "outcome_unknown": "questionmark.circle"
         case "interrupted": "pause.circle"

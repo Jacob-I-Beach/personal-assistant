@@ -17,6 +17,6 @@ export function validateJob(payload) {
   if(payload.server_context!=null&&(typeof payload.server_context!=='object'||Array.isArray(payload.server_context)||Buffer.byteLength(JSON.stringify(payload.server_context))>2*1024*1024))throw new Error('Invalid context snapshot.');
   const allowed=new Set(['model','input','instructions','tools','reasoning','include','parallel_tool_calls','text','store','stream']);
   if(Object.keys(payload.body).some(key=>!allowed.has(key)))throw new Error('The task contains unsupported model options.');
-  if(payload.limits && (typeof payload.limits!=='object' || ['maximum_seconds','maximum_tool_calls','context_text_bytes'].some(key=>payload.limits[key]!=null&&(!Number.isFinite(payload.limits[key])||payload.limits[key]<1))))throw new Error('Invalid task allowance.');
+  if(payload.limits && (typeof payload.limits!=='object' || ['maximum_seconds','maximum_tool_calls','context_text_bytes','context_window_tokens'].some(key=>payload.limits[key]!=null&&(!Number.isSafeInteger(payload.limits[key])||payload.limits[key]<1))))throw new Error('Invalid task allowance.');
   return {...payload,body:{...payload.body,store:false,stream:true}};
 }

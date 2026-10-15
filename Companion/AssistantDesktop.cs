@@ -11,6 +11,7 @@ using System.Windows.Forms;
 
 // A normal-user desktop tool. Secure desktops, login and UAC are never targets.
 internal static class AssistantDesktop {
+    [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
     [DllImport("user32.dll")] static extern bool CloseDesktop(IntPtr desktop);
     [DllImport("user32.dll")] static extern bool SwitchDesktop(IntPtr desktop);
@@ -51,13 +52,16 @@ internal static class AssistantDesktop {
         var json=new JavaScriptSerializer{MaxJsonLength=16*1024*1024};
         try {
             if(argv.Length==1&&argv[0]=="--self-test"){Console.WriteLine(json.Serialize(new{available=true,interactive_session=Environment.UserInteractive}));return 0;}
+            SetProcessDPIAware();
             var args=json.Deserialize<Dictionary<string,object>>(Console.In.ReadToEnd());
             var desktop=OpenInputDesktop(0,false,0x0100);
             if(desktop==IntPtr.Zero)throw new Exception("Unlock the Windows session before using desktop tools.");
             bool unlocked=SwitchDesktop(desktop);CloseDesktop(desktop);if(!unlocked)throw new Exception("Desktop interaction is unavailable while Windows is locked.");
             var bounds=SystemInformation.VirtualScreen;double scale=Math.Min(1.0,1600.0/bounds.Width);
+            string screenId=bounds.X+","+bounds.Y+","+bounds.Width+","+bounds.Height;
             string action=Value(args,"action")??"snapshot",window=Title();
             if(action!="snapshot"){
+                if(Value(args,"expected_screen_id")!=screenId)throw new Exception("The display arrangement changed. Take a new snapshot before acting.");
                 if(Value(args,"expected_window")!=window)throw new Exception("The foreground window changed. Take a new snapshot before acting.");
                 if(Value(args,"expected_window_id")!=GetForegroundWindow().ToInt64().ToString())throw new Exception("The target window changed. Take a new snapshot.");
             }
@@ -79,7 +83,9 @@ internal static class AssistantDesktop {
                 using(var resized=new Bitmap(original,new Size((int)(bounds.Width*scale),(int)(bounds.Height*scale))))
                 using(var memory=new MemoryStream()){resized.Save(memory,ImageFormat.Png);image=Convert.ToBase64String(memory.ToArray());}
             }
-            Console.WriteLine(json.Serialize(new{window=Title(),window_id=foreground.ToInt64().ToString(),width=(int)(bounds.Width*scale),height=(int)(bounds.Height*scale),image_base64=image,controls=Controls(foreground),controls_coordinate_space="physical desktop; click coordinates use the screenshot",verification=action=="snapshot"?"Observed screenshot and available controls.":"Input submitted. Inspect this new screenshot before claiming the intended outcome."}));return 0;
+            var monitors=new List<object>();
+            foreach(var screen in Screen.AllScreens){var rect=screen.Bounds;monitors.Add(new{name=screen.DeviceName,primary=screen.Primary,orientation=rect.Height>rect.Width?"portrait":"landscape",x=(rect.X-bounds.X)*scale,y=(rect.Y-bounds.Y)*scale,width=rect.Width*scale,height=rect.Height*scale});}
+            Console.WriteLine(json.Serialize(new{window=Title(),window_id=foreground.ToInt64().ToString(),screen_id=screenId,desktop_x=bounds.X,desktop_y=bounds.Y,pixels_to_screenshot=scale,monitors=monitors,width=(int)(bounds.Width*scale),height=(int)(bounds.Height*scale),image_base64=image,controls=Controls(foreground),controls_coordinate_space="physical desktop; screenshot x=(physical x-desktop_x)*pixels_to_screenshot; same for y. Monitor bounds and click coordinates use screenshot pixels.",verification=action=="snapshot"?"Observed screenshot and available controls.":"Input submitted. Inspect this new screenshot before claiming the intended outcome."}));return 0;
         }catch(Exception error){Console.WriteLine(json.Serialize(new{error=error.Message}));return 1;}
     }
 }

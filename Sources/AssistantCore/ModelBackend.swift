@@ -31,6 +31,7 @@ public struct ModelRequest: Sendable {
     public var toolResultText: (@Sendable (ToolResult) throws -> String)?
     public var containsLocalOnlyContext = false
     public var isMetadata = false
+    public var isCompaction = false
     public init(instructions: String, messages: [ModelInputMessage], tools: [ToolDefinition],
                 toolExecutor: (@Sendable (ToolCall) async throws -> ToolResult)? = nil) {
         self.instructions = instructions; self.messages = messages; self.tools = tools
@@ -64,6 +65,7 @@ public protocol ModelBackend: Sendable {
     /// Nil means inference is on this device. Otherwise this exact destination must be authorized.
     var networkDestination: String? { get }
     var supportsFileInputs: Bool { get }
+    var supportsContextCheckpoints: Bool { get }
     /// Establish the runtime's real resource budget before request assembly.
     /// Preparation loads local assets only; it does not perform inference.
     func prepareForResponse(containsImages: Bool) async throws
@@ -72,6 +74,7 @@ public protocol ModelBackend: Sendable {
 public extension ModelBackend {
     var contextLimits: ContextLimits { ContextLimits() }
     var supportsFileInputs: Bool { false }
+    var supportsContextCheckpoints: Bool { false }
     func prepareForResponse(containsImages: Bool) async throws { }
 }
 

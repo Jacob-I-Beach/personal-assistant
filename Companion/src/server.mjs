@@ -47,7 +47,9 @@ export async function startCompanion(options={}) {
   const store=new JobStore(join(root,'work.db'),vault),pairing=new Pairing(store,vault);
   const runtime=options.runtime??new HostRuntime({root:join(root,'workspaces'),store,compute:new ComputeRuntime({root:join(root,'temporary-executions'),store})});
   const provider=options.provider??createChatGPT({appName:'Personal Assistant Computer',appId:'personal-assistant-companion',redirectPort:0,storageDir:join(root,'chatgpt'),credentialEncryption,sendHostId:true,openBrowser});
-  const mayRun=job=>!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(job.owner);
+  let session=await provider.getSession();
+  const mayRun=job=>!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(job.owner)&&
+    (job.payload.execution_only||session.status==='connected'&&session.sharing&&(!job.payload.profile_id||job.payload.profile_id===session.profileId));
   const toolSessions=new ToolSessions(store,runtime,{mayRun});
   const modelCatalog=new ModelCatalog(store,provider);
   const computation=new ServiceReadiness(signal=>runtime.available(signal));
@@ -62,7 +64,7 @@ export async function startCompanion(options={}) {
   // the future native APNs setup, but retire a previously enabled bridge.
   if(bridge.config()?.enabled)await bridge.disconnect();
   runner.on('event',(id,event)=>bridge.queue(id,event));
-  let session=await provider.getSession(), lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
+  let lastError=null, pairingPayload=null, setupOrigin='', apiPort=0,closing=false,closeService;
   const scheduler=new Scheduler(store,runner,{mayRun:(owner,profile)=>!closing&&session.status==='connected'&&session.sharing&&session.profileId===profile&&!!store.db.prepare('SELECT id FROM devices WHERE id=? AND revoked=0').get(owner)});
   provider.subscribe?.(value=>{session=value;});
   const setupSessions=new Map();
@@ -76,6 +78,7 @@ export async function startCompanion(options={}) {
     if(!record||record.expires<Date.now()||request.headers.origin!==setupOrigin||request.headers['x-assistant-csrf']!==record.csrf)throw Object.assign(new Error('Reload the computer setup page.'),{status:403});
   }
   async function startJob(job) {
+    if(closing)throw Object.assign(new Error('The computer service is restarting. This saved task will reconnect.'),{status:503});
     if(!mayRun(job))throw Object.assign(new Error('This device is no longer connected.'),{status:403});
     const files=new Set(store.files(job.id,job.owner).map(file=>file.id));
     if(!(job.payload.expected_file_ids??[]).every(id=>files.has(id)))throw Object.assign(new Error('The selected input files are still uploading.'),{status:409});
@@ -174,7 +177,7 @@ export async function startCompanion(options={}) {
         return;
       }
       if(action==='files'&&request.method==='POST'){
-        if(!['queued','waiting_for_phone'].includes(job.status))throw Object.assign(new Error('Supply inputs before the task starts or through its current phone file request.'),{status:409});
+        if(!['queued','waiting_for_phone'].includes(job.status)&&!store.pendingOperations(id).some(op=>['transfer_file_to_computer','request_input'].includes(op.request.name)))throw Object.assign(new Error('Supply inputs before the task starts or through its current phone file request.'),{status:409});
         const body=await jsonBody(request,36*1024*1024);
         if(!safeFileName(body.filename)||typeof body.data_base64!=='string')throw new Error('Provide a named task file.');
         const bytes=Buffer.from(body.data_base64,'base64');if(bytes.length>24*1024*1024)throw new Error('This input file is too large.');
@@ -306,7 +309,7 @@ export async function startCompanion(options={}) {
   }
   let closePromise;
   closeService=()=>closePromise??=(async()=>{
-      closing=true;computation.close();clearInterval(scheduleTimer);push.close();await bridge.close();scheduler.stopped=true;powerLease?.stdin.end();
+      closing=true;runner.closed=true;computation.close();clearInterval(scheduleTimer);push.close();await bridge.close();scheduler.stopped=true;powerLease?.stdin.end();
     while(scheduler.busy)await new Promise(resolveWait=>setTimeout(resolveWait,20));
     for(const job of store.incomplete())if(runner.active.has(job.id))runner.interrupt(job.id);
     await Promise.all([...runner.active.values()].map(value=>value.promise));

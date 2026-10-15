@@ -53,12 +53,14 @@ try{
   const reviewJob=service.store.create('fixture-device','ui-review',{title:'Synthetic review task',conversation_id:'fixture-chat',turn_id:'fixture-review-turn',body:{model:'synthetic'}}).job;
   const original={id:'review-action',name:'synthetic_action',arguments:{}};
   service.store.beginOperation(reviewJob.id,original.id,original,'computer');
-  reviewCompletion=service.runner.reviewComputer(reviewJob,original,{title:'Review a synthetic action',detail:'No real-world action will be performed.'},reviewAbort.signal).then(result=>{service.store.status(reviewJob.id,'completed','Review recorded');return result;});
+  await assert.rejects(service.runner.reviewComputer(reviewJob,original,{title:'Review a synthetic action',detail:'No real-world action will be performed.'},reviewAbort.signal),error=>error.deferred===true);
+  // This fixture exercises the real review endpoint without invoking a model.
+  service.runner.closed=true;
   await page.reload();
   const reviewRow=page.locator('.job').filter({hasText:'Synthetic review task'});await reviewRow.getByRole('button',{name:'Open task'}).click();
   await page.getByRole('heading',{name:'Review a synthetic action'}).waitFor();
   await page.locator('#task-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
-  const reviewed=await reviewCompletion;assert.equal(reviewed.output.status,'cancelled');
+  const reviewed=service.store.operation(reviewJob.id,'review-action_review').result;assert.equal(reviewed.output.status,'cancelled');
   await page.locator('#close-task').click();
   await page.locator('.job').filter({hasText:'Synthetic completed work'}).getByRole('button',{name:'Open task'}).click();
   await page.getByRole('heading',{name:'Saved result'}).waitFor();
