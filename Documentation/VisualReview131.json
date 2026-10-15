@@ -1,0 +1,8 @@
+{
+  "native_source": "d5899f700159603cb0c2a1813a4d60c4370cf190",
+  "ui_run": 38713944170,
+  "file": "Reply-budget-preview.png",
+  "sha256": "9f25d92078cc2aa878ff39d6177a847ab6576841e1c38841dd904add76e7932b",
+  "visually_inspected": true,
+  "evidence": "Actual unedited iPhone simulator screenshot from the passing UI test. The 855616 selection, active/reserve/reply values and per-response explanation are readable. Synthetic account/catalog data; not a physical device acceptance."
+}

@@ -1,0 +1,89 @@
+{
+  "version": "1.3.1",
+  "build": 25,
+  "source": "d5899f700159603cb0c2a1813a4d60c4370cf190",
+  "native_run": 38710432642,
+  "native_run_conclusion": "failure",
+  "ui_recheck": 38713944170,
+  "ui_recheck_conclusion": "success",
+  "tests": {
+    "windows_core": 279,
+    "mac_core": 279,
+    "native_platform": 1,
+    "native_ui": 1,
+    "multi_compaction_worker": 2
+  },
+  "native_cases": [
+    "testReportedCatalogWindowUsesTheSameBudgetForPCAndMobile",
+    "testReplyBudget131LargestSelectionShowsNormalReplyCapacity"
+  ],
+  "phone_packages": {
+    "Standard": {
+      "file": "PersonalAssistant-Standard.ipa",
+      "sha256": "f8c72ff18b42027d00673896136f4cc03aa642ee408b293d8a5bf47f91c8e0ec",
+      "bytes": 23063573,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.3.1",
+      "build": "25",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.3.1",
+          "build": "25"
+        }
+      ],
+      "requested_entitlements": {},
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "Memory": {
+      "file": "PersonalAssistant-Memory.ipa",
+      "sha256": "a6ca0b36ac4cca2e7ce8fb5741b393068956280e5958786b660db0cc956ef8ba",
+      "bytes": 23063667,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.3.1",
+      "build": "25",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.3.1",
+          "build": "25"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.kernel.increased-memory-limit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "computer": "Companion 1.3.0 release r2 is unchanged; no restart, re-pairing or new account authorization was performed.",
+  "regression": {
+    "selected": 855616,
+    "advertised_window": 872000,
+    "active_input": 598931,
+    "compaction_headroom": 256685,
+    "normal_reply_and_reasoning": 128000,
+    "separate_compaction_reply": 16384,
+    "chatgpt_plan_request": "Still omits max_output_tokens for normal and compaction requests."
+  },
+  "entire_task": "No total task token allowance added. The displayed figure is per response; PC tasks can continue across responses and compactions. Two synthetic worker cases each completed 20 steps across at least 3 compactions, native and portable, with all exact receipts retained and no repeated effects.",
+  "evidence_scope": "Budget arithmetic, actual serialized request fields, production native settings and package integrity; no live inference or physical installation.",
+  "still_pending": [
+    "User-operated in-place phone signing/install",
+    "Existing physical long-work and local memory acceptance",
+    "Deferred Health/APNs provisioning; PushWard stays disabled"
+  ],
+  "model_reference": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+  "ui_recheck_reason": "The original assertion treated a SwiftUI labeled value as a standalone StaticText; the next attempt hit XCTest's 128-character identifier lookup limit for the explanatory paragraph. The screenshots showed the correct values, and numeric assertions passed in the first recheck. Only test accessibility queries changed; the final recheck verifies unchanged production source and reuses the compiled app."
+}

@@ -1,4 +1,12 @@
-# Current handoff — 1.3.0 build 24
+# Current handoff — 1.3.1 build 25
+
+Phone-only reply-budget repair is packaged from `d5899f700159603cb0c2a1813a4d60c4370cf190`, native archive run `38710432642`; the focused UI passed against the unchanged app in `38713944170`. The 855,616-token selection now shows 598,931 active input, 256,685 reserved and up to 128,000 reply/reasoning tokens. The figure is per model response; it does not cap the entire task. ChatGPT-plan requests still omit an explicit output cap. Compaction has a separate input/output allowance, including the published input maximum when the selected working allowance is larger.
+
+279 Windows/Mac core, one native PC/mobile budget test, one native UI scenario and two synthetic multi-compaction worker checks pass. Each worker case completed 20 operations over at least three compactions without repeating effects or losing exact receipts. Two UI assertion repairs addressed SwiftUI labeled values and XCTest's long-identifier limit; the app itself was unchanged for those rechecks. All runs are recorded. See RELEASE_131.md, ReleaseValidation131.json and the adjacent PersonalAssistant-iPhone/1.3.1 folder for packages, checksums, instructions and the actual passing screenshot.
+
+The PC remains on 1.3.0 release r2; no service update or account reconnection is needed. Jacob confirms the installed 1.3 build and reserve row; 1.3.1 signing/install and physical confirmation are still user-operated. Health, notifications and memory-profile dependencies remain as previously deferred. No live model inference was performed.
+
+## Previous handoff — 1.3.0 build 24
 
 Computer 1.3.0 release r2 is installed; phone packages are ready for in-place signing/install. Phone source `dd856c5d67fae494f58e45f4b7d20683f2682712`, PC source `a93e2b8`. This batch makes PC/mobile task ownership explicit, keeps local models isolated, removes fixed interactive PC round/action stops, continues independent work while questions/reviews wait, reconciles older results without overwriting newer messages, and reserves 30% of selected context for compaction. Exact history/files/receipts remain stored behind retrieval handles. Five task skills and scoped file search/patching support long work.
 
