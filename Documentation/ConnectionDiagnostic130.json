@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-10-15T08:41:30.849Z",
+  "network": {
+    "status": 200,
+    "version": "1.3.0",
+    "certificatePinned": true
+  },
+  "account_connected": true,
+  "sharing": true,
+  "catalog": "ready",
+  "model_count": 8,
+  "selected_model_available": true,
+  "computation_ready": true,
+  "active_work_count": 0
+}

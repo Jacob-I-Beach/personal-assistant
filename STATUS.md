@@ -1,4 +1,14 @@
-# Current handoff — 1.2.0 build 23
+# Current handoff — 1.3.0 build 24
+
+Computer 1.3.0 release r2 is installed; phone packages are ready for in-place signing/install. Phone source `dd856c5d67fae494f58e45f4b7d20683f2682712`, PC source `a93e2b8`. This batch makes PC/mobile task ownership explicit, keeps local models isolated, removes fixed interactive PC round/action stops, continues independent work while questions/reviews wait, reconciles older results without overwriting newer messages, and reserves 30% of selected context for compaction. Exact history/files/receipts remain stored behind retrieval handles. Five task skills and scoped file search/patching support long work.
+
+277 Windows/Mac core, 27 focused native platform/TLS, eight native UI, 91 companion, seven updater and four real Docker/Edge checks passed. Native run `38701690741` compiled and uploaded the verified device package; it is recorded as cancelled because the device job reached 20 minutes during cleanup. Core and both simulator jobs passed. Downloaded package hashes, signatures and structure were separately checked. Do not describe this run as wholly green or the synthetic checks as live model/phone acceptance.
+
+The PC update preserved its account, one pairing, 28 task identities, certificate, data location and actual Windows startup. Pinned Tailscale HTTPS and authenticated catalog refresh succeed with eight models including GPT-6.1-Sol; Python image 1.3 is ready. Three Python errors in the screenshot's code-audit task came from the former 1 MiB state limit; real tests now save/reopen 2 MiB outside model context under a 24 MiB bound, and preserve the final traceback cause. No account reset or live inference test occurred.
+
+Read `Documentation/RELEASE_130.md`, `ReleaseValidation130.json` and `DeviceValidation130.json`. Final Standard/Memory IPAs, instructions and native previews are in `../PersonalAssistant-iPhone/1.3.0`. Phone signing/install, direct mobile authorization if absent, memory-profile grant, sustained local 64K and physical long-absence/network/desktop acceptance remain pending. Health/APNs/PushWard remain deliberately disabled. Keep the earlier companion directories because the new service reuses the existing firewall-authorized Node runtime.
+
+## Previous handoff — 1.2.0 build 23
 
 Production source `2de8e5f8b62e62a223563199b0b8405d3ff025bd`, native build `38667036175`; unchanged-app interaction rechecks `38669579168`, `38669582055`, `38669585071`. Both device/simulator builds, 265 Windows/Mac core tests, 34 native platform/TLS checks and all 21 UI journeys have passing coverage. The primary interaction batch hit its test time budget; the same compiled app passed the smaller rechecks. No live inference or personal action was used.
 

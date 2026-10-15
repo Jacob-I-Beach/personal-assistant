@@ -1,0 +1,50 @@
+{
+  "native_source": "dd856c5d67fae494f58e45f4b7d20683f2682712",
+  "native_run": 38701690741,
+  "screens": "Actual iPhone simulator captures from passing production UI tests; all content synthetic. No compositing or edits.",
+  "checks": "Inspected text fit, controls, context arithmetic, route identity, live receipt placement and original-image presentation. Physical animation, accessibility and performance are separate acceptance checks.",
+  "captures": [
+    {
+      "file": "context-reserve.png",
+      "source_file": "EF1D3433-C1CB-4E18-B676-BCC4895D181F.png",
+      "sha256": "25a3c329f9785d8721165e79ab839db3651ac308bf587863d1fa445d0957188e",
+      "description": "Response settings show active input, the 30 percent compaction reserve and reply capacity. The selected fixture allowance is 128,000 tokens.",
+      "visually_inspected": true
+    },
+    {
+      "file": "mobile-account.png",
+      "source_file": "6056C3D2-D605-41C0-812A-F15F29563C53.png",
+      "sha256": "889bd64247afacd463170696d63d98071f37ea6fa765a9bed82840d139d247c4",
+      "description": "The mobile route uses its own synthetic account identity while the PC account is unavailable.",
+      "visually_inspected": true
+    },
+    {
+      "file": "live-tool-activity.png",
+      "source_file": "3E435F49-CE72-46BC-AF00-436035CA3CBE.png",
+      "sha256": "d385c57dbee319734fa259e9bc8eebb8775e62372876bd1d07be66bab7f16bd8",
+      "description": "Tool steps and source receipts remain visible while the reply is still being generated.",
+      "visually_inspected": true
+    },
+    {
+      "file": "earlier-result.png",
+      "source_file": "895C9BFE-F30F-4188-B37E-D7A08939627F.png",
+      "sha256": "ee38949232c9f6ecc504c15b7abfa598609e5215112ba2b490bc85c5176834ba",
+      "description": "Opening an earlier completed result retains the later conversation; the latest-message jump remains available.",
+      "visually_inspected": true
+    },
+    {
+      "file": "local-context.png",
+      "source_file": "5741D53B-FC41-4741-9ADD-324F6C802088.png",
+      "sha256": "149bfc3513933532b114cedfdf8ebeb7b615eea33f9f3738619944b07b930c07",
+      "description": "Local 64K settings expose active input, reserve and overhead. The 6 GB headroom is synthetic and does not establish a grant on the physical iPhone.",
+      "visually_inspected": true
+    },
+    {
+      "file": "published-image.png",
+      "source_file": "E2A9DDDE-1925-42B3-AE09-45048B13AE6A.png",
+      "sha256": "64a37ad023d4807b601b0468a6372d7da4406496aa09e628a9842586790c4e58",
+      "description": "A published computer image appears inline and opens its stored original. The image content is synthetic.",
+      "visually_inspected": true
+    }
+  ]
+}

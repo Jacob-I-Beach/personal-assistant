@@ -1,0 +1,159 @@
+{
+  "version": "1.3.0",
+  "build": 24,
+  "source": "dd856c5d67fae494f58e45f4b7d20683f2682712",
+  "native_run": 38701690741,
+  "earlier_verified_candidates": [
+    38680240186,
+    38689765908
+  ],
+  "tests": {
+    "windows_core": 277,
+    "mac_core": 277,
+    "native_platform_including_tls": 27,
+    "native_ui": 8,
+    "companion": 91,
+    "updater": 7,
+    "real_computer_integrations": 4,
+    "rendered_computer_ui": "Production controls with synthetic jobs, cancelled review, verified file bytes, light/dark/narrow layouts"
+  },
+  "native_run_status": {
+    "conclusion": "cancelled",
+    "device_job_conclusion": "cancelled",
+    "device_build_and_artifact_upload": "success",
+    "note": "The device job reached its time allowance during post-build cleanup. The build, signed package transformation and artifact upload completed successfully. Downloaded package hashes, structures and compiled-section preservation were separately reverified; core and both simulator jobs passed. The run is recorded as cancelled, not green."
+  },
+  "native_ui_passed": [
+    "testCompactQuestionKeepsCustomAnswerEmptyAndShowsInlineHistory",
+    "testContinuity130EarlierResultOpensWithoutLosingLaterMessages",
+    "testContinuity130MobileIdentityDoesNotDisplayTheUnavailableComputerAccount",
+    "testContinuity130ReserveAndMobileFallbackAreVisible",
+    "testLiveResearchSurvivesReturnAndInteractiveCardsStayUsable",
+    "testLocalMessageStaysLocalWithSavedComputerWork",
+    "testLocalQwenContextAndMemoryControlsAreReachable",
+    "testPublishedComputerImageRendersInlineAndOpensOriginal"
+  ],
+  "native_platform_passed": [
+    "AppleToolSchemaPlatformTests.testCompactToolSchemaKeepsAnArrayOfNamedArguments",
+    "AppleToolSchemaPlatformTests.testNullableObjectsKeepTheirNestedFields",
+    "CompanionTLSPlatformTests.testCompanionStillRequiresHTTPSAndDoesNotOptOutGlobally",
+    "CompanionTLSPlatformTests.testExistingLocalConnectionStillWorks",
+    "CompanionTLSPlatformTests.testLegacyPolicyRejectsTailscaleCertificate",
+    "CompanionTLSPlatformTests.testPinnedCertificateConnectsThroughTailscaleAddress",
+    "CompanionTLSPlatformTests.testRedirectCannotForwardDeviceCredential",
+    "CompanionTLSPlatformTests.testWrongCertificateCannotReceiveDeviceCredential",
+    "ComputerAccountPlatformTests.testAuthenticatedIdentityIsBoundToThePairedAccountAndCachesNoCredentials",
+    "ComputerAccountPlatformTests.testSavedTaskUsesOriginalModelWithoutChangingTheNextMessageSelection",
+    "ComputerAccountPlatformTests.testSharingAndAuthenticationAreDifferentStates",
+    "ContinuityPlatformTests.testCompactionReserveUsesSameLocalBudgetAsResponseSettings",
+    "ContinuityPlatformTests.testComputerQuestionStagesWithoutAReviewWaiterOrBlockingIndependentWork",
+    "ContinuityPlatformTests.testDisabledPCIsNotProbedAndMissingMobileAccountDoesNotFabricateLogin",
+    "ContinuityPlatformTests.testLocalAnswerToolStoresExactSourceWithoutStartingComputerWork",
+    "ContinuityPlatformTests.testMobileFallbackIdentityAndFirstSignInKeepTheContextChoice",
+    "ContinuityPlatformTests.testProductionRouteChoosesPCOnlyWhenOriginalAccountIsReady",
+    "LocalIsolationPlatformTests.testLocalSelectionsCannotRecoverAnOlderComputerModel",
+    "LocalIsolationPlatformTests.testNewAppleRequestUsesTheOnDeviceBackendEvenWithComputerEnabled",
+    "LocalIsolationPlatformTests.testPausedPresentationIgnoresOldBridgeHints",
+    "LocalModelPlatformTests.testLocalPreferencesPersistAndPersonalBuildDoesNotClaimPushProvisioning",
+    "LocalModelPlatformTests.testPinnedDownloadReportsBytesAndReusesCompletedFileWithoutAnotherRequest",
+    "LocalModelPlatformTests.testQwenTextPlanUsesTheReportedHeadroomAndAutomaticDoesNotReuseOldManualContext",
+    "NativeReviewPlatformTests.testCancelMessageEditRestoresDraftAndAttachmentsWithoutChangingHistory",
+    "NativeReviewPlatformTests.testDismissalResolvesOnlyTheMatchingNativeRequest",
+    "NativeReviewPlatformTests.testInterruptedReviewIsNotRecordedAsAUserCancellation",
+    "NativeReviewPlatformTests.testUnusedDownloadedBackendUnloadsWithoutInitializingMetal"
+  ],
+  "phone_packages": {
+    "Standard": {
+      "file": "PersonalAssistant-Standard.ipa",
+      "sha256": "08e02ee2017f720c8c3f4b0414bd9dbd72e73a3916977d7bfce9ccf78f4b65e2",
+      "bytes": 23061460,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.3.0",
+      "build": "24",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.3.0",
+          "build": "24"
+        }
+      ],
+      "requested_entitlements": {},
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    },
+    "Memory": {
+      "file": "PersonalAssistant-Memory.ipa",
+      "sha256": "a3956ad739758df7850b9eafea1ea893203ea8d0eb5c5e73ed8cec6944e73668",
+      "bytes": 23061559,
+      "bundle_identifier": "dev.jacob.personalassistant",
+      "version": "1.3.0",
+      "build": "24",
+      "minimum_ios": "27.0",
+      "executable_architecture": "arm64",
+      "executable_platform": "iOS device",
+      "metal_library_count": 1,
+      "watch_bundles": [
+        {
+          "bundle_identifier": "dev.jacob.personalassistant.watchkitapp",
+          "version": "1.3.0",
+          "build": "24"
+        }
+      ],
+      "requested_entitlements": {
+        "com.apple.developer.kernel.increased-memory-limit": true
+      },
+      "health_enabled_in_app": false,
+      "has_embedded_provisioning_profile": false,
+      "installation_status": "Requires personal signing and physical-device testing"
+    }
+  },
+  "computer": {
+    "source": "a93e2b8d627cfc8398edd5678ca913c0c0f2487d",
+    "package": "1.3.0-release-r2",
+    "installed": true,
+    "account_pairing_task_ids_certificate_data_preserved": true,
+    "encrypted_backup": true,
+    "paired_devices": 1,
+    "saved_tasks": 28,
+    "windows_sign_in_startup_verified": true,
+    "pinned_tailscale_https": {
+      "status": 200,
+      "version": "1.3.0",
+      "certificatePinned": true
+    },
+    "compute_image": "personal-assistant-compute:1.3",
+    "large_state": "2 MiB synthetic state saved and reopened; model receipt under 4 KiB; protected source flag retained; final traceback preserved"
+  },
+  "gpt": {
+    "checked_at": "2026-10-15T08:41:30.849Z",
+    "network": {
+      "status": 200,
+      "version": "1.3.0",
+      "certificatePinned": true
+    },
+    "account_connected": true,
+    "sharing": true,
+    "catalog": "ready",
+    "model_count": 8,
+    "selected_model_available": true,
+    "computation_ready": true,
+    "active_work_count": 0,
+    "live_inference_tested": false,
+    "native_compact_account_acceptance": "Not established by mock protocol tests; portable fallback is implemented and tested."
+  },
+  "continuity_evidence": {
+    "long_run": "65 synthetic tool rounds completed without a user restart",
+    "restart": "Real local service restart after simulated 90-minute absence retained one job and file, with no repeated completed effect",
+    "replay": "12000 text fragments coalesced to three pages; Swift projection equivalence checked",
+    "questions": "Independent work, later answers, source-bound quotes, and old/new turn isolation tested",
+    "stop": "Cancelled actions do not resume; unknown started outcomes are not replayed",
+    "context": "30 percent reserve, source invalidation, canonical native compaction, portable fallback and archived image bytes tested"
+  },
+  "health_and_external_notifications": "Deferred by user; disabled",
+  "physical_acceptance": "User-operated phone installation and direct mobile authorization if missing; live model behavior, actual memory profile and sustained local64K remain pending."
+}
